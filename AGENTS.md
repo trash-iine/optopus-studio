@@ -1,7 +1,7 @@
 # Repository guidelines
 
 optopus studio: a chat on the left drives an agent that models and solves optimization tasks with
-optopus (the Python bindings in ../optopus-py); a canvas on the right shows the result.
+optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right shows the result.
 `README.md` is the source for setup and usage; this file is a digest for coding agents.
 
 ## Layout
@@ -35,6 +35,9 @@ optopus (the Python bindings in ../optopus-py); a canvas on the right shows the 
 - Python: Ruff, `line-length = 100`. Tests: tiny instances, hermetic, under `tmp_path`.
 - A change to the worker protocol touches `protocol.py`, `worker.py` and `workers/rust/src`
   together; `tests/test_rust_worker.py` checks the Rust side against the Python models.
+- optopus comes from a pinned optopus-py commit (`pyproject.toml`), and the Rust worker's core
+  from the commit that one vendors (`workers/rust/Cargo.toml`); move them together and run
+  `uv run pytest -m network` (README, "Develop"; docs/adr/0008).
 - Before committing: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
   `npm test && npm run typecheck` in `frontend/`, and `cargo fmt --check` and
   `cargo clippy --all-targets -- -D warnings` in `workers/rust/`.

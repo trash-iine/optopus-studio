@@ -26,17 +26,18 @@ a Gantt chart, the convergence of every run).
 
 - [uv](https://docs.astral.sh/uv/) and Python 3.12+
 - Node 24 for the frontend (`mise.toml` pins it; `mise install` provides it)
-- A Rust toolchain (`cargo`, 1.88+) to build Rust workers; the rest runs without it
+- A Rust toolchain (`cargo`, 1.88+): `uv sync` builds optopus from source, and Rust workers are
+  built with it
 - Claude Code, signed in (`claude` then `/login`). The agent runs on that login through the
   Claude Agent SDK; `ANTHROPIC_API_KEY` is ignored (see `docs/adr/0003`).
-- A checkout of [optopus-py](https://github.com/trash-iine/optopus-py) next to this one
-  (`../optopus-py`), until a release carries `RunResult.trajectory` (see `docs/adr/0002`). Its
-  `docs/source` is also what the agent reads; `OPTOPUS_STUDIO_DOCS` points elsewhere.
+- Network access to GitHub: optopus is built from a pinned commit of
+  [optopus-py](https://github.com/trash-iine/optopus-py), and the agent reads that commit's user
+  guide, fetched once per page (see `docs/adr/0008`)
 
 ## Run
 
 ```bash
-uv sync                                   # builds optopus from ../optopus-py the first time
+uv sync                                   # builds optopus from optopus-py's pinned commit
 (cd frontend && npm install && npm run build)
 uv run optopus-studio                     # http://127.0.0.1:8765
 ```
@@ -48,7 +49,7 @@ forwards `/api` to the backend.
 |---|---|---|
 | `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | where projects and their revisions are stored |
 | `OPTOPUS_STUDIO_MODEL` | Claude Code's default | the model the agent runs on |
-| `OPTOPUS_STUDIO_DOCS` | `../optopus-py/docs/source` | the optopus-py user guide the agent reads |
+| `OPTOPUS_STUDIO_DOCS` | fetched from GitHub | a `docs/source` of optopus-py for the agent to read instead |
 | `OPTOPUS_STUDIO_WORKER` | the Python worker | the solver command, e.g. a Rust worker |
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | from the stop condition | seconds before a solve is killed |
 | `OPTOPUS_STUDIO_RUST_DIR` | `$OPTOPUS_STUDIO_HOME/rust` | where Rust ports are built and their binaries kept |
@@ -99,6 +100,14 @@ uv run ruff check . && uv run ruff format --check .
 (cd frontend && npm test && npm run typecheck)
 (cd workers/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 ```
+
+`uv run pytest -m network` runs the tests that read from GitHub: every docs page the agent reads
+exists at the pinned commit, and the Rust worker links the core that commit vendors.
+
+To move to a newer optopus-py, set `rev` in `pyproject.toml` to its commit and `rev` in
+`workers/rust/Cargo.toml` to the commit of its `vendor/optopus`, then `uv sync` and run both test
+sets. To try an optopus-py checkout before it is merged, point `[tool.uv.sources]` at it with
+`path` and `OPTOPUS_STUDIO_DOCS` at its `docs/source`, without committing that.
 
 After changing `protocol.py`, regenerate the schemas and types:
 

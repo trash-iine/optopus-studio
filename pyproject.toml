@@ -22,9 +22,9 @@ optopus-studio = "optopus_studio.cli:main"
 dev = ["httpx>=0.28", "pytest>=8.4", "ruff>=0.14"]
 
 [tool.uv.sources]
-# RunResult.trajectory is not released yet (trash-iine/optopus-py#33); build the sibling
-# checkout until a tag carries it. See docs/adr/0002.
-optopus = { path = "../optopus-py" }
+# Built from a commit of optopus-py's main until a release carries RunResult.trajectory and
+# on_improvement. workers/rust/Cargo.toml pins the core that commit vendors. See docs/adr/0008.
+optopus = { git = "https://github.com/trash-iine/optopus-py", rev = "f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" }
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
@@ -42,3 +42,6 @@ known-third-party = ["optopus"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Tests that read from GitHub run only when asked for: uv run pytest -m network
+addopts = "-m 'not network'"
+markers = ["network: reads from GitHub"]

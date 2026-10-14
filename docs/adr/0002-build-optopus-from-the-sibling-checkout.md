@@ -1,6 +1,6 @@
 # 0002. Build optopus from the sibling optopus-py checkout for now
 
-- Status: Accepted
+- Status: Superseded by 0008
 - Date: 2026-10-14
 
 ## Context
