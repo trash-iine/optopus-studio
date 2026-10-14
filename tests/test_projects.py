@@ -63,16 +63,14 @@ def test_the_chat_is_kept_in_order(home):
     assert project.chat() == entries
 
 
+# The size, not the content: pytest names a test by its parameters, and 20 MiB of content would
+# make a 20 MiB test id, which hangs a GitHub Actions runner printing it under -v.
 @pytest.mark.parametrize(
-    ("name", "data"),
-    [
-        (".hidden.csv", b"a"),
-        ("../x.csv", b"a"),
-        ("run.sh", b"a"),
-        ("big.csv", b"a" * (20 * 2**20 + 1)),
-    ],
+    ("name", "size"),
+    [(".hidden.csv", 1), ("../x.csv", 1), ("run.sh", 1), ("big.csv", 20 * 2**20 + 1)],
 )
-def test_uploads_need_a_plain_name_a_table_suffix_and_a_sane_size(home, name, data):
+def test_uploads_need_a_plain_name_a_table_suffix_and_a_sane_size(home, name, size):
+    data = b"a" * size
     project = Project.create(home)
     if name == "../x.csv":
         # The directory part is dropped rather than followed.
