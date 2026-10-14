@@ -57,3 +57,31 @@ def test_the_chat_is_kept_in_order(home):
     for entry in entries:
         project.append_chat(entry)
     assert project.chat() == entries
+
+
+@pytest.mark.parametrize(
+    ("name", "data"),
+    [
+        (".hidden.csv", b"a"),
+        ("../x.csv", b"a"),
+        ("run.sh", b"a"),
+        ("big.csv", b"a" * (20 * 2**20 + 1)),
+    ],
+)
+def test_uploads_need_a_plain_name_a_table_suffix_and_a_sane_size(home, name, data):
+    project = Project.create(home)
+    if name == "../x.csv":
+        # The directory part is dropped rather than followed.
+        assert project.save_upload(name, data) == "x.csv"
+        return
+    with pytest.raises(ProjectError):
+        project.save_upload(name, data)
+
+
+def test_an_upload_is_found_by_name(home):
+    project = Project.create(home)
+    project.save_upload("stores.csv", b"a,b\n1,2\n")
+    assert project.uploads() == ["stores.csv"]
+    assert project.upload_path("stores.csv").read_bytes() == b"a,b\n1,2\n"
+    with pytest.raises(ProjectError):
+        project.upload_path("other.csv")

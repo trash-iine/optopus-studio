@@ -1,13 +1,32 @@
 {
-  "additionalProperties": false,
-  "description": "One solve: the model to build, its data, and how to search.",
-  "properties": {
-    "heuristic": {
-      "additionalProperties": true,
-      "description": "A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.",
-      "title": "Heuristic",
+  "$defs": {
+    "Variant": {
+      "additionalProperties": false,
+      "description": "One heuristic of a solve, under the label the GUI shows it by.",
+      "properties": {
+        "heuristic": {
+          "additionalProperties": true,
+          "description": "A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.",
+          "title": "Heuristic",
+          "type": "object"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "heuristic"
+      ],
+      "title": "Variant",
       "type": "object"
-    },
+    }
+  },
+  "additionalProperties": false,
+  "description": "One solve: the model to build, its data, and how to search.\n\nEvery variant runs ``runs`` times with the same per-run seeds, so variants start from the same\ninitial solutions and compare fairly.",
+  "properties": {
     "instance": {
       "additionalProperties": true,
       "description": "The project's instance.json.",
@@ -39,12 +58,21 @@
       ],
       "default": 0,
       "title": "Seed"
+    },
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/Variant"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Variants",
+      "type": "array"
     }
   },
   "required": [
     "model_path",
     "instance",
-    "heuristic"
+    "variants"
   ],
   "title": "SolveRequest",
   "type": "object"

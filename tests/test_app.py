@@ -65,3 +65,27 @@ def test_an_earlier_revision_can_be_selected(client, home):
         ws.send_json({"type": "nonsense"})
         assert "bad message" in ws.receive_json()["error"]
     assert Project.open(project.id).revisions() == [1, 2]
+
+
+def test_a_revision_is_served_for_comparison(client, home):
+    from tests.conftest import example_project
+
+    project = example_project("tsp", home)
+    asyncio.run(Tools(project, lambda event: asyncio.sleep(0)).run_solver({"runs": 1}))
+    detail = client.get(f"/api/projects/{project.id}/revisions/1").json()
+    assert detail["rev"] == 1
+    assert detail["summary"]["variants"] == ["SimulatedAnnealing"]
+    assert set(detail["files"]) == {"instance.json", "model.py", "view.py", "solve.json"}
+    assert client.get(f"/api/projects/{project.id}/revisions/2").status_code == 404
+    assert client.get("/api/projects/0123456789ab/revisions/1").status_code == 404
+
+
+def test_a_file_is_attached_by_posting_its_content(client, home):
+    project_id = client.post("/api/projects").json()["id"]
+    response = client.post(
+        f"/api/projects/{project_id}/uploads", params={"name": "stores.csv"}, content=b"a,b\n1,2\n"
+    )
+    assert response.json() == {"name": "stores.csv"}
+    assert Project.open(project_id).uploads() == ["stores.csv"]
+    bad = client.post(f"/api/projects/{project_id}/uploads", params={"name": "x.exe"}, content=b"")
+    assert bad.status_code == 400

@@ -9,6 +9,14 @@ async function createProject(): Promise<string> {
   return (await response.json()).id;
 }
 
+async function upload(project: string, file: File): Promise<string> {
+  const url = `/api/projects/${project}/uploads?name=${encodeURIComponent(file.name)}`;
+  const response = await fetch(url, { method: "POST", body: file });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.detail ?? `upload failed: ${response.status}`);
+  return body.name;
+}
+
 /** The project in the URL, else the latest one, else a new one. */
 async function initialProject(): Promise<string> {
   const fromUrl = new URLSearchParams(location.search).get("project");
@@ -58,8 +66,14 @@ export function App() {
           error={state.error}
           onSend={say}
           onStop={() => send({ type: "interrupt" })}
+          onUpload={(file) => upload(projectId ?? "", file)}
         />
-        <Canvas state={state} mode={mode} onSelect={(rev) => send({ type: "select_revision", rev })} />
+        <Canvas
+          project={projectId}
+          state={state}
+          mode={mode}
+          onSelect={(rev) => send({ type: "select_revision", rev })}
+        />
       </div>
     </div>
   );

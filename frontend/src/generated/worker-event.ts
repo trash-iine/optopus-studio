@@ -9,12 +9,22 @@ export type HigherIsBetter = boolean;
  * The class name of the problem the model built.
  */
 export type Problem = string;
+/**
+ * Runs per variant.
+ */
 export type Runs = number;
 export type Type = "started";
+/**
+ * The variants' labels, in the order they run.
+ */
+export type Variants = string[];
 export type BestIteration = number;
 export type BestObjective = number;
 export type InitialObjective = number;
 export type Iterations = number;
+/**
+ * The run's position among all runs of the solve, from 0.
+ */
 export type Run = number;
 export type Seed = number | null;
 export type TimeToBestSecs = number;
@@ -24,6 +34,10 @@ export type TotalTimeSecs = number;
  */
 export type Trajectory = [unknown, unknown, unknown][];
 export type Type1 = "run_finished";
+/**
+ * The index of the variant the run belongs to.
+ */
+export type Variant = number;
 export type BestObjective1 = number;
 export type BestRun = number;
 export type Type2 = "done";
@@ -37,6 +51,7 @@ export interface Started {
   problem: Problem;
   runs: Runs;
   type: Type;
+  variants: Variants;
 }
 export interface RunFinished {
   best_iteration: BestIteration;
@@ -50,6 +65,7 @@ export interface RunFinished {
   total_time_secs: TotalTimeSecs;
   trajectory: Trajectory;
   type: Type1;
+  variant: Variant;
 }
 /**
  * The best solution, JSON-encoded by the model.

@@ -4,6 +4,7 @@
         meta.json       the agent session to resume
         chat.jsonl      the conversation as shown in the GUI
         work/           the files the agent edits (PROJECT_FILES)
+        uploads/        files the user attached in the chat, imported into instance.json
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
@@ -24,6 +25,8 @@ from optopus_studio.protocol import ChatEntry, RunSummary, ViewSpec
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
+UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 
 def studio_home() -> Path:
@@ -40,6 +43,7 @@ class Project:
         self.id = root.name
         self.work = root / "work"
         self.revs = root / "revs"
+        self.uploads_dir = root / "uploads"
 
     # --- creation ------------------------------------------------------------------------------
 
@@ -152,6 +156,32 @@ class Project:
             view = ViewSpec.model_validate(stored["view"]) if stored["view"] else None
             error = stored["error"]
         return files, summary, view, error
+
+    # --- uploads -------------------------------------------------------------------------------
+
+    def save_upload(self, name: str, data: bytes) -> str:
+        from optopus_studio.tables import UPLOAD_SUFFIXES
+
+        name = Path(name).name
+        if not UPLOAD_NAME.match(name) or name.startswith("."):
+            raise ProjectError(f"invalid file name {name!r}")
+        if Path(name).suffix.lower() not in UPLOAD_SUFFIXES:
+            raise ProjectError(f"{name}: expected one of {UPLOAD_SUFFIXES}")
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ProjectError(f"{name} is larger than {MAX_UPLOAD_BYTES // 2**20} MiB")
+        self.uploads_dir.mkdir(exist_ok=True)
+        (self.uploads_dir / name).write_bytes(data)
+        return name
+
+    def uploads(self) -> list[str]:
+        if not self.uploads_dir.is_dir():
+            return []
+        return sorted(p.name for p in self.uploads_dir.iterdir() if p.is_file())
+
+    def upload_path(self, name: str) -> Path:
+        if name not in self.uploads():
+            raise ProjectError(f"no upload {name!r}; the uploads are {self.uploads()}")
+        return self.uploads_dir / name
 
     # --- chat ----------------------------------------------------------------------------------
 

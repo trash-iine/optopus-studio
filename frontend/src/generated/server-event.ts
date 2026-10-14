@@ -29,6 +29,9 @@ export type BestIteration = number;
 export type BestObjective = number;
 export type InitialObjective = number;
 export type Iterations = number;
+/**
+ * The run's position among all runs of the solve, from 0.
+ */
 export type Run = number;
 export type Seed = number | null;
 export type TimeToBestSecs = number;
@@ -38,7 +41,12 @@ export type TotalTimeSecs = number;
  */
 export type Trajectory = [unknown, unknown, unknown][];
 export type Type1 = "run_finished";
+/**
+ * The index of the variant the run belongs to.
+ */
+export type Variant = number;
 export type Runs = RunFinished[];
+export type Variants = string[];
 export type Type2 = "snapshot";
 export type Label = string;
 export type Unit = string | null;
@@ -178,6 +186,7 @@ export interface RunSummary {
   problem: Problem;
   rev: Rev1;
   runs: Runs;
+  variants: Variants;
 }
 export interface WorkerError {
   message: Message;
@@ -197,6 +206,7 @@ export interface RunFinished {
   total_time_secs: TotalTimeSecs;
   trajectory: Trajectory;
   type: Type1;
+  variant: Variant;
 }
 /**
  * The best solution, JSON-encoded by the model.

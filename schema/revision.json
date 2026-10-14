@@ -1,0 +1,1044 @@
+{
+  "$defs": {
+    "BarSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "values"
+      ],
+      "title": "BarSeries",
+      "type": "object"
+    },
+    "BarView": {
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "series": {
+          "items": {
+            "$ref": "#/$defs/BarSeries"
+          },
+          "title": "Series",
+          "type": "array"
+        },
+        "stacked": {
+          "default": false,
+          "title": "Stacked",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "bar",
+          "default": "bar",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "categories",
+        "series",
+        "stacked"
+      ],
+      "title": "BarView",
+      "type": "object"
+    },
+    "CustomHtmlView": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "default": 400,
+          "maximum": 2000,
+          "minimum": 100,
+          "title": "Height",
+          "type": "integer"
+        },
+        "html": {
+          "description": "A whole document, drawn in a sandboxed iframe with scripts on.",
+          "title": "Html",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "custom_html",
+          "default": "custom_html",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "html",
+        "height"
+      ],
+      "title": "CustomHtmlView",
+      "type": "object"
+    },
+    "GanttTask": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tasks of one group share a color, e.g. a job.",
+          "title": "Group"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lane": {
+          "description": "The row the task is drawn on, such as a machine or a person.",
+          "title": "Lane",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lane",
+        "label",
+        "start",
+        "end",
+        "group"
+      ],
+      "title": "GanttTask",
+      "type": "object"
+    },
+    "GanttView": {
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/GanttTask"
+          },
+          "title": "Tasks",
+          "type": "array"
+        },
+        "time_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Unit"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "gantt",
+          "default": "gantt",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "tasks",
+        "time_unit"
+      ],
+      "title": "GanttView",
+      "type": "object"
+    },
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "highlight": {
+          "default": false,
+          "title": "Highlight",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Source"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Target"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "weight",
+        "highlight"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nodes of one group share a color.",
+          "title": "Group"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "x": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "X"
+        },
+        "y": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Y"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "group",
+        "x",
+        "y"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "GraphView": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/GraphEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/GraphNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "graph",
+          "default": "graph",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "nodes",
+        "edges"
+      ],
+      "title": "GraphView",
+      "type": "object"
+    },
+    "KpiItem": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "unit"
+      ],
+      "title": "KpiItem",
+      "type": "object"
+    },
+    "KpiView": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/KpiItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "kpi",
+          "default": "kpi",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "title": "KpiView",
+      "type": "object"
+    },
+    "MapPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "kind": {
+          "default": "node",
+          "enum": [
+            "node",
+            "depot"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "x",
+        "y",
+        "label",
+        "kind"
+      ],
+      "title": "MapPoint",
+      "type": "object"
+    },
+    "MarkdownView": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "text"
+      ],
+      "title": "MarkdownView",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "path": {
+          "description": "Point ids in visiting order.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "label"
+      ],
+      "title": "Route",
+      "type": "object"
+    },
+    "RouteMapView": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "default": true,
+          "description": "Whether each route returns to its first point.",
+          "title": "Closed",
+          "type": "boolean"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/MapPoint"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "title": "Routes",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "route_map",
+          "default": "route_map",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "points",
+        "routes",
+        "closed"
+      ],
+      "title": "RouteMapView",
+      "type": "object"
+    },
+    "RunFinished": {
+      "additionalProperties": false,
+      "properties": {
+        "best_iteration": {
+          "title": "Best Iteration",
+          "type": "integer"
+        },
+        "best_objective": {
+          "title": "Best Objective",
+          "type": "number"
+        },
+        "initial_objective": {
+          "title": "Initial Objective",
+          "type": "number"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "run": {
+          "description": "The run's position among all runs of the solve, from 0.",
+          "title": "Run",
+          "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Seed"
+        },
+        "solution": {
+          "description": "The best solution, JSON-encoded by the model.",
+          "title": "Solution"
+        },
+        "time_to_best_secs": {
+          "title": "Time To Best Secs",
+          "type": "number"
+        },
+        "total_time_secs": {
+          "title": "Total Time Secs",
+          "type": "number"
+        },
+        "trajectory": {
+          "description": "(elapsed_secs, iteration, objective) for every improvement of the best.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Trajectory",
+          "type": "array"
+        },
+        "type": {
+          "const": "run_finished",
+          "default": "run_finished",
+          "title": "Type",
+          "type": "string"
+        },
+        "variant": {
+          "description": "The index of the variant the run belongs to.",
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "run",
+        "variant",
+        "seed",
+        "best_objective",
+        "initial_objective",
+        "solution",
+        "trajectory",
+        "iterations",
+        "best_iteration",
+        "time_to_best_secs",
+        "total_time_secs"
+      ],
+      "title": "RunFinished",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "What the GUI keeps of one solve, also stored as a revision's result.json.",
+      "properties": {
+        "best_run": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Run"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "higher_is_better": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Higher Is Better"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Problem"
+        },
+        "rev": {
+          "title": "Rev",
+          "type": "integer"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RunFinished"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "variants": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Variants",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rev",
+        "problem",
+        "higher_is_better",
+        "variants",
+        "runs",
+        "best_run",
+        "error"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "TableView": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "table",
+          "default": "table",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "columns",
+        "rows"
+      ],
+      "title": "TableView",
+      "type": "object"
+    },
+    "ViewSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "views": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bar": "#/$defs/BarView",
+                "custom_html": "#/$defs/CustomHtmlView",
+                "gantt": "#/$defs/GanttView",
+                "graph": "#/$defs/GraphView",
+                "kpi": "#/$defs/KpiView",
+                "markdown": "#/$defs/MarkdownView",
+                "route_map": "#/$defs/RouteMapView",
+                "table": "#/$defs/TableView"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/KpiView"
+              },
+              {
+                "$ref": "#/$defs/TableView"
+              },
+              {
+                "$ref": "#/$defs/GanttView"
+              },
+              {
+                "$ref": "#/$defs/RouteMapView"
+              },
+              {
+                "$ref": "#/$defs/GraphView"
+              },
+              {
+                "$ref": "#/$defs/BarView"
+              },
+              {
+                "$ref": "#/$defs/MarkdownView"
+              },
+              {
+                "$ref": "#/$defs/CustomHtmlView"
+              }
+            ]
+          },
+          "title": "Views",
+          "type": "array"
+        }
+      },
+      "required": [
+        "views"
+      ],
+      "title": "ViewSpec",
+      "type": "object"
+    },
+    "WorkerError": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "request",
+            "build",
+            "heuristic",
+            "run",
+            "encode"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceback"
+        },
+        "type": {
+          "const": "error",
+          "default": "error",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "stage",
+        "message",
+        "traceback"
+      ],
+      "title": "WorkerError",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/projects/{id}/revisions/{rev}: one revision, for comparing two side by side.",
+  "properties": {
+    "files": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Files",
+      "type": "object"
+    },
+    "rev": {
+      "title": "Rev",
+      "type": "integer"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "view": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ViewSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "view_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "View Error"
+    }
+  },
+  "required": [
+    "rev",
+    "files",
+    "summary",
+    "view",
+    "view_error"
+  ],
+  "title": "RevisionDetail",
+  "type": "object"
+}

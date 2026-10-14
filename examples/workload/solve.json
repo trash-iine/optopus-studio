@@ -1,0 +1,43 @@
+{
+  "heuristics": [
+    {
+      "label": "SA",
+      "heuristic": {
+        "kind": "SimulatedAnnealing",
+        "neighbor": "Move",
+        "initial_temperature": 2.0,
+        "cooling_rate": 0.9997,
+        "stop": {
+          "max_iteration": 20000
+        }
+      }
+    },
+    {
+      "label": "Tabu",
+      "heuristic": {
+        "kind": "TabuSearch",
+        "neighbor": "Move",
+        "tabu_tenure": [
+          3,
+          6
+        ],
+        "stop": {
+          "max_iteration": 1000
+        }
+      }
+    },
+    {
+      "label": "LAHC",
+      "heuristic": {
+        "kind": "LateAcceptanceHillClimbing",
+        "neighbor": "Move",
+        "history_length": 50,
+        "stop": {
+          "max_iteration": 20000
+        }
+      }
+    }
+  ],
+  "runs": 3,
+  "seed": 0
+}

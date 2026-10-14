@@ -8,6 +8,15 @@ as a revision you can go back to.
 Optimization is the point: the canvas exists to make a result clear (routes on a map, schedules as
 a Gantt chart, the convergence of every run).
 
+- **Your data**: attach CSV, TSV, Excel or JSON files in the chat (the + button). The agent previews
+  them and imports the rows into the project, then models on them.
+- **Comparing heuristics**: a solve can run several heuristics with the same seeds; the canvas
+  overlays their convergence and the Runs tab tabulates best, mean and worst per heuristic.
+- **Comparing revisions**: the Compare tab puts two revisions side by side, with the change in the
+  best objective, the headline numbers, both convergence curves and a diff of the files.
+- **Problems of your own**: when no built-in problem or `Formula` fits (an objective that is a
+  maximum, a lookup, a simulation), the agent writes the problem in Python.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) and Python 3.12+
@@ -53,14 +62,16 @@ A project is four files the agent writes, frozen into a revision on every solve:
 |---|---|---|
 | `instance.json` | — | the data |
 | `model.py` | the worker | `build(instance)` returns an optopus problem; optional `encode_solution` makes the solution JSON |
-| `solve.json` | the worker | the heuristic as `{"kind": ..., **arguments}`, runs, seed |
+| `solve.json` | the worker | the heuristic as `{"kind": ..., **arguments}`, or labeled `"heuristics"` to compare; runs, seed |
 | `view.py` | the backend's viewer process | `to_view(instance, result)` returns a `ViewSpec` for the canvas |
 
 The three contracts live in `src/optopus_studio/protocol.py`, the single source of the schemas in
 `schema/` and of the TypeScript types in `frontend/src/generated/`. Because the worker only
 speaks `SolveRequest` / `WorkerEvent` and the canvas only reads `ViewSpec`, a solver written in
-Rust replaces the Python worker without touching the GUI (`docs/adr/0001`). `examples/` holds three
-complete projects (TSP, job shop, a knapsack as a `Formula`).
+Rust replaces the Python worker without touching the GUI (`docs/adr/0001`). Attached files are kept
+under the project's `uploads/` and imported into `instance.json`, so each revision carries its data
+(`docs/adr/0004`). `examples/` holds four complete projects: TSP and job shop (built-in problems), a
+knapsack (`Formula`), and a workload balance written in Python that compares three heuristics.
 
 ## Develop
 

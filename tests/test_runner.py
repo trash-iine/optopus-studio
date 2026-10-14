@@ -5,7 +5,7 @@ import json
 
 from optopus_studio.protocol import RunSummary, SolveRequest
 from optopus_studio.runner import render_view, run_solve
-from tests.conftest import EXAMPLES, example_request, write_model
+from tests.conftest import EXAMPLES, example_request, one, write_model
 
 
 def solve(request, timeout=60.0):
@@ -30,7 +30,7 @@ def test_a_solve_that_hangs_is_killed(tmp_path):
     request = SolveRequest(
         model_path=write_model(tmp_path, "def build(i):\n    while True:\n        pass\n"),
         instance={},
-        heuristic={"kind": "LocalSearch"},
+        variants=one({"kind": "LocalSearch"}),
     )
     summary, _ = solve(request, timeout=1.0)
     assert "longer than" in summary.error.message
@@ -42,7 +42,7 @@ def test_a_worker_that_dies_is_reported_with_its_stderr(tmp_path):
             tmp_path, "import os, sys\nprint('dying', file=sys.stderr)\nos._exit(3)\n"
         ),
         instance={},
-        heuristic={"kind": "LocalSearch"},
+        variants=one({"kind": "LocalSearch"}),
     )
     summary, _ = solve(request)
     assert "exited with 3" in summary.error.message

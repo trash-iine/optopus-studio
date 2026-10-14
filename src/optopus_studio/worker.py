@@ -1,8 +1,9 @@
 """The Python solver worker: ``python -m optopus_studio.worker``.
 
 Reads one ``SolveRequest`` as a JSON line on stdin, builds the problem with the project's
-``model.py``, runs the heuristic, and writes ``WorkerEvent`` JSON lines on stdout: ``started``,
-one ``run_finished`` per run, then ``done``, or an ``error`` at the stage that failed.
+``model.py``, runs every variant's heuristic ``runs`` times, and writes ``WorkerEvent`` JSON lines
+on stdout: ``started``, one ``run_finished`` per run, then ``done``, or an ``error`` at the stage
+that failed.
 
 A model's own ``print`` goes to stderr, so it cannot break the protocol.
 """
@@ -132,34 +133,45 @@ def solve(request: SolveRequest, emit) -> None:
     model = stage("build", load_model, request.model_path)
     problem = stage("build", model.build, request.instance)
     direction = stage("build", higher_is_better, problem)
-    heuristic = stage("heuristic", build_heuristic, request.heuristic)
-    emit(Started(runs=request.runs, higher_is_better=direction, problem=type(problem).__name__))
+    heuristics = [stage("heuristic", build_heuristic, v.heuristic) for v in request.variants]
+    emit(
+        Started(
+            runs=request.runs,
+            variants=[v.label for v in request.variants],
+            higher_is_better=direction,
+            problem=type(problem).__name__,
+        )
+    )
 
     best: tuple[int, float] | None = None
-    for run_index in range(request.runs):
-        seed = None if request.seed is None else derive_seed(request.seed, run_index)
-        report = stage("run", heuristic.run, problem, 1, seed)
-        run = report.runs[0]
-        solution = stage("encode", encode, model, request.instance, run.solution)
-        emit(
-            RunFinished(
-                run=run_index,
-                seed=seed,
-                best_objective=run.best_objective,
-                initial_objective=run.initial_objective,
-                solution=solution,
-                trajectory=run.trajectory,
-                iterations=run.iterations,
-                best_iteration=run.best_iteration,
-                time_to_best_secs=run.time_to_best_secs,
-                total_time_secs=run.total_time_secs,
+    index = 0
+    for variant, heuristic in enumerate(heuristics):
+        for run_index in range(request.runs):
+            seed = None if request.seed is None else derive_seed(request.seed, run_index)
+            report = stage("run", heuristic.run, problem, 1, seed)
+            run = report.runs[0]
+            solution = stage("encode", encode, model, request.instance, run.solution)
+            emit(
+                RunFinished(
+                    run=index,
+                    variant=variant,
+                    seed=seed,
+                    best_objective=run.best_objective,
+                    initial_objective=run.initial_objective,
+                    solution=solution,
+                    trajectory=run.trajectory,
+                    iterations=run.iterations,
+                    best_iteration=run.best_iteration,
+                    time_to_best_secs=run.time_to_best_secs,
+                    total_time_secs=run.total_time_secs,
+                )
             )
-        )
-        better = best is None or (
-            run.best_objective > best[1] if direction else run.best_objective < best[1]
-        )
-        if better:
-            best = (run_index, run.best_objective)
+            better = best is None or (
+                run.best_objective > best[1] if direction else run.best_objective < best[1]
+            )
+            if better:
+                best = (index, run.best_objective)
+            index += 1
     assert best is not None
     emit(Done(best_run=best[0], best_objective=best[1]))
 

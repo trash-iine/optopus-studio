@@ -47,9 +47,11 @@ from optopus_studio.protocol import (
     SolveStarted,
     ToolActivity,
     TurnEnd,
+    Variant,
     ViewUpdated,
 )
 from optopus_studio.runner import render_view, run_solve
+from optopus_studio.tables import TableError, preview, read_records
 
 log = logging.getLogger(__name__)
 
@@ -88,12 +90,16 @@ Python. Optional `encode_solution(instance, solution)` turns RunResult.solution 
 - solve.json — `{"heuristic": {"kind": "<optopus heuristic class>", ...constructor arguments, \
 "stop": {...StopCondition arguments}}, "runs": 3, "seed": 0}`. A nested heuristic is the same \
 kind of dict (Iterated's "search", Restart's "heuristic", Sequential's "steps"), and a stop is a \
-dict of max_iteration / max_duration_secs / max_failed_update.
+dict of max_iteration / max_duration_secs / max_failed_update. To compare heuristics, give \
+`"heuristics": [{"label": "SA", "heuristic": {...}}, ...]` (up to 8) instead of "heuristic": \
+each runs `runs` times with the same seeds, so they start from the same solutions, and the \
+canvas overlays their convergence.
 - view.py — `to_view(instance, result)` returns `{"views": [...]}`. `result` has "problem", \
-"higher_is_better", "runs" (each with best_objective, initial_objective, solution, trajectory, \
-iterations, total_time_secs), "best_run", and "best" (the best run's dict, or null when the \
-solve failed). The canvas already shows the objective per run and the convergence curve; \
-view.py shows what the solution means in the user's terms.
+"higher_is_better", "variants" (the heuristics' labels), "runs" (each with variant (an index), \
+best_objective, initial_objective, solution, trajectory, iterations, total_time_secs), \
+"best_run", and "best" (the best run's dict, or null when the solve failed). The canvas already \
+shows the objective per run, per-heuristic statistics and the convergence curves; view.py shows \
+what the solution means in the user's terms.
 
 model.py and view.py may import optopus and the standard library only.
 
@@ -111,8 +117,19 @@ schedules; lanes are machines or people, a group (a job) shares a color.
 "target", "weight"?, "highlight"?}]} — cuts, colorings, covers; group colors nodes.
 - {"type": "bar", "categories": [str], "series": [{"name", "values"}], "stacked"?}
 - {"type": "markdown", "text"} — a short note, such as which constraints are violated.
-- {"type": "custom_html", "html", "height"?} — a whole HTML document in a sandboxed iframe, \
-only when no view above can show it.
+- {"type": "custom_html", "html", "height"?} — a whole HTML document in a sandboxed iframe \
+(scripts run, no network, no access to the studio), only when no view above can show it, such \
+as a seating plan or a calendar. Build the markup in view.py with the data inlined, keep it \
+self-contained (inline CSS and SVG, no external scripts), and keep it readable on a white page.
+
+## Data the user attaches
+
+A message that starts with "Attached:" names files the user uploaded (CSV, TSV, Excel, JSON). \
+Call preview_upload to see their columns and first rows, then import_upload to put the rows into \
+instance.json under a key of your choice; model.py and view.py read them from there. Never \
+copy data from an upload through write_file, and do not read_file a large instance.json: the \
+summaries the upload tools return tell you its shape. Ask the user when a column's meaning or \
+unit is unclear.
 
 ## How to work
 
@@ -134,8 +151,14 @@ revision the user can go back to.
 - Keep a solve under about 10 seconds (stop.max_duration_secs) unless the user wants longer.
 - A hard constraint the representation does not enforce becomes a penalty; size its weight so \
 breaking it never pays, and have view.py report any violation.
-- In a problem written in Python, give each neighborhood delta and random_neighbor, and use \
-tuples so apply cannot change its input.
+- Write the problem in Python when the objective or a constraint is not a polynomial (a \
+maximum, a lookup, a simulation) or the solution has structure (an order, a grouping) a \
+built-in problem lacks. Give each neighborhood delta and random_neighbor, computed from the \
+move rather than by rebuilding the whole solution, and use tuples so apply cannot change its \
+input. A Python problem runs thousands of moves per second, not millions: check_model reports \
+the iterations it managed, so size the stop condition from that.
+- When the user asks which heuristic is best, or the first one finds poor solutions, compare a \
+few with "heuristics" in solve.json instead of guessing.
 """
 
 
@@ -177,14 +200,37 @@ def api_help(name: str) -> str:
     return "\n\n".join(parts)
 
 
-def solve_timeout(heuristic: dict[str, Any], runs: int) -> float:
+READ_FILE_LIMIT = 20_000
+
+
+def solve_timeout(request: SolveRequest) -> float:
     configured = os.environ.get("OPTOPUS_STUDIO_SOLVE_TIMEOUT")
     if configured:
         return float(configured)
-    seconds = (heuristic.get("stop") or {}).get("max_duration_secs")
-    if isinstance(seconds, int | float):
-        return min(seconds * runs + 30.0, DEFAULT_SOLVE_TIMEOUT * 4)
-    return DEFAULT_SOLVE_TIMEOUT
+    total = 0.0
+    for variant in request.variants:
+        seconds = (variant.heuristic.get("stop") or {}).get("max_duration_secs")
+        if not isinstance(seconds, int | float):
+            return DEFAULT_SOLVE_TIMEOUT
+        total += seconds * request.runs
+    return min(total + 30.0, DEFAULT_SOLVE_TIMEOUT * 4)
+
+
+def variants_of(solve: dict[str, Any]) -> list[Variant]:
+    """The heuristics of solve.json: one under "heuristic", or labeled ones under "heuristics"."""
+    if "heuristics" in solve:
+        entries = solve["heuristics"]
+        if not isinstance(entries, list):
+            raise ProjectError('"heuristics" must be a list of {"label", "heuristic"}')
+        return [Variant.model_validate(entry) for entry in entries]
+    heuristic = solve.get("heuristic")
+    if not isinstance(heuristic, dict):
+        raise ProjectError('solve.json needs "heuristic" or "heuristics"')
+    return [Variant(label=str(heuristic.get("kind", "heuristic")), heuristic=heuristic)]
+
+
+def with_stop(heuristic: dict[str, Any], **stop: Any) -> dict[str, Any]:
+    return {**heuristic, "stop": {**(heuristic.get("stop") or {}), **stop}}
 
 
 def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> str:
@@ -193,18 +239,33 @@ def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> s
     if summary.problem:
         direction = "higher" if summary.higher_is_better else "lower"
         lines.append(f"problem {summary.problem}, {direction} objective is better")
-    for run in summary.runs:
-        lines.append(
-            f"run {run.run}: best {run.best_objective:g} (initial {run.initial_objective:g}), "
-            f"{run.iterations} iterations in {run.total_time_secs:.3f}s, best found at "
-            f"iteration {run.best_iteration} ({len(run.trajectory)} improvements)"
-        )
+    labels = summary.variants or ["heuristic"]
+    for index, label in enumerate(labels):
+        runs = [r for r in summary.runs if r.variant == index]
+        if not runs:
+            continue
+        if len(labels) > 1:
+            values = [r.best_objective for r in runs]
+            pick = max if summary.higher_is_better else min
+            lines.append(
+                f"{label}: best {pick(values):g}, mean {sum(values) / len(values):g} over "
+                f"{len(runs)} runs"
+            )
+        for run in runs:
+            rate = run.iterations / run.total_time_secs if run.total_time_secs > 0 else 0
+            lines.append(
+                f"  run {run.run}: best {run.best_objective:g} (initial "
+                f"{run.initial_objective:g}), {run.iterations} iterations in "
+                f"{run.total_time_secs:.3f}s ({rate:,.0f}/s), best found at iteration "
+                f"{run.best_iteration} ({len(run.trajectory)} improvements)"
+            )
     if summary.best_run is not None:
         best = summary.runs[summary.best_run]
         solution = json.dumps(best.solution)
         if len(solution) > solution_preview:
             solution = solution[:solution_preview] + f"... ({len(solution)} characters)"
-        lines.append(f"best run {best.run}, solution: {solution}")
+        label = labels[best.variant] if best.variant < len(labels) else "?"
+        lines.append(f"best run {best.run} ({label}), solution: {solution}")
     if summary.error:
         lines.append(f"ERROR at stage '{summary.error.stage}': {summary.error.message}")
         if summary.error.traceback:
@@ -236,17 +297,16 @@ class Tools:
             instance = json.loads(self.project.read_file("instance.json"))
         except json.JSONDecodeError as exc:
             raise ProjectError(f"invalid JSON: {exc}") from exc
-        heuristic = dict(solve.get("heuristic") or {})
-        if "max_duration_secs" in overrides:
-            heuristic["stop"] = {
-                **(heuristic.get("stop") or {}),
-                "max_duration_secs": overrides["max_duration_secs"],
-            }
         try:
+            variants = variants_of(solve)
+            if "max_duration_secs" in overrides:
+                seconds = overrides["max_duration_secs"]
+                for v in variants:
+                    v.heuristic = with_stop(v.heuristic, max_duration_secs=seconds)
             return SolveRequest(
                 model_path=str(self.project.work / "model.py"),
                 instance=instance,
-                heuristic=heuristic,
+                variants=variants,
                 runs=overrides.get("runs", solve.get("runs", 1)),
                 seed=overrides.get("seed", solve.get("seed", 0)),
             )
@@ -260,7 +320,48 @@ class Tools:
         return text_result(api_help(args["name"]))
 
     async def read_file(self, args: dict[str, Any]) -> dict[str, Any]:
-        return text_result(self.project.read_file(args["name"]))
+        text = self.project.read_file(args["name"])
+        if len(text) > READ_FILE_LIMIT:
+            text = (
+                f"{text[:READ_FILE_LIMIT]}\n... ({len(text)} characters in all; the rest is cut. "
+                "For imported data, rely on what preview_upload and import_upload reported.)"
+            )
+        return text_result(text)
+
+    async def list_uploads(self, args: dict[str, Any]) -> dict[str, Any]:
+        names = self.project.uploads()
+        return text_result("\n".join(names) if names else "no uploads")
+
+    async def preview_upload(self, args: dict[str, Any]) -> dict[str, Any]:
+        path = self.project.upload_path(args["name"])
+        try:
+            return text_result(preview(path, args.get("sheet")))
+        except (TableError, ValueError, OSError) as exc:
+            return text_result(f"cannot read {args['name']}: {exc}", is_error=True)
+
+    async def import_upload(self, args: dict[str, Any]) -> dict[str, Any]:
+        path = self.project.upload_path(args["name"])
+        try:
+            data = read_records(path, args.get("sheet"))
+        except (TableError, ValueError, OSError) as exc:
+            return text_result(f"cannot read {args['name']}: {exc}", is_error=True)
+        try:
+            instance = json.loads(self.project.read_file("instance.json"))
+        except ProjectError:
+            instance = {}
+        if not isinstance(instance, dict):
+            raise ProjectError("instance.json must be a JSON object to import into")
+        instance[args["key"]] = data
+        self.project.write_file("instance.json", json.dumps(instance, ensure_ascii=False, indent=1))
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            shape = f"{len(data)} records with keys {list(data[0])}"
+        else:
+            shape = f"a {type(data).__name__}"
+        others = [k for k in instance if k != args["key"]]
+        return text_result(
+            f'instance["{args["key"]}"] is now {shape}. Other keys in instance.json: {others}'
+        )
 
     async def write_file(self, args: dict[str, Any]) -> dict[str, Any]:
         self.project.write_file(args["name"], args["content"])
@@ -270,9 +371,9 @@ class Tools:
     async def check_model(self, args: dict[str, Any]) -> dict[str, Any]:
         """One short run, without a revision: does the model build, run, encode and render?"""
         request = self.solve_request({"runs": 1})
-        stop = dict(request.heuristic.get("stop") or {})
-        stop["max_duration_secs"] = min(stop.get("max_duration_secs") or CHECK_SECONDS, 2.0)
-        request.heuristic["stop"] = stop
+        for v in request.variants:
+            seconds = (v.heuristic.get("stop") or {}).get("max_duration_secs") or CHECK_SECONDS
+            v.heuristic = with_stop(v.heuristic, max_duration_secs=min(seconds, CHECK_SECONDS))
 
         async def ignore(_: RunSummary) -> None:
             pass
@@ -293,12 +394,13 @@ class Tools:
         rev = self.project.snapshot()
         rev_dir = self.project.rev_dir(rev)
         request.model_path = str(rev_dir / "model.py")
-        await self.broadcast(SolveStarted(rev=rev, runs=request.runs))
+        total = request.runs * len(request.variants)
+        await self.broadcast(SolveStarted(rev=rev, runs=total))
 
         async def progress(summary: RunSummary) -> None:
             await self.broadcast(SolveProgress(rev=rev, summary=summary))
 
-        timeout = solve_timeout(request.heuristic, request.runs)
+        timeout = solve_timeout(request)
         summary = await run_solve(request, rev, rev_dir, progress, timeout)
         self.project.save_result(rev, summary)
         view, error = await render_view(rev_dir / "view.py", request.instance, summary)
@@ -353,7 +455,8 @@ class Tools:
             )(guarded(self.write_file)),
             tool(
                 "check_model",
-                "Build the model and run it once for at most 2 seconds, then render view.py. "
+                "Build the model and run each heuristic once for at most 2 seconds, then render "
+                "view.py. "
                 "Reports errors with tracebacks. Makes no revision and does not change the canvas.",
                 object_schema({}, []),
             )(guarded(self.check_model)),
@@ -370,6 +473,31 @@ class Tools:
                     [],
                 ),
             )(guarded(self.run_solver)),
+            tool(
+                "list_uploads",
+                "The files the user has attached to this project.",
+                object_schema({}, []),
+            )(guarded(self.list_uploads)),
+            tool(
+                "preview_upload",
+                "The shape, columns and first rows of an attached file. 'sheet' picks an Excel "
+                "sheet (the first by default).",
+                object_schema({"name": {"type": "string"}, "sheet": {"type": "string"}}, ["name"]),
+            )(guarded(self.preview_upload)),
+            tool(
+                "import_upload",
+                "Read an attached file and store it in instance.json under 'key': a table as a "
+                "list of records keyed by its header (numbers parsed, empty cells null), JSON as "
+                "it is. Other keys of instance.json are kept.",
+                object_schema(
+                    {
+                        "name": {"type": "string"},
+                        "key": {"type": "string", "minLength": 1},
+                        "sheet": {"type": "string"},
+                    },
+                    ["name", "key"],
+                ),
+            )(guarded(self.import_upload)),
         ]
         allowed = [f"mcp__{SERVER}__{t.name}" for t in tools]
         return create_sdk_mcp_server(SERVER, tools=tools), allowed

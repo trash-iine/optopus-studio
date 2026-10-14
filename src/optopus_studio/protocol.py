@@ -26,29 +26,45 @@ class Strict(BaseModel):
 # --- Worker protocol ---------------------------------------------------------------------------
 
 
-class SolveRequest(Strict):
-    """One solve: the model to build, its data, and how to search."""
+MAX_VARIANTS = 8
 
-    model_path: str = Field(description="Path of the project's model.py.")
-    instance: dict[str, Any] = Field(description="The project's instance.json.")
+
+class Variant(Strict):
+    """One heuristic of a solve, under the label the GUI shows it by."""
+
+    label: str = Field(min_length=1)
     heuristic: dict[str, Any] = Field(
         description="A heuristic as {'kind': <optopus class>, **constructor arguments}; "
         "'stop' is a StopCondition's arguments, and a nested heuristic is another such dict."
     )
+
+
+class SolveRequest(Strict):
+    """One solve: the model to build, its data, and how to search.
+
+    Every variant runs ``runs`` times with the same per-run seeds, so variants start from the same
+    initial solutions and compare fairly.
+    """
+
+    model_path: str = Field(description="Path of the project's model.py.")
+    instance: dict[str, Any] = Field(description="The project's instance.json.")
+    variants: list[Variant] = Field(min_length=1, max_length=MAX_VARIANTS)
     runs: int = Field(1, ge=1, le=100)
     seed: int | None = Field(0, ge=0, lt=2**64)
 
 
 class Started(Strict):
     type: Literal["started"] = "started"
-    runs: int
+    runs: int = Field(description="Runs per variant.")
+    variants: list[str] = Field(description="The variants' labels, in the order they run.")
     higher_is_better: bool = Field(description="The direction best_objective is ranked in.")
     problem: str = Field(description="The class name of the problem the model built.")
 
 
 class RunFinished(Strict):
     type: Literal["run_finished"] = "run_finished"
-    run: int
+    run: int = Field(description="The run's position among all runs of the solve, from 0.")
+    variant: int = Field(description="The index of the variant the run belongs to.")
     seed: int | None
     best_objective: float
     initial_objective: float
@@ -210,6 +226,7 @@ class RunSummary(Strict):
     rev: int
     problem: str | None = None
     higher_is_better: bool | None = None
+    variants: list[str] = []
     runs: list[RunFinished] = []
     best_run: int | None = None
     error: WorkerError | None = None
@@ -292,6 +309,16 @@ ServerEvent = Annotated[
     | ViewUpdated,
     Field(discriminator="type"),
 ]
+
+
+class RevisionDetail(Strict):
+    """GET /api/projects/{id}/revisions/{rev}: one revision, for comparing two side by side."""
+
+    rev: int
+    files: dict[str, str]
+    summary: RunSummary | None
+    view: ViewSpec | None
+    view_error: str | None = None
 
 
 class UserMessage(Strict):

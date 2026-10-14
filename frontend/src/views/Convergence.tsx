@@ -5,7 +5,7 @@ import type { RunFinished, RunSummary } from "../generated/server-event";
 import { CHROME, compact, type Mode, slotColor } from "../theme";
 import { Legend } from "./Legend";
 
-type Axis = "time" | "iteration";
+export type Axis = "time" | "iteration";
 
 /** The run's incumbent as a step curve, from its start to its end. */
 export function curve(run: RunFinished, by: Axis): [number, number][] {
@@ -18,16 +18,47 @@ export function curve(run: RunFinished, by: Axis): [number, number][] {
   ];
 }
 
+/** What a run is called: its heuristic and its number within it when there are several. */
+export function runLabel(summary: RunSummary, run: RunFinished): string {
+  if (summary.variants.length <= 1) return `run ${run.run}`;
+  const within = summary.runs.filter((r) => r.variant === run.variant).indexOf(run);
+  return `${summary.variants[run.variant] ?? "?"} #${within + 1}`;
+}
+
 export function runColor(mode: Mode, summary: RunSummary, run: number): string {
+  // Several heuristics: a run takes its heuristic's color, so the legend reads by heuristic.
+  if (summary.variants.length > 1) return slotColor(mode, summary.runs[run]?.variant ?? 0);
   // Up to eight runs keep their own color; past that only the best run stands out.
   if (summary.runs.length <= 8) return slotColor(mode, run);
   return run === summary.best_run ? slotColor(mode, 0) : CHROME[mode].axis;
 }
 
-export function Convergence({ summary, mode }: { summary: RunSummary; mode: Mode }) {
-  const [by, setBy] = useState<Axis>("time");
+export function legendEntries(mode: Mode, summary: RunSummary): [string, string][] {
+  if (summary.variants.length > 1) return summary.variants.map((v, i) => [v, slotColor(mode, i)]);
+  if (summary.runs.length > 8) return [];
+  return summary.runs.map((r) => [runLabel(summary, r), runColor(mode, summary, r.run)]);
+}
+
+export interface Series {
+  name: string;
+  color: string;
+  data: [number, number][];
+  emphasized?: boolean;
+}
+
+export function ConvergenceChart({
+  series,
+  by,
+  higherIsBetter,
+  mode,
+}: {
+  series: Series[];
+  by: Axis;
+  higherIsBetter: boolean | null;
+  mode: Mode;
+}) {
   const option = useMemo(() => {
-    const direction = summary.higher_is_better ? "higher is better" : "lower is better";
+    const direction = higherIsBetter ? "higher is better" : "lower is better";
     return {
       grid: { ...GRID, left: 64 },
       tooltip: tooltip(mode, {
@@ -50,38 +81,88 @@ export function Convergence({ summary, mode }: { summary: RunSummary; mode: Mode
         nameLocation: "end",
         axisLabel: { color: CHROME[mode].muted, formatter: (v: number) => compact(v) },
       }),
-      series: summary.runs.map((run) => ({
+      series: series.map((s) => ({
         type: "line",
-        name: `run ${run.run}`,
+        name: s.name,
         step: "end",
-        data: curve(run, by),
+        data: s.data,
         showSymbol: false,
         symbolSize: 8,
-        lineStyle: { width: 2, color: runColor(mode, summary, run.run) },
-        itemStyle: { color: runColor(mode, summary, run.run) },
-        z: run.run === summary.best_run ? 3 : 2,
+        lineStyle: { width: 2, color: s.color },
+        itemStyle: { color: s.color },
+        z: s.emphasized ? 3 : 2,
         emphasis: { focus: "series" },
       })),
     };
-  }, [summary, by, mode]);
+  }, [series, by, higherIsBetter, mode]);
   const ref = useEChart(option);
-  const entries: [string, string][] =
-    summary.runs.length <= 8
-      ? summary.runs.map((r) => [`run ${r.run}`, runColor(mode, summary, r.run)])
-      : [];
+  return <div ref={ref} style={{ height: 260 }} />;
+}
+
+export function AxisToggle({ by, onChange }: { by: Axis; onChange: (a: Axis) => void }) {
+  return (
+    <div className="segmented" role="group" aria-label="x axis">
+      {(["time", "iteration"] as const).map((a) => (
+        <button key={a} className={a === by ? "on" : ""} onClick={() => onChange(a)}>
+          {a}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Convergence({ summary, mode }: { summary: RunSummary; mode: Mode }) {
+  const [by, setBy] = useState<Axis>("time");
+  const series = useMemo(
+    () =>
+      summary.runs.map((run) => ({
+        name: runLabel(summary, run),
+        color: runColor(mode, summary, run.run),
+        data: curve(run, by),
+        emphasized: run.run === summary.best_run,
+      })),
+    [summary, by, mode],
+  );
   return (
     <div>
       <div className="chart-controls">
-        <Legend entries={entries} line />
-        <div className="segmented" role="group" aria-label="x axis">
-          {(["time", "iteration"] as const).map((a) => (
-            <button key={a} className={a === by ? "on" : ""} onClick={() => setBy(a)}>
-              {a}
-            </button>
-          ))}
-        </div>
+        <Legend entries={legendEntries(mode, summary)} line />
+        <AxisToggle by={by} onChange={setBy} />
       </div>
-      <div ref={ref} style={{ height: 260 }} />
+      <ConvergenceChart series={series} by={by} higherIsBetter={summary.higher_is_better} mode={mode} />
     </div>
   );
+}
+
+export interface VariantStats {
+  label: string;
+  runs: number;
+  best: number;
+  mean: number;
+  worst: number;
+  meanTimeToBest: number;
+  meanTotalTime: number;
+}
+
+/** Per-heuristic statistics, in the order the heuristics ran. */
+export function variantStats(summary: RunSummary): VariantStats[] {
+  const labels = summary.variants.length ? summary.variants : ["heuristic"];
+  const better = (a: number, b: number) => (summary.higher_is_better ? a > b : a < b);
+  return labels.flatMap((label, index) => {
+    const runs = summary.runs.filter((r) => r.variant === index);
+    if (runs.length === 0) return [];
+    const values = runs.map((r) => r.best_objective);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    return [
+      {
+        label,
+        runs: runs.length,
+        best: values.reduce((a, b) => (better(a, b) ? a : b)),
+        worst: values.reduce((a, b) => (better(a, b) ? b : a)),
+        mean: mean(values),
+        meanTimeToBest: mean(runs.map((r) => r.time_to_best_secs)),
+        meanTotalTime: mean(runs.map((r) => r.total_time_secs)),
+      },
+    ];
+  });
 }

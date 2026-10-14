@@ -3,6 +3,15 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatEntry } from "../generated/server-event";
 
+const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json";
+
+/** The message the agent receives: the attached files first, as its system prompt expects. */
+export function withAttachments(text: string, files: string[]): string {
+  if (files.length === 0) return text;
+  const head = `Attached: ${files.join(", ")}`;
+  return text ? `${head}\n\n${text}` : head;
+}
+
 const EXAMPLES = [
   "15 都市を回る最短の巡回路を求めて",
   "4 つのジョブを 3 台の機械で、全体が最短で終わるように並べて",
@@ -17,10 +26,15 @@ interface Props {
   error: string | null;
   onSend: (text: string) => void;
   onStop: () => void;
+  onUpload: (file: File) => Promise<string>;
 }
 
-export function Chat({ chat, streaming, busy, connected, error, onSend, onStop }: Props) {
+export function Chat({ chat, streaming, busy, connected, error, onSend, onStop, onUpload }: Props) {
   const [draft, setDraft] = useState("");
+  const [attached, setAttached] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -28,9 +42,26 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop }
 
   const submit = () => {
     const text = draft.trim();
-    if (!text || busy || !connected) return;
-    onSend(text);
+    if ((!text && attached.length === 0) || busy || !connected || uploading) return;
+    onSend(withAttachments(text, attached));
     setDraft("");
+    setAttached([]);
+  };
+  const attach = async (files: FileList | null) => {
+    if (!files) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      for (const file of Array.from(files)) {
+        const name = await onUpload(file);
+        setAttached((names) => (names.includes(name) ? names : [...names, name]));
+      }
+    } catch (e) {
+      setUploadError((e as Error).message);
+    } finally {
+      setUploading(false);
+      if (picker.current) picker.current.value = "";
+    }
   };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter while an IME is composing (Japanese input) confirms the conversion, not the message.
@@ -73,7 +104,41 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop }
         {error && <div className="chat-error">{error}</div>}
         <div ref={end} />
       </div>
+      {(attached.length > 0 || uploading || uploadError) && (
+        <div className="attachments">
+          {attached.map((name) => (
+            <span key={name} className="chip">
+              {name}
+              <button
+                aria-label={`remove ${name}`}
+                onClick={() => setAttached((names) => names.filter((n) => n !== name))}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {uploading && <span className="muted">uploading…</span>}
+          {uploadError && <span className="chat-error">{uploadError}</span>}
+        </div>
+      )}
       <div className="composer">
+        <input
+          ref={picker}
+          type="file"
+          accept={ACCEPT}
+          multiple
+          hidden
+          onChange={(e) => attach(e.target.files)}
+        />
+        <button
+          className="secondary attach"
+          title="Attach CSV, TSV, Excel or JSON"
+          aria-label="attach a file"
+          onClick={() => picker.current?.click()}
+          disabled={!connected || uploading}
+        >
+          +
+        </button>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -86,7 +151,10 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop }
             Stop
           </button>
         ) : (
-          <button onClick={submit} disabled={!draft.trim() || !connected}>
+          <button
+            onClick={submit}
+            disabled={(!draft.trim() && attached.length === 0) || !connected || uploading}
+          >
             Send
           </button>
         )}

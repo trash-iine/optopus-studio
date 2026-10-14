@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "claude-agent-sdk>=0.2.165",
     "fastapi>=0.143.0",
+    "openpyxl>=3.1.5",
     "optopus",
     "pydantic>=2.14.1",
     "uvicorn[standard]>=0.54.0",

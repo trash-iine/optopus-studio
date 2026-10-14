@@ -13,7 +13,14 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from optopus_studio.protocol import ClientEvent, ServerEvent, SolveRequest, ViewSpec, WorkerEvent
+from optopus_studio.protocol import (
+    ClientEvent,
+    RevisionDetail,
+    ServerEvent,
+    SolveRequest,
+    ViewSpec,
+    WorkerEvent,
+)
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema"
 
@@ -25,6 +32,7 @@ SCHEMAS = {
     "view-spec.json": (TypeAdapter(ViewSpec), "serialization"),
     "server-event.json": (TypeAdapter(ServerEvent), "serialization"),
     "client-event.json": (TypeAdapter(ClientEvent), "validation"),
+    "revision.json": (TypeAdapter(RevisionDetail), "serialization"),
 }
 
 
@@ -35,6 +43,7 @@ def render() -> dict[str, str]:
         "view-spec.json": "ViewSpec",
         "server-event.json": "ServerEvent",
         "client-event.json": "ClientEvent",
+        "revision.json": "RevisionDetail",
     }
     out = {}
     for name, (adapter, mode) in SCHEMAS.items():

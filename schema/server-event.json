@@ -748,6 +748,7 @@
           "type": "integer"
         },
         "run": {
+          "description": "The run's position among all runs of the solve, from 0.",
           "title": "Run",
           "type": "integer"
         },
@@ -800,11 +801,17 @@
           "default": "run_finished",
           "title": "Type",
           "type": "string"
+        },
+        "variant": {
+          "description": "The index of the variant the run belongs to.",
+          "title": "Variant",
+          "type": "integer"
         }
       },
       "required": [
         "type",
         "run",
+        "variant",
         "seed",
         "best_objective",
         "initial_objective",
@@ -880,12 +887,21 @@
           },
           "title": "Runs",
           "type": "array"
+        },
+        "variants": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Variants",
+          "type": "array"
         }
       },
       "required": [
         "rev",
         "problem",
         "higher_is_better",
+        "variants",
         "runs",
         "best_run",
         "error"

@@ -14,7 +14,7 @@ from pydantic import TypeAdapter
 
 from optopus_studio import worker
 from optopus_studio.protocol import SolveRequest, WorkerEvent
-from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, write_model
+from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, one, write_model
 
 EVENTS = TypeAdapter(list[WorkerEvent])
 
@@ -43,7 +43,8 @@ def test_the_worker_speaks_the_protocol_as_a_process(name):
         check=True,
     )
     events = EVENTS.validate_python([json.loads(line) for line in done.stdout.splitlines()])
-    assert [e.type for e in events] == ["started"] + ["run_finished"] * request.runs + ["done"]
+    runs = request.runs * len(request.variants)
+    assert [e.type for e in events] == ["started"] + ["run_finished"] * runs + ["done"]
     runs = events[1:-1]
     best = (max if events[0].higher_is_better else min)(r.best_objective for r in runs)
     assert events[-1].best_objective == best
@@ -53,7 +54,7 @@ def test_run_i_matches_run_i_of_a_multi_run_report():
     request = example_request("tsp", runs=3, seed=11)
     events = run_worker(request)
     module = worker.load_model(request.model_path)
-    heuristic = worker.build_heuristic(request.heuristic)
+    heuristic = worker.build_heuristic(request.variants[0].heuristic)
     report = heuristic.run(module.build(request.instance), runs=3, seed=11)
     for event, run in zip(events[1:-1], report.runs, strict=True):
         assert event.seed == run.seed
@@ -122,7 +123,7 @@ def test_a_python_problem_runs_and_its_tuple_solution_is_encoded(tmp_path):
     request = SolveRequest(
         model_path=write_model(tmp_path, ONE_MAX),
         instance={},
-        heuristic={"kind": "LocalSearch", "neighbor": "Flip", "stop": {"max_iteration": 100}},
+        variants=one({"kind": "LocalSearch", "neighbor": "Flip", "stop": {"max_iteration": 100}}),
     )
     started, run, done = run_worker(request)
     assert started.problem == "OneMax"
@@ -174,7 +175,7 @@ BROKEN = {
 def test_a_failure_is_reported_with_its_stage(tmp_path, stage):
     source, heuristic = BROKEN[stage]
     request = SolveRequest(
-        model_path=write_model(tmp_path, source), instance={}, heuristic=heuristic
+        model_path=write_model(tmp_path, source), instance={}, variants=one(heuristic)
     )
     error = run_worker(request)[-1]
     assert error.type == "error"
@@ -186,3 +187,28 @@ def test_a_malformed_request_is_reported():
     stdout = io.StringIO()
     assert worker.main(io.StringIO('{"runs": 0}\n'), stdout) == 2
     assert json.loads(stdout.getvalue())["stage"] == "request"
+
+
+def test_variants_run_with_the_same_seeds_and_the_best_is_found_across_them():
+    request = example_request("workload", runs=2)
+    events = run_worker(request)
+    started, runs, done = events[0], events[1:-1], events[-1]
+    assert started.variants == ["SA", "Tabu", "LAHC"]
+    assert [r.run for r in runs] == list(range(6))
+    assert [r.variant for r in runs] == [0, 0, 1, 1, 2, 2]
+    assert [r.seed for r in runs[:2]] == [r.seed for r in runs[2:4]] == [r.seed for r in runs[4:]]
+    assert [r.initial_objective for r in runs[:2]] == [r.initial_objective for r in runs[2:4]]
+    assert done.best_objective == min(r.best_objective for r in runs)
+    assert runs[done.best_run].best_objective == done.best_objective
+
+
+def test_the_workload_balances_every_worker_within_their_skills():
+    request = example_request("workload")
+    instance = request.instance
+    events = run_worker(request)
+    # Four workers can share the 48 hours evenly, and their skills allow it.
+    assert sum(t["hours"] for t in instance["tasks"]) == 48
+    solution = events[1:-1][events[-1].best_run].solution
+    assert solution["loads"] == [12.0] * 4
+    for task, person in zip(instance["tasks"], solution["assignment"], strict=True):
+        assert task["skill"] in instance["workers"][person]["skills"]

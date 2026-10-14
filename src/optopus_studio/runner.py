@@ -88,6 +88,7 @@ async def run_solve(
                 case Started():
                     summary.problem = event.problem
                     summary.higher_is_better = event.higher_is_better
+                    summary.variants = event.variants
                 case RunFinished():
                     summary.runs.append(event)
                 case Done():

@@ -1,0 +1,125 @@
+{
+  "workers": [
+    {
+      "name": "Aoki",
+      "skills": [
+        "assembly",
+        "inspection"
+      ]
+    },
+    {
+      "name": "Baba",
+      "skills": [
+        "assembly",
+        "packing"
+      ]
+    },
+    {
+      "name": "Chiba",
+      "skills": [
+        "inspection",
+        "packing"
+      ]
+    },
+    {
+      "name": "Doi",
+      "skills": [
+        "assembly",
+        "inspection",
+        "packing"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "name": "T01",
+      "hours": 1.5,
+      "skill": "packing"
+    },
+    {
+      "name": "T02",
+      "hours": 3,
+      "skill": "assembly"
+    },
+    {
+      "name": "T03",
+      "hours": 2,
+      "skill": "packing"
+    },
+    {
+      "name": "T04",
+      "hours": 2.5,
+      "skill": "packing"
+    },
+    {
+      "name": "T05",
+      "hours": 3,
+      "skill": "assembly"
+    },
+    {
+      "name": "T06",
+      "hours": 3,
+      "skill": "assembly"
+    },
+    {
+      "name": "T07",
+      "hours": 2.5,
+      "skill": "inspection"
+    },
+    {
+      "name": "T08",
+      "hours": 3,
+      "skill": "assembly"
+    },
+    {
+      "name": "T09",
+      "hours": 1.5,
+      "skill": "packing"
+    },
+    {
+      "name": "T10",
+      "hours": 2.5,
+      "skill": "packing"
+    },
+    {
+      "name": "T11",
+      "hours": 3,
+      "skill": "inspection"
+    },
+    {
+      "name": "T12",
+      "hours": 2.5,
+      "skill": "packing"
+    },
+    {
+      "name": "T13",
+      "hours": 1.5,
+      "skill": "assembly"
+    },
+    {
+      "name": "T14",
+      "hours": 4,
+      "skill": "assembly"
+    },
+    {
+      "name": "T15",
+      "hours": 3,
+      "skill": "inspection"
+    },
+    {
+      "name": "T16",
+      "hours": 4,
+      "skill": "assembly"
+    },
+    {
+      "name": "T17",
+      "hours": 4,
+      "skill": "assembly"
+    },
+    {
+      "name": "T18",
+      "hours": 1.5,
+      "skill": "packing"
+    }
+  ]
+}

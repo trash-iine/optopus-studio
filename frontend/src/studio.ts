@@ -85,6 +85,7 @@ export function reduce(state: StudioState, action: Action): StudioState {
         summary: {
           rev: e.rev,
           runs: [],
+          variants: [],
           best_run: null,
           error: null,
           higher_is_better: null,

@@ -1,9 +1,11 @@
 """The HTTP and WebSocket server the browser talks to.
 
-GET  /api/projects          project ids, newest first
-POST /api/projects          create one
-WS   /api/projects/{id}/ws  ServerEvent out, ClientEvent in
-/                           the built frontend (frontend/dist), when present
+GET  /api/projects                       project ids, newest first
+POST /api/projects                       create one
+GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
+POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
+WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
+/                                        the built frontend (frontend/dist), when present
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -23,6 +25,7 @@ from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
     ClientEvent,
     Interrupt,
+    RevisionDetail,
     SelectRevision,
     Snapshot,
     TurnEnd,
@@ -99,6 +102,32 @@ def list_projects() -> list[str]:
 @app.post("/api/projects")
 def create_project() -> dict[str, str]:
     return {"id": Project.create().id}
+
+
+def open_project(project_id: str) -> Project:
+    try:
+        return Project.open(project_id)
+    except ProjectError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/projects/{project_id}/revisions/{rev}")
+def get_revision(project_id: str, rev: int) -> RevisionDetail:
+    project = open_project(project_id)
+    try:
+        files, summary, view, view_error = project.load_revision(rev)
+    except ProjectError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return RevisionDetail(rev=rev, files=files, summary=summary, view=view, view_error=view_error)
+
+
+@app.post("/api/projects/{project_id}/uploads")
+async def upload(project_id: str, name: str, request: Request) -> dict[str, str]:
+    project = open_project(project_id)
+    try:
+        return {"name": project.save_upload(name, await request.body())}
+    except ProjectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.websocket("/api/projects/{project_id}/ws")

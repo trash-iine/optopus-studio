@@ -1,6 +1,7 @@
 """The agent's tools, called directly: no model is involved."""
 
 import asyncio
+import json
 
 import pytest
 
@@ -78,7 +79,8 @@ def test_run_solver_makes_a_revision_and_updates_the_canvas(home):
 def test_max_duration_overrides_the_stop_of_solve_json(home):
     tools = Tools(example_project("tsp", home), Recorder())
     request = tools.solve_request({"max_duration_secs": 0.5})
-    assert request.heuristic["stop"] == {"max_iteration": 20000, "max_duration_secs": 0.5}
+    stop = request.variants[0].heuristic["stop"]
+    assert stop == {"max_iteration": 20000, "max_duration_secs": 0.5}
 
 
 def test_a_failed_solve_is_an_error_result_with_the_traceback(home):
@@ -100,6 +102,7 @@ def test_describe_truncates_a_long_solution():
             "runs": [
                 {
                     "run": 0,
+                    "variant": 0,
                     "seed": 0,
                     "best_objective": 1.0,
                     "initial_objective": 2.0,
@@ -127,3 +130,50 @@ def test_every_doc_page_exists():
         assert read_doc_page(page).startswith("#")
     with pytest.raises(ProjectError):
         read_doc_page("../README")
+
+
+def test_an_upload_is_imported_into_instance_json_under_a_key(home):
+    project = Project.create(home)
+    project.write_file("instance.json", '{"capacity": 30}')
+    project.save_upload("stores.csv", b"name,demand\nA,3\nB,5\n")
+    recorder = Recorder()
+    tools = Tools(project, recorder)
+    assert "2 rows, columns: ['name', 'demand']" in text(
+        call(tools.preview_upload, name="stores.csv")
+    )
+    result = call(tools.import_upload, name="stores.csv", key="stores")
+    assert "2 records with keys ['name', 'demand']" in text(result)
+    assert "['capacity']" in text(result)
+    assert json.loads(project.read_file("instance.json")) == {
+        "capacity": 30,
+        "stores": [{"name": "A", "demand": 3}, {"name": "B", "demand": 5}],
+    }
+    assert isinstance(recorder.events[-1], FilesChanged)
+    with pytest.raises(ProjectError, match="no upload"):
+        call(tools.import_upload, name="missing.csv", key="x")
+
+
+def test_read_file_cuts_a_large_file(home):
+    project = Project.create(home)
+    project.write_file("instance.json", json.dumps({"rows": list(range(20000))}))
+    result = text(call(Tools(project, Recorder()).read_file, name="instance.json"))
+    assert "characters in all" in result
+
+
+@pytest.mark.parametrize(
+    "solve",
+    [{"runs": 1}, {"heuristics": {"kind": "LocalSearch"}}, {"heuristics": [{"label": ""}]}],
+)
+def test_a_solve_json_without_valid_heuristics_is_explained(home, solve):
+    project = example_project("tsp", home)
+    project.write_file("solve.json", json.dumps(solve))
+    with pytest.raises(ProjectError, match="heuristic"):
+        call(Tools(project, Recorder()).run_solver)
+    assert project.revisions() == []
+
+
+def test_check_model_runs_every_variant_briefly(home):
+    result = call(Tools(example_project("workload", home), Recorder()).check_model)
+    assert not result["is_error"], text(result)
+    assert "SA:" in text(result)
+    assert "LAHC:" in text(result)

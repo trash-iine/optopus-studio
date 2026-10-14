@@ -2,28 +2,31 @@ import { useState } from "react";
 import type { RunSummary } from "../generated/server-event";
 import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
-import { Convergence } from "../views/Convergence";
+import { Convergence, runLabel, variantStats } from "../views/Convergence";
 import { ViewCard } from "../views/View";
+import { Compare } from "./Compare";
 
-type Tab = "result" | "model" | "runs";
+type Tab = "result" | "model" | "runs" | "compare";
+const TABS: Record<Tab, string> = { result: "Result", model: "Model", runs: "Runs", compare: "Compare" };
 const FILE_ORDER = ["model.py", "view.py", "instance.json", "solve.json"];
 
 interface Props {
+  project: string | null;
   state: StudioState;
   mode: Mode;
   onSelect: (rev: number) => void;
 }
 
-export function Canvas({ state, mode, onSelect }: Props) {
+export function Canvas({ project, state, mode, onSelect }: Props) {
   const [tab, setTab] = useState<Tab>("result");
   const latest = state.revisions.at(-1);
   return (
     <main className="canvas">
       <div className="canvas-bar">
         <div className="tabs" role="tablist">
-          {(["result", "model", "runs"] as const).map((t) => (
+          {(Object.keys(TABS) as Tab[]).map((t) => (
             <button key={t} role="tab" className={t === tab ? "on" : ""} onClick={() => setTab(t)}>
-              {{ result: "Result", model: "Model", runs: "Runs" }[t]}
+              {TABS[t]}
             </button>
           ))}
         </div>
@@ -45,6 +48,15 @@ export function Canvas({ state, mode, onSelect }: Props) {
         {tab === "result" && <Result state={state} mode={mode} />}
         {tab === "model" && <Files files={state.files} />}
         {tab === "runs" && state.summary && <Runs summary={state.summary} />}
+        {tab === "compare" && project && (
+          <Compare
+            key={`${state.rev}-${state.revisions.length}`}
+            project={project}
+            revisions={state.revisions}
+            current={state.rev}
+            mode={mode}
+          />
+        )}
       </div>
     </main>
   );
@@ -115,36 +127,74 @@ function Files({ files }: { files: Record<string, string> }) {
 }
 
 function Runs({ summary }: { summary: RunSummary }) {
+  const stats = variantStats(summary);
+  const several = summary.variants.length > 1;
   return (
-    <div className="table-wrap card">
-      <table>
-        <thead>
-          <tr>
-            <th>run</th>
-            <th>best</th>
-            <th>initial</th>
-            <th>iterations</th>
-            <th>best at</th>
-            <th>time to best (s)</th>
-            <th>total (s)</th>
-            <th>seed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.runs.map((r) => (
-            <tr key={r.run} className={r.run === summary.best_run ? "best" : undefined}>
-              <td className="num">{r.run}</td>
-              <td className="num">{compact(r.best_objective)}</td>
-              <td className="num">{compact(r.initial_objective)}</td>
-              <td className="num">{r.iterations.toLocaleString("en-US")}</td>
-              <td className="num">{r.best_iteration.toLocaleString("en-US")}</td>
-              <td className="num">{r.time_to_best_secs.toFixed(4)}</td>
-              <td className="num">{r.total_time_secs.toFixed(4)}</td>
-              <td className="num">{r.seed ?? ""}</td>
+    <div className="result">
+      {several && (
+        <section className="card table-wrap">
+          <h3>
+            Heuristics <span className="sub">same seeds, so each starts from the same solutions</span>
+          </h3>
+          <table>
+            <thead>
+              <tr>
+                <th>heuristic</th>
+                <th className="num">runs</th>
+                <th className="num">best</th>
+                <th className="num">mean</th>
+                <th className="num">worst</th>
+                <th className="num">mean time to best (s)</th>
+                <th className="num">mean total (s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((v) => (
+                <tr key={v.label}>
+                  <td>{v.label}</td>
+                  <td className="num">{v.runs}</td>
+                  <td className="num">{compact(v.best)}</td>
+                  <td className="num">{compact(v.mean)}</td>
+                  <td className="num">{compact(v.worst)}</td>
+                  <td className="num">{v.meanTimeToBest.toFixed(4)}</td>
+                  <td className="num">{v.meanTotalTime.toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+      <section className="card table-wrap">
+        <h3>Runs</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>run</th>
+              <th className="num">best</th>
+              <th className="num">initial</th>
+              <th className="num">iterations</th>
+              <th className="num">best at</th>
+              <th className="num">time to best (s)</th>
+              <th className="num">total (s)</th>
+              <th className="num">seed</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {summary.runs.map((r) => (
+              <tr key={r.run} className={r.run === summary.best_run ? "best" : undefined}>
+                <td>{runLabel(summary, r)}</td>
+                <td className="num">{compact(r.best_objective)}</td>
+                <td className="num">{compact(r.initial_objective)}</td>
+                <td className="num">{r.iterations.toLocaleString("en-US")}</td>
+                <td className="num">{r.best_iteration.toLocaleString("en-US")}</td>
+                <td className="num">{r.time_to_best_secs.toFixed(4)}</td>
+                <td className="num">{r.total_time_secs.toFixed(4)}</td>
+                <td className="num">{r.seed ?? ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }

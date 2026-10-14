@@ -8,6 +8,7 @@ function run(index: number, overrides: Partial<RunFinished> = {}): RunFinished {
   return {
     type: "run_finished",
     run: index,
+    variant: 0,
     seed: index,
     best_objective: 10,
     initial_objective: 20,
@@ -29,6 +30,7 @@ function summary(runs: number, best = 0): RunSummary {
     rev: 1,
     problem: "Tsp",
     higher_is_better: false,
+    variants: ["SA"],
     runs: Array.from({ length: runs }, (_, i) => run(i)),
     best_run: best,
     error: null,
