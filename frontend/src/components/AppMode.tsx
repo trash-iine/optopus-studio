@@ -8,6 +8,7 @@ import { SolveResult } from "./SolveResult";
 
 const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json";
 const POLL_MS = 500;
+const NOTE_SAVE_MS = 600;
 
 /** A packaged app: give data, set the parameters app.json lists, solve, see the result. */
 export function AppMode() {
@@ -15,6 +16,7 @@ export function AppMode() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [current, setCurrent] = useState<CaseState | null>(null);
   const [form, setForm] = useState<ParameterForm>({});
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const open = useCallback((state: CaseState) => {
@@ -48,6 +50,16 @@ export function AppMode() {
     const timer = setTimeout(() => run(() => api.getCase(current.id)), POLL_MS);
     return () => clearTimeout(timer);
   }, [current, run]);
+
+  // The note is the user's own text: only a newly opened case replaces it, and it is saved as typed.
+  const caseId = current?.id;
+  const savedNote = current?.note;
+  useEffect(() => setNote(savedNote ?? ""), [caseId]);
+  useEffect(() => {
+    if (!caseId || note === savedNote) return;
+    const timer = setTimeout(() => run(() => api.setNote(caseId, note)), NOTE_SAVE_MS);
+    return () => clearTimeout(timer);
+  }, [caseId, note, savedNote, run]);
 
   if (!info || !current) {
     return <div className="placeholder">{error ?? "Opening the app…"}</div>;
@@ -109,14 +121,29 @@ export function AppMode() {
                 onChange={(value) => setForm((f) => ({ ...f, [p.name]: value }))}
               />
             ))}
+            <h3>Notes for the developer</h3>
+            <label className="app-param">
+              <textarea
+                aria-label="notes for the developer"
+                rows={4}
+                value={note}
+                placeholder="What looks wrong or unexpected in the result, or what you would like it to do differently"
+                onChange={(e) => setNote(e.target.value)}
+              />
+              <small className="muted">Saved with the case and included when you export it.</small>
+            </label>
           </div>
           <div className="composer app-actions">
             <span className="muted">{statusLine(current)}</span>
             <button
               className="secondary"
               title="Download these inputs and what they gave, to attach in the studio's chat"
-              disabled={solving || (current.inputs.length === 0 && !current.summary && current.problems.length === 0)}
+              disabled={
+                solving ||
+                (current.inputs.length === 0 && !current.summary && current.problems.length === 0 && !note.trim())
+              }
               onClick={async () => {
+                if (note !== current.note) await run(() => api.setNote(current.id, note));
                 setError(await download(`/api/app/cases/${current.id}/export`, `optopus-case-${current.id}.zip`));
               }}
             >

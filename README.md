@@ -66,8 +66,9 @@ session that reads the conversation first, since the original one stays on the m
 
 When a model is ready for others, ask the agent to make it an app. It writes `app.json`: the
 tables the app's user may replace and the settings they may change, each checked before a solve.
-**Package**, above the canvas, downloads the selected revision as a zip. Whoever runs it needs
-this repository installed, but no Claude Code login:
+**Package**, above the canvas, downloads the selected revision as a zip (Safari unpacks it into
+a folder, which works as well). From a checkout of this repository, without a Claude Code login,
+it runs with:
 
 ```bash
 uv run optopus-studio app optopus-app-<project>-r<rev>.zip   # http://127.0.0.1:8766
@@ -77,10 +78,39 @@ The app shows the revision's own result first. Its user gives files, sets values
 the app says, row by row, what keeps a file from being solved. Anything else about the model is
 changed in the studio and packaged again (`docs/adr/0009`).
 
-When a case goes wrong, **Export case** downloads its files, settings, problems and result as a
-zip. Attach it with **+** in the studio's chat: the agent reads it (`read_case`), reproduces it
-(`load_case`), and tells whether the data or the model is at fault. A fixed model reaches the
-app's users when its revision is packaged again.
+When a case goes wrong, or its result is not what its user expected, they write it in **Notes
+for the developer**, and **Export case** downloads the case's files, settings, problems, result
+and note as a zip. Attach it with **+** in the studio's chat: the agent reads it (`read_case`),
+reproduces it (`load_case`), and tells whether the data or the model is at fault, or which
+requirement the note points to. A fixed model reaches the app's users when its revision is
+packaged again.
+
+## Handing an app to a customer
+
+For someone without this repository, build the package into a Docker image. It holds the app,
+the solver, the built Rust port if the model has one, and no agent (`docs/adr/0010`). Building
+needs Docker running:
+
+```bash
+uv run optopus-studio image optopus-app-<project>-r<rev>.zip --save app-r<rev>.tar
+```
+
+The image is tagged `optopus-app-<project>:r<rev>` (`--tag` changes it) and built for
+`linux/amd64` (`--platform` changes it), which Docker Desktop runs on Windows, macOS and Linux.
+On Apple Silicon this builds optopus under emulation and takes about ten minutes; the tar is
+about 60 MB. Before it is
+done, the image solves the packaged data once (`--no-test` skips this).
+
+The customer needs only Docker:
+
+```bash
+docker load -i app-r<rev>.tar
+docker run -d -p 127.0.0.1:8766:8766 -v optopus-app-data:/data optopus-app-<project>:r<rev>
+# then open http://127.0.0.1:8766
+```
+
+Their cases live in the `optopus-app-data` volume, so a newer image started on the same volume
+keeps them. They send exported cases back as files; nothing leaves their machine otherwise.
 
 ## How it fits together
 

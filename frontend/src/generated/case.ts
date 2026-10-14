@@ -9,6 +9,10 @@ export type Key = string;
 export type Rows = number | null;
 export type Inputs = CaseInput[];
 /**
+ * What the app's user says about the case, for the developer.
+ */
+export type Note = string;
+/**
  * Why the inputs cannot be solved as they are, in the user's terms.
  */
 export type Problems = string[];
@@ -154,6 +158,7 @@ export type ViewError = string | null;
 export interface CaseState {
   id: Id;
   inputs: Inputs;
+  note: Note;
   parameters: Parameters;
   problems: Problems;
   status: Status;

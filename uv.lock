@@ -545,7 +545,6 @@ name = "optopus-studio"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "claude-agent-sdk" },
     { name = "fastapi" },
     { name = "openpyxl" },
     { name = "optopus" },
@@ -559,10 +558,12 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+studio = [
+    { name = "claude-agent-sdk" },
+]
 
 [package.metadata]
 requires-dist = [
-    { name = "claude-agent-sdk", specifier = ">=0.2.165" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "optopus", git = "https://github.com/trash-iine/optopus-py?rev=f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" },
@@ -576,6 +577,7 @@ dev = [
     { name = "pytest", specifier = ">=8.4" },
     { name = "ruff", specifier = ">=0.14" },
 ]
+studio = [{ name = "claude-agent-sdk", specifier = ">=0.2.165" }]
 
 [[package]]
 name = "packaging"

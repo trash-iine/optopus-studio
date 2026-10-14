@@ -7,7 +7,6 @@ license = "MIT OR Apache-2.0"
 authors = [{ name = "Trash-iine" }]
 requires-python = ">=3.12"
 dependencies = [
-    "claude-agent-sdk>=0.2.165",
     "fastapi>=0.143.0",
     "openpyxl>=3.1.5",
     "optopus",
@@ -20,6 +19,11 @@ optopus-studio = "optopus_studio.cli:main"
 
 [dependency-groups]
 dev = ["httpx>=0.28", "pytest>=8.4", "ruff>=0.14"]
+# The agent, which only the studio runs. A packaged app's image leaves it out (docs/adr/0010).
+studio = ["claude-agent-sdk>=0.2.165"]
+
+[tool.uv]
+default-groups = ["dev", "studio"]
 
 [tool.uv.sources]
 # Built from a commit of optopus-py's main until a release carries RunResult.trajectory and
@@ -42,8 +46,9 @@ known-third-party = ["optopus"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Tests that read from GitHub run only when asked for: uv run pytest -m network
-addopts = "-m 'not network'"
-markers = ["network: reads from GitHub"]
+# Tests that read from GitHub or build Docker images run only when asked for:
+# uv run pytest -m network, uv run pytest -m docker
+addopts = "-m 'not network and not docker'"
+markers = ["network: reads from GitHub", "docker: builds and runs an app's image"]
 # A test still running after this long has its threads' stacks printed, to show where it hangs.
 faulthandler_timeout = 180

@@ -10,23 +10,21 @@ GET  /api/mode                           {"mode": "studio"}; an app server says 
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
 POST /api/projects/{id}/cases            attach a case an app exported; the body is its zip
 WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
-/                                        the built frontend (frontend/dist), when present
+/                                        the built frontend (frontend.py), when present
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from optopus_studio import apps
 from optopus_studio.agent import AgentSession
+from optopus_studio.frontend import mount_frontend
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
     ClientEvent,
@@ -41,7 +39,6 @@ from optopus_studio.protocol import (
 
 log = logging.getLogger(__name__)
 CLIENT_EVENT = TypeAdapter(ClientEvent)
-FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 class Hub:
@@ -220,6 +217,4 @@ async def project_socket(socket: WebSocket, project_id: str) -> None:
         hub.sockets.discard(socket)
 
 
-if FRONTEND.is_dir():
-    with contextlib.suppress(RuntimeError):
-        app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")
+mount_frontend(app)

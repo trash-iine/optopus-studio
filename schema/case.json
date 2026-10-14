@@ -1152,6 +1152,12 @@
       "title": "Inputs",
       "type": "array"
     },
+    "note": {
+      "default": "",
+      "description": "What the app's user says about the case, for the developer.",
+      "title": "Note",
+      "type": "string"
+    },
     "parameters": {
       "additionalProperties": true,
       "title": "Parameters",
@@ -1213,6 +1219,7 @@
     "inputs",
     "parameters",
     "problems",
+    "note",
     "summary",
     "view",
     "view_error"

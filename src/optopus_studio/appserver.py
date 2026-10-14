@@ -6,6 +6,7 @@ POST   /api/app/cases                     a new case (CaseState)
 GET    /api/app/cases/{id}                a case (CaseState)
 PUT    /api/app/cases/{id}/inputs/{key}?name=   give a file for an input; the body is its content
 DELETE /api/app/cases/{id}/inputs/{key}   go back to the packaged data
+PUT    /api/app/cases/{id}/note           {"note": str}: what the user says about the case
 POST   /api/app/cases/{id}/solve          {"parameters": {...}}: check the inputs and solve
 GET    /api/app/cases/{id}/export         the case as a zip, to attach in the studio
 /                                         the built frontend, which shows the app
@@ -13,22 +14,24 @@ GET    /api/app/cases/{id}/export         the case as a zip, to attach in the st
 
 from __future__ import annotations
 
-import contextlib
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from optopus_studio.app import FRONTEND
 from optopus_studio.apps import App, Case, export_case
+from optopus_studio.frontend import mount_frontend
 from optopus_studio.projects import MAX_UPLOAD_BYTES, ProjectError
 from optopus_studio.protocol import AppInfo, CaseState
 
 
 class SolveBody(BaseModel):
     parameters: dict[str, Any] = {}
+
+
+class NoteBody(BaseModel):
+    note: str
 
 
 def create_app(package: Path, home: Path | None = None) -> FastAPI:
@@ -78,6 +81,15 @@ def create_app(package: Path, home: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return case.state()
 
+    @server.put("/api/app/cases/{case_id}/note")
+    def put_note(case_id: str, body: NoteBody) -> CaseState:
+        case = case_of(case_id)
+        try:
+            case.set_note(body.note)
+        except ProjectError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return case.state()
+
     @server.post("/api/app/cases/{case_id}/solve")
     async def solve(case_id: str, body: SolveBody) -> CaseState:
         case = case_of(case_id)
@@ -96,7 +108,5 @@ def create_app(package: Path, home: Path | None = None) -> FastAPI:
             headers={"Content-Disposition": f'attachment; filename="optopus-case-{case.id}.zip"'},
         )
 
-    if FRONTEND.is_dir():
-        with contextlib.suppress(RuntimeError):
-            server.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")
+    mount_frontend(server)
     return server

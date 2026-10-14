@@ -24,6 +24,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 import re
 import shutil
 import uuid
@@ -68,6 +69,10 @@ CASE_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 Status = Literal["draft", "solving", "solved", "failed"]
 # Problems listed per kind before "and N more", so a broken file reads as a few lines.
 EXAMPLES = 3
+MAX_NOTE_CHARS = 10_000
+SELF_TEST_SECONDS = 2.0
+# Set in an app's image (docker/app.Dockerfile): the tag it was built as, carried into its cases.
+IMAGE_VARIABLE = "OPTOPUS_APP_IMAGE"
 
 
 # --- app.json ----------------------------------------------------------------------------------
@@ -335,11 +340,42 @@ class App:
         self.solve: dict[str, Any] = json.loads(self.files["solve.json"])
         self.cases: dict[str, Case] = {}
 
+    async def prebuild(self) -> Path | None:
+        """Checks the package's own files and builds its Rust port, if it has one, so that an
+        image of the app runs it without cargo (docs/adr/0010). Returns the binary."""
+        problems = check_spec(self.spec, self.instance, self.solve)
+        if problems:
+            raise ProjectError("app.json does not fit the package:\n" + "\n".join(problems))
+        solve_request(self.solve, self.instance, self.model / "model.py", {})
+        return await rust_binary(self.solve, self.files.get("rust/main.rs"))
+
+    async def self_test(self, seconds: float = SELF_TEST_SECONDS) -> RunSummary:
+        """Solves the packaged data once, briefly, and renders its view: what an app's image
+        checks before it is handed over."""
+        request = solve_request(
+            self.solve,
+            self.instance,
+            self.model / "model.py",
+            {"max_duration_secs": seconds, "runs": 1},
+        )
+        binary = await rust_binary(self.solve, self.files.get("rust/main.rs"))
+
+        async def ignore(_: RunSummary) -> None:
+            pass
+
+        summary = await run_solve(request, 0, self.model, ignore, solve_timeout(request), binary)
+        if summary.error:
+            raise ProjectError(f"the packaged data does not solve: {summary.error.message}")
+        _, error = await render_view(self.model / "view.py", self.instance, summary)
+        if error:
+            raise ProjectError(f"view.py fails on the packaged data:\n{error}")
+        return summary
+
     @classmethod
     def open_package(cls, path: Path, home: Path | None = None) -> App:
         """Unpacks a package and opens it. The directory is named by the model's files, so a
         revision packaged again opens with the cases given to it before."""
-        contents = _unpack(path.read_bytes())
+        contents = _unpack(read_package(path))
         digest = hashlib.sha256()
         for name in sorted(contents):
             if name.startswith("model/"):
@@ -414,6 +450,25 @@ def _unpack(data: bytes) -> dict[str, bytes]:
     return contents
 
 
+def read_package(path: Path) -> bytes:
+    """A package's zip, from the zip or from the folder it was unpacked into (Safari unpacks a
+    downloaded zip by default). A folder's hidden files, such as .DS_Store, are left out."""
+    if not path.is_dir():
+        return path.read_bytes()
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file in sorted(path.rglob("*")):
+            name = file.relative_to(path).as_posix()
+            if file.is_file() and not any(part.startswith(".") for part in name.split("/")):
+                archive.write(file, name)
+    return buffer.getvalue()
+
+
+def package_manifest(data: bytes) -> dict[str, Any]:
+    """The manifest of a package, once the package is checked as ``App.open_package`` checks it."""
+    return json.loads(_unpack(data)[PACKAGE_MANIFEST])
+
+
 class Case:
     """One set of inputs, saved as they are given, and what solving them gave."""
 
@@ -424,6 +479,7 @@ class Case:
         self.status: Status = "draft"
         self.parameters: dict[str, Any] = {}
         self.problems: list[str] = []
+        self.note = ""
         self.rows: dict[str, int | None] = {}
         self.summary: RunSummary | None = None
         self.view: ViewSpec | None = None
@@ -435,6 +491,7 @@ class Case:
             self.parameters = stored["parameters"]
             self.problems = stored["problems"]
             self.rows = stored["rows"]
+            self.note = stored.get("note", "")
             if self.status == "solving":  # the app stopped during the solve
                 self.status, self.problems = "draft", ["the app stopped before the solve ended"]
         if (root / "result.json").is_file():
@@ -451,6 +508,7 @@ class Case:
             "parameters": self.parameters,
             "problems": self.problems,
             "rows": self.rows,
+            "note": self.note,
         }
         (self.root / "case.json").write_text(json.dumps(stored, ensure_ascii=False, indent=1))
 
@@ -478,6 +536,7 @@ class Case:
             inputs=inputs,
             parameters=self.parameters,
             problems=self.problems,
+            note=self.note,
             summary=self.summary,
             view=self.view,
             view_error=self.view_error,
@@ -512,6 +571,13 @@ class Case:
         shutil.rmtree(self.root / "inputs" / key, ignore_errors=True)
         self.rows.pop(key, None)
         self.problems = []
+        self.save()
+
+    def set_note(self, note: str) -> None:
+        """What the app's user says about the case, for whoever reads it in the studio."""
+        if len(note) > MAX_NOTE_CHARS:
+            raise ProjectError(f"the note is longer than {MAX_NOTE_CHARS} characters")
+        self.note = note
         self.save()
 
     def _check_editable(self) -> None:
@@ -618,9 +684,11 @@ def export_case(case: Case) -> bytes:
             "packaged_at": case.app.manifest["packaged_at"],
         },
         "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "image": os.environ.get(IMAGE_VARIABLE),
         "status": case.status,
         "parameters": case.parameters,
         "problems": case.problems,
+        "note": case.note,
         "inputs": [i.model_dump() for i in case.state().inputs],
     }
     buffer = io.BytesIO()
@@ -721,8 +789,14 @@ def describe_case(project: Project, case_id: str, preview_file: Callable[[Path],
     lines = [
         f"case {case_id} from the app {manifest['app']['title']!r}, packaged from {origin}",
         f"status: {manifest['status']}",
-        f"parameters the user set: {json.dumps(manifest['parameters'], ensure_ascii=False)}",
     ]
+    if manifest.get("image"):
+        lines.append(f"run in the image {manifest['image']}")
+    if manifest.get("note"):
+        lines.append(f"the user's note on the case, in their words:\n{manifest['note']}")
+    lines.append(
+        f"parameters the user set: {json.dumps(manifest['parameters'], ensure_ascii=False)}"
+    )
     for problem in manifest["problems"]:
         lines.append(f"the app refused the inputs: {problem}")
     if (root / "result.json").is_file():

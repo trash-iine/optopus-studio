@@ -81,13 +81,14 @@ def cached_binary(main_rs: str) -> Path | None:
 
 
 async def build(main_rs: str) -> Build:
-    """Builds the port, or returns the binary an identical port was built into before."""
-    if cargo() is None:
-        return Build(None, "cargo is not installed; see https://rustup.rs", 0.0)
+    """Builds the port, or returns the binary an identical port was built into before. An app's
+    image holds that binary and no cargo (docs/adr/0010)."""
     key = _fingerprint(main_rs)
     binary = rust_dir() / "bin" / key
     if binary.is_file():
         return Build(binary, "", 0.0, cached=True)
+    if cargo() is None:
+        return Build(None, "cargo is not installed; see https://rustup.rs", 0.0)
     async with _lock:
         if binary.is_file():
             return Build(binary, "", 0.0, cached=True)

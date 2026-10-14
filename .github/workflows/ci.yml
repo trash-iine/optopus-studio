@@ -55,6 +55,23 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: uv run --no-sync pytest -v -m network
 
+  # An app's image (docs/adr/0010), built from the knapsack example and served once.
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install, building optopus from the pinned optopus-py commit
+        run: uv sync --locked
+      - name: Build and run the image
+        timeout-minutes: 20
+        run: uv run --no-sync pytest -v -m docker
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

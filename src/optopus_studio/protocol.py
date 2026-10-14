@@ -467,6 +467,9 @@ class CaseState(Strict):
     problems: list[str] = Field(
         description="Why the inputs cannot be solved as they are, in the user's terms."
     )
+    note: str = Field(
+        default="", description="What the app's user says about the case, for the developer."
+    )
     summary: RunSummary | None
     view: ViewSpec | None
     view_error: str | None
