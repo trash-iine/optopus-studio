@@ -41,3 +41,5 @@ optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right show
 - Before committing: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
   `npm test && npm run typecheck` in `frontend/`, and `cargo fmt --check` and
   `cargo clippy --all-targets -- -D warnings` in `workers/rust/`.
+- CI (`.github/workflows/ci.yml`) runs all of these, `uv run pytest -m network`, and checks that
+  `frontend/src/generated` matches the schemas.

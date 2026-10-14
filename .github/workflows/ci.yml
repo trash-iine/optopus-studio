@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no moving major tag.
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      # Ruff comes from the dev group; linting needs neither the project nor optopus.
+      - name: Install dev dependencies
+        run: uv sync --locked --only-dev
+      - name: Ruff check
+        run: uv run --no-sync ruff check .
+      - name: Ruff format
+        run: uv run --no-sync ruff format --check .
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # uv builds optopus from source, and the Rust worker tests build ports with cargo.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: workers/rust
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install, building optopus from the pinned optopus-py commit
+        run: uv sync --locked
+      - name: Tests
+        run: uv run --no-sync pytest -v
+      - name: Tests that read from GitHub
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --no-sync pytest -v -m network
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      # Node as mise.toml pins it.
+      - uses: jdx/mise-action@v5
+      - name: Install
+        run: npm ci
+      - name: Generated types match the schemas
+        run: |
+          npm run gen:types
+          if [ -n "$(git status --porcelain -- src/generated)" ]; then
+            git status --porcelain -- src/generated
+            git diff -- src/generated
+            echo "::error::src/generated is out of date: run npm run gen:types and commit it"
+            exit 1
+          fi
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/rust
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: workers/rust
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
