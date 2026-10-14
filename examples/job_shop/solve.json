@@ -1,0 +1,15 @@
+{
+  "heuristic": {
+    "kind": "TabuSearch",
+    "neighbor": "Swap",
+    "tabu_tenure": [
+      3,
+      6
+    ],
+    "stop": {
+      "max_iteration": 2000
+    }
+  },
+  "runs": 3,
+  "seed": 0
+}

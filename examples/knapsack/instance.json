@@ -1,0 +1,40 @@
+{
+  "capacity": 20,
+  "items": [
+    {
+      "name": "tent",
+      "value": 60,
+      "weight": 10
+    },
+    {
+      "name": "stove",
+      "value": 40,
+      "weight": 4
+    },
+    {
+      "name": "food",
+      "value": 100,
+      "weight": 8
+    },
+    {
+      "name": "camera",
+      "value": 30,
+      "weight": 2
+    },
+    {
+      "name": "book",
+      "value": 10,
+      "weight": 1
+    },
+    {
+      "name": "rope",
+      "value": 25,
+      "weight": 3
+    },
+    {
+      "name": "lamp",
+      "value": 35,
+      "weight": 4
+    }
+  ]
+}

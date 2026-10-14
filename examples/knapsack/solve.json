@@ -1,0 +1,13 @@
+{
+  "heuristic": {
+    "kind": "SimulatedAnnealing",
+    "neighbor": "Flip",
+    "initial_temperature": 30.0,
+    "cooling_rate": 0.999,
+    "stop": {
+      "max_iteration": 5000
+    }
+  },
+  "runs": 3,
+  "seed": 0
+}

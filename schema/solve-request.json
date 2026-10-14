@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "description": "One solve: the model to build, its data, and how to search.",
+  "properties": {
+    "heuristic": {
+      "additionalProperties": true,
+      "description": "A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.",
+      "title": "Heuristic",
+      "type": "object"
+    },
+    "instance": {
+      "additionalProperties": true,
+      "description": "The project's instance.json.",
+      "title": "Instance",
+      "type": "object"
+    },
+    "model_path": {
+      "description": "Path of the project's model.py.",
+      "title": "Model Path",
+      "type": "string"
+    },
+    "runs": {
+      "default": 1,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Runs",
+      "type": "integer"
+    },
+    "seed": {
+      "anyOf": [
+        {
+          "exclusiveMaximum": 18446744073709551616,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 0,
+      "title": "Seed"
+    }
+  },
+  "required": [
+    "model_path",
+    "instance",
+    "heuristic"
+  ],
+  "title": "SolveRequest",
+  "type": "object"
+}

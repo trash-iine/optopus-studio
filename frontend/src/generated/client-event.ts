@@ -1,0 +1,20 @@
+// Generated from schema/client-event.json by `npm run gen:types`. Do not edit.
+
+export type ClientEvent = UserMessage | SelectRevision | Interrupt;
+export type Text = string;
+export type Type = "user_message";
+export type Rev = number;
+export type Type1 = "select_revision";
+export type Type2 = "interrupt";
+
+export interface UserMessage {
+  text: Text;
+  type?: Type;
+}
+export interface SelectRevision {
+  rev: Rev;
+  type?: Type1;
+}
+export interface Interrupt {
+  type?: Type2;
+}

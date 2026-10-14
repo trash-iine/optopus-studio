@@ -1,0 +1,129 @@
+"""The agent's tools, called directly: no model is involved."""
+
+import asyncio
+
+import pytest
+
+from optopus_studio.agent import DOC_PAGES, Tools, api_help, describe, read_doc_page
+from optopus_studio.projects import Project, ProjectError
+from optopus_studio.protocol import (
+    FilesChanged,
+    RunSummary,
+    SolveProgress,
+    SolveStarted,
+    ViewUpdated,
+)
+from tests.conftest import example_project
+
+
+class Recorder:
+    def __init__(self):
+        self.events = []
+
+    async def __call__(self, event):
+        self.events.append(event)
+
+
+def call(fn, **args):
+    return asyncio.run(fn(args))
+
+
+def text(result):
+    return result["content"][0]["text"]
+
+
+def test_write_file_tells_the_gui(home):
+    recorder = Recorder()
+    tools = Tools(Project.create(home), recorder)
+    result = call(tools.write_file, name="instance.json", content="{}")
+    assert not result["is_error"]
+    assert recorder.events == [FilesChanged(files={"instance.json": "{}"})]
+
+
+def test_check_model_runs_briefly_without_a_revision(home):
+    project = example_project("tsp", home)
+    result = call(Tools(project, Recorder()).check_model)
+    assert not result["is_error"], text(result)
+    assert "view.py ok: kpi, route_map, table" in text(result)
+    assert project.revisions() == []
+
+
+def test_check_model_reports_a_broken_view(home):
+    project = example_project("tsp", home)
+    project.write_file("view.py", "def to_view(i, r):\n    return {}\n")
+    result = call(Tools(project, Recorder()).check_model)
+    assert result["is_error"]
+    assert "invalid ViewSpec" in text(result)
+
+
+def test_run_solver_makes_a_revision_and_updates_the_canvas(home):
+    project = example_project("job_shop", home)
+    recorder = Recorder()
+    result = call(Tools(project, recorder).run_solver, runs=2, seed=4)
+    assert not result["is_error"], text(result)
+    assert text(result).startswith("revision 1\n")
+    assert project.revisions() == [1]
+    kinds = [type(e) for e in recorder.events]
+    assert kinds[0] is SolveStarted
+    assert kinds[-1] is ViewUpdated
+    assert SolveProgress in kinds
+    assert recorder.events[-1].view.views[1].type == "gantt"
+    _, summary, view, error = project.load_revision(1)
+    assert len(summary.runs) == 2
+    assert summary.runs[0].seed == 4
+    assert view == recorder.events[-1].view
+    assert error is None
+
+
+def test_max_duration_overrides_the_stop_of_solve_json(home):
+    tools = Tools(example_project("tsp", home), Recorder())
+    request = tools.solve_request({"max_duration_secs": 0.5})
+    assert request.heuristic["stop"] == {"max_iteration": 20000, "max_duration_secs": 0.5}
+
+
+def test_a_failed_solve_is_an_error_result_with_the_traceback(home):
+    project = example_project("tsp", home)
+    project.write_file("model.py", "def build(instance):\n    return 1 / 0\n")
+    result = call(Tools(project, Recorder()).run_solver)
+    assert result["is_error"]
+    assert "ZeroDivisionError" in text(result)
+    assert "stage 'build'" in text(result)
+
+
+def test_describe_truncates_a_long_solution():
+    summary = RunSummary.model_validate(
+        {
+            "rev": 1,
+            "problem": "Tsp",
+            "higher_is_better": False,
+            "best_run": 0,
+            "runs": [
+                {
+                    "run": 0,
+                    "seed": 0,
+                    "best_objective": 1.0,
+                    "initial_objective": 2.0,
+                    "solution": list(range(5000)),
+                    "trajectory": [],
+                    "iterations": 1,
+                    "best_iteration": 0,
+                    "time_to_best_secs": 0.0,
+                    "total_time_secs": 0.0,
+                }
+            ],
+        }
+    )
+    assert "characters)" in describe(summary, solution_preview=100)
+
+
+def test_api_help_shows_constructors():
+    assert "from_coordinates" in api_help("Tsp")
+    with pytest.raises(ProjectError):
+        api_help("Nonsense")
+
+
+def test_every_doc_page_exists():
+    for page in DOC_PAGES:
+        assert read_doc_page(page).startswith("#")
+    with pytest.raises(ProjectError):
+        read_doc_page("../README")

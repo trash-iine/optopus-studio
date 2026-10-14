@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "Done": {
+      "additionalProperties": false,
+      "properties": {
+        "best_objective": {
+          "title": "Best Objective",
+          "type": "number"
+        },
+        "best_run": {
+          "title": "Best Run",
+          "type": "integer"
+        },
+        "type": {
+          "const": "done",
+          "default": "done",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "best_run",
+        "best_objective"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "RunFinished": {
+      "additionalProperties": false,
+      "properties": {
+        "best_iteration": {
+          "title": "Best Iteration",
+          "type": "integer"
+        },
+        "best_objective": {
+          "title": "Best Objective",
+          "type": "number"
+        },
+        "initial_objective": {
+          "title": "Initial Objective",
+          "type": "number"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "run": {
+          "title": "Run",
+          "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Seed"
+        },
+        "solution": {
+          "description": "The best solution, JSON-encoded by the model.",
+          "title": "Solution"
+        },
+        "time_to_best_secs": {
+          "title": "Time To Best Secs",
+          "type": "number"
+        },
+        "total_time_secs": {
+          "title": "Total Time Secs",
+          "type": "number"
+        },
+        "trajectory": {
+          "description": "(elapsed_secs, iteration, objective) for every improvement of the best.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Trajectory",
+          "type": "array"
+        },
+        "type": {
+          "const": "run_finished",
+          "default": "run_finished",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "run",
+        "seed",
+        "best_objective",
+        "initial_objective",
+        "solution",
+        "trajectory",
+        "iterations",
+        "best_iteration",
+        "time_to_best_secs",
+        "total_time_secs"
+      ],
+      "title": "RunFinished",
+      "type": "object"
+    },
+    "Started": {
+      "additionalProperties": false,
+      "properties": {
+        "higher_is_better": {
+          "description": "The direction best_objective is ranked in.",
+          "title": "Higher Is Better",
+          "type": "boolean"
+        },
+        "problem": {
+          "description": "The class name of the problem the model built.",
+          "title": "Problem",
+          "type": "string"
+        },
+        "runs": {
+          "title": "Runs",
+          "type": "integer"
+        },
+        "type": {
+          "const": "started",
+          "default": "started",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "runs",
+        "higher_is_better",
+        "problem"
+      ],
+      "title": "Started",
+      "type": "object"
+    },
+    "WorkerError": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "request",
+            "build",
+            "heuristic",
+            "run",
+            "encode"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceback"
+        },
+        "type": {
+          "const": "error",
+          "default": "error",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "stage",
+        "message",
+        "traceback"
+      ],
+      "title": "WorkerError",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "done": "#/$defs/Done",
+      "error": "#/$defs/WorkerError",
+      "run_finished": "#/$defs/RunFinished",
+      "started": "#/$defs/Started"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Started"
+    },
+    {
+      "$ref": "#/$defs/RunFinished"
+    },
+    {
+      "$ref": "#/$defs/Done"
+    },
+    {
+      "$ref": "#/$defs/WorkerError"
+    }
+  ],
+  "title": "WorkerEvent"
+}

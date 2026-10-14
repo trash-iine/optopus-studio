@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "Interrupt": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "interrupt",
+          "default": "interrupt",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Interrupt",
+      "type": "object"
+    },
+    "SelectRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "rev": {
+          "title": "Rev",
+          "type": "integer"
+        },
+        "type": {
+          "const": "select_revision",
+          "default": "select_revision",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rev"
+      ],
+      "title": "SelectRevision",
+      "type": "object"
+    },
+    "UserMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "user_message",
+          "default": "user_message",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "UserMessage",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "interrupt": "#/$defs/Interrupt",
+      "select_revision": "#/$defs/SelectRevision",
+      "user_message": "#/$defs/UserMessage"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/UserMessage"
+    },
+    {
+      "$ref": "#/$defs/SelectRevision"
+    },
+    {
+      "$ref": "#/$defs/Interrupt"
+    }
+  ],
+  "title": "ClientEvent"
+}
