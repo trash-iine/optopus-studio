@@ -31,6 +31,7 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       # uv builds optopus from source, and the Rust worker tests build ports with cargo.
@@ -44,9 +45,12 @@ jobs:
           python-version: "3.12"
       - name: Install, building optopus from the pinned optopus-py commit
         run: uv sync --locked
+      # A hung test fails the step and keeps its log; faulthandler_timeout dumps its threads.
       - name: Tests
-        run: uv run --no-sync pytest -v
+        timeout-minutes: 15
+        run: uv run --no-sync pytest -v --durations=15
       - name: Tests that read from GitHub
+        timeout-minutes: 5
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: uv run --no-sync pytest -v -m network

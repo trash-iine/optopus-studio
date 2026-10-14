@@ -45,3 +45,5 @@ testpaths = ["tests"]
 # Tests that read from GitHub run only when asked for: uv run pytest -m network
 addopts = "-m 'not network'"
 markers = ["network: reads from GitHub"]
+# A test still running after this long has its threads' stacks printed, to show where it hangs.
+faulthandler_timeout = 180
