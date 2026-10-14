@@ -83,6 +83,12 @@ pub(crate) fn watch<T>(
     let _ = stop.send(());
     let _ = ticker.join();
     if let Ok(mut live) = LIVE.lock() {
+        // The run's last improvement, if it came within INTERVAL of the end.
+        if let Some(live) = live.as_mut()
+            && let Some((objective, at)) = live.held.take()
+        {
+            live.send(objective, at);
+        }
         *live = None;
     }
     out

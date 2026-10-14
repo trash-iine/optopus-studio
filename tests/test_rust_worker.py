@@ -195,3 +195,15 @@ def test_progress_catches_up_with_the_best_while_the_run_goes_on():
     # Improvements held back by the 100 ms interval are sent by the ticker, not dropped.
     assert progress[-1].objective == finished.best_objective
     assert all(p.elapsed_secs <= finished.total_time_secs for p in progress)
+
+
+def test_the_improvement_held_at_the_end_of_a_run_is_sent():
+    # The example's runs stop by iterations, well within the ticker's 100 ms interval.
+    stream = events(binary(port("workload")), example_request("workload"))
+    for finished in (e for e in stream if e.type == "run_finished"):
+        mine = [
+            e.objective
+            for e in stream
+            if e.type == "progress" and (e.run, e.variant) == (finished.run, finished.variant)
+        ]
+        assert mine[-1] == finished.best_objective, (finished.run, finished.variant)
