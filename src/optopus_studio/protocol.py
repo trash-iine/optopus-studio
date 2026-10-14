@@ -383,6 +383,8 @@ ClientEvent = Annotated[UserMessage | SelectRevision | Interrupt, Field(discrimi
 
 # --- Apps: a revision packaged to run without the agent (docs/adr/0009) ------------------------
 
+# Also a directory name in an app's cases, so no dots or slashes.
+INPUT_KEY = r"^[A-Za-z_][A-Za-z0-9_-]*$"
 PARAMETER_TARGET = r"^(instance(\.[^.]+)+|solve\.(max_duration_secs|runs|seed))$"
 
 
@@ -398,7 +400,7 @@ class AppColumn(Strict):
 class AppInput(Strict):
     """A file the app's user can give, whose rows replace one key of instance.json."""
 
-    key: str = Field(min_length=1, description="The key of instance.json the file replaces.")
+    key: str = Field(pattern=INPUT_KEY, description="The key of instance.json the file replaces.")
     label: str = Field(min_length=1)
     description: str | None = None
     columns: list[AppColumn] = Field(

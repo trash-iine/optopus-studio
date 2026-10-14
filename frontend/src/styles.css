@@ -281,5 +281,6 @@ header .header-error { color: var(--critical); font-size: 12px; }
   padding: 6px 8px;
 }
 .app-param small { font-size: 12px; }
-.app-actions { justify-content: space-between; align-items: center; }
+.app-actions { align-items: center; }
+.app-actions > span { flex: 1; }
 .banner ul { margin: 6px 0 0; padding-left: 18px; }

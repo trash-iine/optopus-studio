@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, formOf, type ParameterForm, parameterValues } from "../appmode";
+import { download } from "../download";
 import type { AppInfo, AppInput, AppParameter } from "../generated/app-info";
 import type { CaseState } from "../generated/case";
 import { compact, type ThemePreference, useTheme } from "../theme";
@@ -111,6 +112,16 @@ export function AppMode() {
           </div>
           <div className="composer app-actions">
             <span className="muted">{statusLine(current)}</span>
+            <button
+              className="secondary"
+              title="Download these inputs and what they gave, to attach in the studio's chat"
+              disabled={solving || (current.inputs.length === 0 && !current.summary && current.problems.length === 0)}
+              onClick={async () => {
+                setError(await download(`/api/app/cases/${current.id}/export`, `optopus-case-${current.id}.zip`));
+              }}
+            >
+              Export case
+            </button>
             <button
               disabled={solving}
               onClick={() => run(() => api.solve(current.id, parameterValues(info.spec.parameters, form)))}

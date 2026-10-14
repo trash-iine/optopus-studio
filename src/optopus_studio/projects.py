@@ -5,6 +5,7 @@
         chat.jsonl      the conversation as shown in the GUI
         work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json
+        cases/<id>/     cases attached from a packaged app (docs/adr/0009)
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
@@ -48,7 +49,7 @@ _FILE = "|".join(re.escape(name) for name in ALL_FILES)
 # Everything of a project but meta.json, whose agent session lives in this machine's Claude Code.
 ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
-    r"|uploads/(?P<upload>[^/]+))\Z"
+    r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+))\Z"
 )
 
 
@@ -328,6 +329,12 @@ def _check_member(name: str, content: bytes) -> None:
     if not match or (upload and (not UPLOAD_NAME.match(upload) or upload.startswith("."))):
         raise ProjectError(f"the archive holds a file a project does not: {name!r}")
     if upload:
+        return
+    if match["case"]:
+        # apps imports this module, so import it here.
+        from optopus_studio.apps import check_case_member
+
+        check_case_member(match["case_file"], content)
         return
     try:
         text = content.decode()

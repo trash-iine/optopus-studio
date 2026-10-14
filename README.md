@@ -77,6 +77,11 @@ The app shows the revision's own result first. Its user gives files, sets values
 the app says, row by row, what keeps a file from being solved. Anything else about the model is
 changed in the studio and packaged again (`docs/adr/0009`).
 
+When a case goes wrong, **Export case** downloads its files, settings, problems and result as a
+zip. Attach it with **+** in the studio's chat: the agent reads it (`read_case`), reproduces it
+(`load_case`), and tells whether the data or the model is at fault. A fixed model reaches the
+app's users when its revision is packaged again.
+
 ## How it fits together
 
 ```

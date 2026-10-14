@@ -258,3 +258,137 @@ def test_the_studio_packages_a_revision_for_download(home):
         assert f"optopus-app-{project.id}-r1.zip" in response.headers["content-disposition"]
         missing = client.get(f"/api/projects/{project.id}/revisions/2/package")
         assert missing.status_code == 400
+
+
+# --- cases, out of an app and into the studio --------------------------------------------------
+
+
+def app_and_project(home, tmp_path):
+    path = packaged(home, tmp_path)
+    app = App.open_package(path, home)
+    return app, Project.open(app.manifest["project"], home)
+
+
+def exported(case):
+    from optopus_studio.apps import export_case
+
+    return export_case(case)
+
+
+def test_a_refused_case_carries_its_files_and_problems(home, tmp_path):
+    import io
+    import zipfile
+
+    app, _ = app_and_project(home, tmp_path)
+    case = app.new_case()
+    case.set_input("items", "mine.csv", b"name,weight\nmap,1\n")
+    solve(case, {"capacity": 3})
+    with zipfile.ZipFile(io.BytesIO(exported(case))) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read("optopus-studio-case.json"))
+    assert names == {"optopus-studio-case.json", "inputs/items/mine.csv"}
+    assert manifest["app"]["rev"] == 1
+    assert manifest["status"] == "draft"
+    assert manifest["parameters"] == {"capacity": 3}
+    assert "['value'] are missing" in manifest["problems"][0]
+
+
+def test_the_studio_reads_and_reproduces_a_case_that_failed(home, tmp_path):
+    from optopus_studio.apps import describe_case, import_case, load_case
+
+    app, project = app_and_project(home, tmp_path)
+    case = app.new_case()
+    case.set_input("items", "mine.csv", b"name,weight,value\nmap,1,15\nghost,0,5\n")
+    solve(case, {"capacity": 7})
+    case_id = import_case(project, exported(case))
+    report = describe_case(project, case_id, lambda path: f"<{path.name}>")
+    assert "packaged from revision 1 of this project" in report
+    assert "the solve failed at build: ValueError: item 'ghost' (row 3) weighs 0" in report
+    assert "<mine.csv>" in report
+    assert load_case(project, case_id).startswith("instance.json is now the instance the app")
+    instance = json.loads(project.read_file("instance.json"))
+    assert instance["capacity"] == 7
+    assert [item["name"] for item in instance["items"]] == ["map", "ghost"]
+
+
+def test_a_refused_case_is_rebuilt_as_the_app_would_have(home, tmp_path):
+    from optopus_studio.apps import import_case, load_case
+
+    app, project = app_and_project(home, tmp_path)
+    case = app.new_case()
+    case.set_input("items", "mine.csv", b"name,weight,value\nmap,1,15\nlamp,two,25\n")
+    solve(case, {"capacity": 3})
+    case_id = import_case(project, exported(case))
+    assert "app refused it" in load_case(project, case_id)
+    instance = json.loads(project.read_file("instance.json"))
+    assert instance["capacity"] == 3
+    assert instance["items"][1]["weight"] == "two"
+
+
+@pytest.mark.parametrize(
+    ("files", "problem"),
+    [
+        ({"inputs/items/a.csv": "x"}, "not a case"),
+        ({"optopus-studio-case.json": '{"format": 1, "case": "../x"}'}, "studio can read"),
+        (
+            {
+                "optopus-studio-case.json": '{"format": 1, "case": "0123456789ab"}',
+                "inputs/../a.csv": "x",
+            },
+            "holds no",
+        ),
+        (
+            {
+                "optopus-studio-case.json": '{"format": 1, "case": "0123456789ab"}',
+                "result.json": "{}",
+            },
+            "broken",
+        ),
+    ],
+)
+def test_a_zip_that_is_not_a_case_is_refused(home, files, problem):
+    import io
+    import zipfile
+
+    from optopus_studio.apps import import_case
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    with pytest.raises(ProjectError, match=problem):
+        import_case(Project.create(home), buffer.getvalue())
+
+
+def test_cases_travel_with_a_shared_project(home, tmp_path):
+    from optopus_studio.apps import import_case, project_cases
+
+    app, project = app_and_project(home, tmp_path)
+    case = app.new_case()
+    case.set_input("items", "mine.csv", ITEMS)
+    case_id = import_case(project, exported(case))
+    copy = Project.import_archive(project.export(), tmp_path / "elsewhere")
+    assert project_cases(copy) == [case_id]
+
+
+def test_a_case_goes_from_the_app_server_to_the_studio_and_its_agent(home, tmp_path):
+    from optopus_studio import app as studio
+
+    path = packaged(home, tmp_path)
+    project = Project.open(App.open_package(path, home).manifest["project"], home)
+    with TestClient(create_app(path, home)) as client:
+        case_id = client.post("/api/app/cases").json()["id"]
+        client.put(
+            f"/api/app/cases/{case_id}/inputs/items", params={"name": "mine.csv"}, content=b"x"
+        )
+        archive = client.get(f"/api/app/cases/{case_id}/export")
+        assert f"optopus-case-{case_id}.zip" in archive.headers["content-disposition"]
+    with TestClient(studio.app) as client:
+        attached = client.post(f"/api/projects/{project.id}/cases", content=archive.content)
+        assert attached.json() == {"case": case_id}
+        assert client.post(f"/api/projects/{project.id}/cases", content=b"x").status_code == 400
+    tools = Tools(project, lambda event: asyncio.sleep(0))
+    listed = asyncio.run(tools.read_case({}))["content"][0]["text"]
+    assert listed == f"case:{case_id}"
+    report = asyncio.run(tools.read_case({"case": f"case:{case_id}"}))["content"][0]["text"]
+    assert "input items:" in report

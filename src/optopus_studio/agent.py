@@ -36,7 +36,15 @@ from claude_agent_sdk import (
 from pydantic import BaseModel
 
 from optopus_studio import docs, rust
-from optopus_studio.apps import APP_FILE, check_spec, defaults, load_spec
+from optopus_studio.apps import (
+    APP_FILE,
+    check_spec,
+    defaults,
+    describe_case,
+    load_case,
+    load_spec,
+    project_cases,
+)
 from optopus_studio.projects import ALL_FILES, Project, ProjectError
 from optopus_studio.protocol import (
     AssistantDelta,
@@ -133,6 +141,9 @@ copy data from an upload through write_file, and do not read_file a large instan
 summaries the upload tools return tell you its shape. Ask the user when a column's meaning or \
 unit is unclear.
 
+A name "case:<id>" in that list is a case exported from a packaged app (see "Making it an \
+app"): someone's data and what the app made of it, usually because it could not be solved.
+
 ## How to work
 
 1. Understand the task: the decisions, the objective, the constraints (hard or soft), the data. \
@@ -210,6 +221,14 @@ ValueError with a message in the user's terms; the app shows it.
 
 Call check_app until it passes, then run_solver so a revision holds app.json, and tell the user \
 to package that revision.
+
+When a case is attached, call read_case: it says which revision the app was packaged from, what \
+the app refused or how the solve failed, and shows the data. Then load_case and check_model to \
+reproduce it. Tell the user in their terms whether the data is wrong (which rows, and what they \
+should be) or the model is; fix the model when it is, make it report such data clearly next \
+time, and say that the revision must be packaged again for the app's users to get the fix. \
+load_case replaces instance.json, so after the fix put the packaged data back if the app should \
+keep showing it.
 """
 
 
@@ -450,6 +469,25 @@ class Tools:
         lines.append("Now run_solver, so a revision holds app.json, and the user can package it.")
         return text_result("\n".join(lines))
 
+    async def read_case(self, args: dict[str, Any]) -> dict[str, Any]:
+        case = str(args.get("case") or "").removeprefix("case:")
+        if not case:
+            cases = project_cases(self.project)
+            return text_result("\n".join(f"case:{c}" for c in cases) if cases else "no cases")
+
+        def preview_file(path: Path) -> str:
+            try:
+                return preview(path)
+            except (TableError, ValueError, OSError) as exc:
+                return f"{path.name}: cannot be read as a table: {exc}"
+
+        return text_result(describe_case(self.project, case, preview_file))
+
+    async def load_case(self, args: dict[str, Any]) -> dict[str, Any]:
+        report = load_case(self.project, str(args["case"]).removeprefix("case:"))
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        return text_result(report)
+
     async def run_solver(self, args: dict[str, Any]) -> dict[str, Any]:
         request = self.solve_request(args)
         # Built before the snapshot, so a port that does not compile makes no revision. The
@@ -530,6 +568,19 @@ class Tools:
                 "columns on the packaged data, and each parameter's target and value.",
                 object_schema({}, []),
             )(guarded(self.check_app)),
+            tool(
+                "read_case",
+                "Read a case attached from a packaged app: where it came from, the problems or "
+                "the error, the parameters, and the first rows of each file. Without a case, "
+                "lists the attached cases.",
+                object_schema({"case": {"type": "string"}}, []),
+            )(guarded(self.read_case)),
+            tool(
+                "load_case",
+                "Replace instance.json with a case's data, as the app built it or, when the app "
+                "refused the inputs, as it would have, to reproduce the case.",
+                object_schema({"case": {"type": "string"}}, ["case"]),
+            )(guarded(self.load_case)),
             tool(
                 "run_solver",
                 "Solve with solve.json, make a new revision, and show its result on the canvas. "

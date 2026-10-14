@@ -7,6 +7,7 @@ GET    /api/app/cases/{id}                a case (CaseState)
 PUT    /api/app/cases/{id}/inputs/{key}?name=   give a file for an input; the body is its content
 DELETE /api/app/cases/{id}/inputs/{key}   go back to the packaged data
 POST   /api/app/cases/{id}/solve          {"parameters": {...}}: check the inputs and solve
+GET    /api/app/cases/{id}/export         the case as a zip, to attach in the studio
 /                                         the built frontend, which shows the app
 """
 
@@ -16,12 +17,12 @@ import contextlib
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from optopus_studio.app import FRONTEND
-from optopus_studio.apps import App, Case
+from optopus_studio.apps import App, Case, export_case
 from optopus_studio.projects import MAX_UPLOAD_BYTES, ProjectError
 from optopus_studio.protocol import AppInfo, CaseState
 
@@ -85,6 +86,15 @@ def create_app(package: Path, home: Path | None = None) -> FastAPI:
         except ProjectError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return case.state()
+
+    @server.get("/api/app/cases/{case_id}/export")
+    def export(case_id: str) -> Response:
+        case = case_of(case_id)
+        return Response(
+            export_case(case),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="optopus-case-{case.id}.zip"'},
+        )
 
     if FRONTEND.is_dir():
         with contextlib.suppress(RuntimeError):

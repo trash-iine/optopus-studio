@@ -82,7 +82,7 @@
         },
         "key": {
           "description": "The key of instance.json the file replaces.",
-          "minLength": 1,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
           "title": "Key",
           "type": "string"
         },

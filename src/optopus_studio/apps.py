@@ -594,3 +594,189 @@ class Case:
         finally:
             self.save()
             on_update()
+
+
+# --- cases, out of an app and into the studio --------------------------------------------------
+
+CASE_MANIFEST = "optopus-studio-case.json"
+CASE_FORMAT = 1
+_CASE_MEMBER = re.compile(
+    rf"{re.escape(CASE_MANIFEST)}|(?:instance|result|view)\.json"
+    r"|inputs/(?P<key>[A-Za-z_][A-Za-z0-9_-]*)/(?P<file>[^/]+)"
+)
+
+
+def export_case(case: Case) -> bytes:
+    """A case as a zip the studio the app came from imports: what was given, and what it gave."""
+    manifest = {
+        "format": CASE_FORMAT,
+        "case": case.id,
+        "app": {
+            "title": case.app.spec.title,
+            "project": case.app.manifest["project"],
+            "rev": case.app.manifest["rev"],
+            "packaged_at": case.app.manifest["packaged_at"],
+        },
+        "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "status": case.status,
+        "parameters": case.parameters,
+        "problems": case.problems,
+        "inputs": [i.model_dump() for i in case.state().inputs],
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(CASE_MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
+        for name in ("instance.json", "result.json", "view.json"):
+            if (case.root / name).is_file():
+                archive.write(case.root / name, name)
+        for spec_input in case.app.spec.inputs:
+            path = case.input_file(spec_input.key)
+            if path is not None:
+                archive.write(path, f"inputs/{spec_input.key}/{path.name}")
+    return buffer.getvalue()
+
+
+def check_case_member(name: str, content: bytes) -> None:
+    """Rejects a file a case cannot hold, or one the studio would fail on later."""
+    match = _CASE_MEMBER.fullmatch(name)
+    file = match and match["file"]
+    if not match or (file and (not UPLOAD_NAME.match(file) or file.startswith("."))):
+        raise ProjectError(f"a case holds no {name!r}")
+    if file:
+        return
+    try:
+        if name == "result.json":
+            RunSummary.model_validate_json(content)
+        else:
+            json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
+        raise ProjectError(f"{name} in the case is broken: {exc}") from exc
+
+
+def import_case(project: Project, data: bytes) -> str:
+    """Stores a case an app exported under the project's cases/, and returns its id."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            members = [info for info in archive.infolist() if not info.is_dir()]
+            if sum(info.file_size for info in members) > MAX_PACKAGE_BYTES:
+                raise ProjectError("the case unpacks to too much data")
+            contents = {info.filename: archive.read(info) for info in members}
+    except zipfile.BadZipFile as exc:
+        raise ProjectError(f"not a zip file: {exc}") from exc
+    try:
+        manifest = json.loads(contents[CASE_MANIFEST])
+    except (KeyError, json.JSONDecodeError) as exc:
+        raise ProjectError(f"not a case from an app: {CASE_MANIFEST} is missing") from exc
+    if manifest.get("format") != CASE_FORMAT or not CASE_ID.match(str(manifest.get("case"))):
+        raise ProjectError("not a case this studio can read")
+    for name, content in contents.items():
+        check_case_member(name, content)
+    root = project.root / "cases" / manifest["case"]
+    shutil.rmtree(root, ignore_errors=True)
+    for name, content in contents.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_bytes(content)
+    return manifest["case"]
+
+
+def project_cases(project: Project) -> list[str]:
+    base = project.root / "cases"
+    return (
+        sorted(p.name for p in base.iterdir() if (p / CASE_MANIFEST).is_file())
+        if (base.is_dir())
+        else []
+    )
+
+
+def case_dir(project: Project, case_id: str) -> Path:
+    if case_id not in project_cases(project):
+        raise ProjectError(f"no case {case_id!r}; the cases are {project_cases(project)}")
+    return project.root / "cases" / case_id
+
+
+def case_inputs(root: Path) -> dict[str, Path]:
+    inputs = root / "inputs"
+    found = {}
+    for directory in sorted(inputs.iterdir()) if inputs.is_dir() else []:
+        files = sorted(directory.iterdir())
+        if files:
+            found[directory.name] = files[0]
+    return found
+
+
+def _case_app(project: Project, manifest: dict[str, Any]) -> tuple[dict[str, str], str]:
+    """The files of the revision the case's app was packaged from, if this project has it."""
+    app = manifest["app"]
+    if app.get("project") == project.id and app.get("rev") in project.revisions():
+        files = project.load_revision(app["rev"])[0]
+        return files, f"revision {app['rev']} of this project"
+    return {}, f"revision {app.get('rev')} of project {app.get('project')}, which is not this one"
+
+
+def describe_case(project: Project, case_id: str, preview_file: Callable[[Path], str]) -> str:
+    """What the agent reads of a case: where it came from, what went wrong, and its data."""
+    root = case_dir(project, case_id)
+    manifest = json.loads((root / CASE_MANIFEST).read_text())
+    _, origin = _case_app(project, manifest)
+    lines = [
+        f"case {case_id} from the app {manifest['app']['title']!r}, packaged from {origin}",
+        f"status: {manifest['status']}",
+        f"parameters the user set: {json.dumps(manifest['parameters'], ensure_ascii=False)}",
+    ]
+    for problem in manifest["problems"]:
+        lines.append(f"the app refused the inputs: {problem}")
+    if (root / "result.json").is_file():
+        summary = RunSummary.model_validate_json((root / "result.json").read_text())
+        if summary.error:
+            lines.append(f"the solve failed at {summary.error.stage}: {summary.error.message}")
+            if summary.error.traceback:
+                lines.append(summary.error.traceback[-2000:])
+        elif summary.best_run is not None:
+            best = summary.runs[summary.best_run]
+            lines.append(
+                f"solved: best objective {best.best_objective:g} over {len(summary.runs)} runs"
+            )
+    if (root / "view.json").is_file():
+        error = json.loads((root / "view.json").read_text()).get("error")
+        if error:
+            lines.append(f"view.py failed on it:\n{error}")
+    given = case_inputs(root)
+    if not given:
+        lines.append("the user gave no files: the packaged data was used")
+    for key, path in given.items():
+        lines.append(f"\ninput {key}:\n{preview_file(path)}")
+    lines.append(
+        "\nload_case puts this case's data into instance.json, to reproduce it with check_model "
+        "or run_solver."
+    )
+    return "\n".join(lines)
+
+
+def load_case(project: Project, case_id: str) -> str:
+    """Writes the case's instance into the project's instance.json; says how it was made."""
+    root = case_dir(project, case_id)
+    if (root / "instance.json").is_file():
+        project.write_file("instance.json", (root / "instance.json").read_text())
+        return "instance.json is now the instance the app solved"
+    # The app refused the inputs, so it built no instance: build it as the app would have.
+    manifest = json.loads((root / CASE_MANIFEST).read_text())
+    files, origin = _case_app(project, manifest)
+    files = files or project.files()
+    if APP_FILE not in files:
+        raise ProjectError(f"cannot rebuild the case: {origin} has no app.json")
+    spec = load_spec(files[APP_FILE])
+    tables = {}
+    for key, path in case_inputs(root).items():
+        try:
+            tables[key] = read_records(path)
+        except (TableError, ValueError, OSError) as exc:
+            raise ProjectError(f"cannot read the case's {path.name}: {exc}") from exc
+    instance, overrides = build_instance(
+        spec, json.loads(files["instance.json"]), tables, manifest["parameters"]
+    )
+    project.write_file("instance.json", json.dumps(instance, ensure_ascii=False, indent=1))
+    note = f" The app's solve settings were {overrides}." if overrides else ""
+    return (
+        "instance.json is now the case's data, built from its files and parameters over the "
+        f"instance of {origin}; the app refused it, so expect what it reported.{note}"
+    )

@@ -3,7 +3,8 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatEntry } from "../generated/server-event";
 
-const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json";
+// A .zip is a case exported from a packaged app (docs/adr/0009).
+const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json,.zip";
 
 /** The message the agent receives: the attached files first, as its system prompt expects. */
 export function withAttachments(text: string, files: string[]): string {
@@ -142,7 +143,7 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop, 
         />
         <button
           className="secondary attach"
-          title="Attach CSV, TSV, Excel or JSON"
+          title="Attach CSV, TSV, Excel or JSON, or a case exported from an app"
           aria-label="attach a file"
           onClick={() => picker.current?.click()}
           disabled={!connected || uploading}

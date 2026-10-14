@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RunSummary } from "../generated/server-event";
+import { download } from "../download";
 import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
 import { runLabel, variantStats } from "../views/Convergence";
@@ -23,29 +24,14 @@ interface Props {
   onAsk: (text: string) => void;
 }
 
-/** Downloads a revision as an app package, or returns why it cannot be packaged. */
-export async function downloadPackage(project: string, rev: number): Promise<string | null> {
-  const response = await fetch(`/api/projects/${project}/revisions/${rev}/package`);
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    return body.detail ?? `packaging failed: ${response.status}`;
-  }
-  const name = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1];
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(await response.blob());
-  link.download = name ?? `optopus-app-${project}-r${rev}.zip`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-  return null;
-}
-
 export function Canvas({ project, state, mode, onSelect, onAsk }: Props) {
   const [tab, setTab] = useState<Tab>("result");
   const [packageError, setPackageError] = useState<string | null>(null);
   const latest = state.revisions.at(-1);
   const packageRevision = async () => {
     if (!project || state.rev == null) return;
-    setPackageError(await downloadPackage(project, state.rev));
+    const url = `/api/projects/${project}/revisions/${state.rev}/package`;
+    setPackageError(await download(url, `optopus-app-${project}-r${state.rev}.zip`));
   };
   return (
     <main className="canvas">

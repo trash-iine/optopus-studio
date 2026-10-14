@@ -8,6 +8,7 @@ GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
 GET  /api/projects/{id}/revisions/{rev}/package  the revision as an app package (docs/adr/0009)
 GET  /api/mode                           {"mode": "studio"}; an app server says "app"
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
+POST /api/projects/{id}/cases            attach a case an app exported; the body is its zip
 WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
 /                                        the built frontend (frontend/dist), when present
 """
@@ -170,6 +171,15 @@ async def upload(project_id: str, name: str, request: Request) -> dict[str, str]
     project = open_project(project_id)
     try:
         return {"name": project.save_upload(name, await request.body())}
+    except ProjectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/{project_id}/cases")
+async def attach_case(project_id: str, request: Request) -> dict[str, str]:
+    project = open_project(project_id)
+    try:
+        return {"case": apps.import_case(project, await request.body())}
     except ProjectError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
