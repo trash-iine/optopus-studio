@@ -537,21 +537,8 @@ wheels = [
 
 [[package]]
 name = "optopus"
-source = { directory = "../optopus-py" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "furo", specifier = ">=2025.12.19" },
-    { name = "invoke", specifier = ">=2.2.1" },
-    { name = "maturin", specifier = ">=1.9.3,<2.0" },
-    { name = "myst-parser", specifier = ">=4.0.1" },
-    { name = "pre-commit", specifier = ">=4.6.2" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "ruff", specifier = ">=0.16.9" },
-    { name = "sphinx", specifier = "==8.2.3" },
-]
+version = "0.1.0"
+source = { git = "https://github.com/trash-iine/optopus-py?rev=f44dfbcffc0aa200201b982db3aeb1bb0c3da81b#f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" }
 
 [[package]]
 name = "optopus-studio"
@@ -578,7 +565,7 @@ requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.2.165" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "optopus", directory = "../optopus-py" },
+    { name = "optopus", git = "https://github.com/trash-iine/optopus-py?rev=f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]

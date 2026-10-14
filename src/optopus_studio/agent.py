@@ -35,7 +35,7 @@ from claude_agent_sdk import (
 )
 from pydantic import BaseModel, ValidationError
 
-from optopus_studio import rust
+from optopus_studio import docs, rust
 from optopus_studio.projects import ALL_FILES, Project, ProjectError, variants_of
 from optopus_studio.protocol import (
     AssistantDelta,
@@ -180,23 +180,10 @@ change rust/main.rs the same way and verify again, or set "worker": "python".
 """
 
 
-def docs_dir() -> Path:
-    configured = os.environ.get("OPTOPUS_STUDIO_DOCS")
-    if configured:
-        return Path(configured)
-    return Path(__file__).resolve().parents[3] / "optopus-py" / "docs" / "source"
-
-
 def read_doc_page(page: str) -> str:
     if page not in DOC_PAGES:
         raise ProjectError(f"unknown page {page!r}; expected one of {DOC_PAGES}")
-    path = docs_dir() / f"{page}.md"
-    if not path.is_file():
-        raise ProjectError(
-            f"the optopus-py docs are not at {docs_dir()}; set OPTOPUS_STUDIO_DOCS. "
-            "Use api_help for the docstrings meanwhile."
-        )
-    return path.read_text()
+    return docs.read_page(page)
 
 
 def api_help(name: str) -> str:

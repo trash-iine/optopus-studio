@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from optopus_studio import docs
 from optopus_studio.agent import (
     DOC_PAGES,
     HISTORY_LIMIT,
@@ -142,11 +143,47 @@ def test_api_help_shows_constructors():
         api_help("Nonsense")
 
 
-def test_every_doc_page_exists():
+@pytest.mark.network
+def test_every_doc_page_is_in_the_installed_optopus_docs():
     for page in DOC_PAGES:
         assert read_doc_page(page).startswith("#")
-    with pytest.raises(ProjectError):
+
+
+def test_a_doc_page_is_fetched_once_at_the_installed_commit(home, monkeypatch):
+    fetched = []
+    monkeypatch.setattr(docs, "installed_commit", lambda: "abc123")
+    monkeypatch.setattr(docs, "fetch", lambda url: fetched.append(url) or "# Problems\n")
+    assert read_doc_page("problems") == "# Problems\n"
+    assert read_doc_page("problems") == "# Problems\n"
+    assert fetched == [f"{docs.RAW}/abc123/docs/source/problems.md"]
+    assert (home / "docs" / "abc123" / "problems.md").is_file()
+    with pytest.raises(ProjectError, match="unknown page"):
         read_doc_page("../README")
+
+
+def test_docs_that_cannot_be_found_point_to_api_help(home, monkeypatch):
+    def offline(url):
+        raise OSError("no network")
+
+    monkeypatch.setattr(docs, "installed_commit", lambda: "abc123")
+    monkeypatch.setattr(docs, "fetch", offline)
+    with pytest.raises(ProjectError, match=r"no network.*api_help"):
+        read_doc_page("problems")
+    monkeypatch.setattr(docs, "installed_commit", lambda: None)
+    with pytest.raises(ProjectError, match="OPTOPUS_STUDIO_DOCS"):
+        read_doc_page("problems")
+
+
+def test_docs_are_read_from_a_checkout_when_configured(tmp_path, monkeypatch):
+    (tmp_path / "running.md").write_text("# Running\n")
+    monkeypatch.setenv("OPTOPUS_STUDIO_DOCS", str(tmp_path))
+    assert read_doc_page("running") == "# Running\n"
+    with pytest.raises(ProjectError, match="does not exist"):
+        read_doc_page("problems")
+
+
+def test_the_installed_optopus_records_its_commit():
+    assert len(docs.installed_commit() or "") == 40
 
 
 def test_an_upload_is_imported_into_instance_json_under_a_key(home):
