@@ -379,3 +379,92 @@ class Interrupt(Strict):
 
 
 ClientEvent = Annotated[UserMessage | SelectRevision | Interrupt, Field(discriminator="type")]
+
+
+# --- Apps: a revision packaged to run without the agent (docs/adr/0009) ------------------------
+
+PARAMETER_TARGET = r"^(instance(\.[^.]+)+|solve\.(max_duration_secs|runs|seed))$"
+
+
+class AppColumn(Strict):
+    name: str = Field(min_length=1)
+    type: Literal["number", "integer", "string", "boolean"] | None = Field(
+        None, description="Checked in every row when given."
+    )
+    required: bool = Field(True, description="Whether every row must have a value.")
+    description: str | None = None
+
+
+class AppInput(Strict):
+    """A file the app's user can give, whose rows replace one key of instance.json."""
+
+    key: str = Field(min_length=1, description="The key of instance.json the file replaces.")
+    label: str = Field(min_length=1)
+    description: str | None = None
+    columns: list[AppColumn] = Field(
+        [], description="The columns every row must have; empty accepts any table or JSON."
+    )
+    required: bool = Field(
+        False, description="Whether a file must be given; otherwise the packaged data is used."
+    )
+
+
+class AppParameter(Strict):
+    """A value the app's user can change. Its default is what the packaged files hold."""
+
+    name: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    label: str = Field(min_length=1)
+    description: str | None = None
+    type: Literal["number", "integer", "boolean", "string"]
+    target: str = Field(
+        pattern=PARAMETER_TARGET,
+        description="Where the value goes: instance.<key>[.<key>...] in instance.json, or "
+        "solve.max_duration_secs (every heuristic's time limit), solve.runs or solve.seed.",
+    )
+    min: float | None = None
+    max: float | None = None
+    choices: list[str | int | float] | None = None
+    unit: str | None = None
+
+
+class AppSpec(Strict):
+    """app.json: what a packaged app lets its user change. Everything else is fixed, and is
+    changed in the studio."""
+
+    title: str = Field(min_length=1)
+    description: str | None = None
+    inputs: list[AppInput] = []
+    parameters: list[AppParameter] = []
+
+
+class AppInfo(Strict):
+    """GET /api/app: the app a package holds."""
+
+    spec: AppSpec
+    project: str = Field(description="The studio project the package was made from.")
+    rev: int = Field(description="The revision of that project it holds.")
+    packaged_at: str
+    defaults: dict[str, Any] = Field(description="Each parameter's value in the packaged files.")
+    sample: RunSummary | None = Field(description="The revision's own result, on its own data.")
+    sample_view: ViewSpec | None
+
+
+class CaseInput(Strict):
+    key: str
+    file: str
+    rows: int | None = Field(description="The number of rows read, for a table.")
+
+
+class CaseState(Strict):
+    """GET /api/app/cases/{id}: one set of inputs and what solving it gave."""
+
+    id: str
+    status: Literal["draft", "solving", "solved", "failed"]
+    inputs: list[CaseInput]
+    parameters: dict[str, Any]
+    problems: list[str] = Field(
+        description="Why the inputs cannot be solved as they are, in the user's terms."
+    )
+    summary: RunSummary | None
+    view: ViewSpec | None
+    view_error: str | None

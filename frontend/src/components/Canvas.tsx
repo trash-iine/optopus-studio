@@ -2,10 +2,10 @@ import { useState } from "react";
 import type { RunSummary } from "../generated/server-event";
 import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
-import { Convergence, runLabel, variantStats } from "../views/Convergence";
-import { ViewCard } from "../views/View";
+import { runLabel, variantStats } from "../views/Convergence";
 import { Compare } from "./Compare";
 import { Search } from "./Search";
+import { SolveResult } from "./SolveResult";
 
 type Tab = "result" | "model" | "runs" | "compare";
 
@@ -13,7 +13,7 @@ type Tab = "result" | "model" | "runs" | "compare";
 export const PORT_REQUEST =
   "Port this model to Rust, verify it against the Python model, and switch to the Rust worker if it passes.";
 const TABS: Record<Tab, string> = { result: "Result", model: "Model", runs: "Runs", compare: "Compare" };
-const FILE_ORDER = ["model.py", "view.py", "instance.json", "solve.json"];
+const FILE_ORDER = ["model.py", "view.py", "instance.json", "solve.json", "app.json", "rust/main.rs"];
 
 interface Props {
   project: string | null;
@@ -23,9 +23,30 @@ interface Props {
   onAsk: (text: string) => void;
 }
 
+/** Downloads a revision as an app package, or returns why it cannot be packaged. */
+export async function downloadPackage(project: string, rev: number): Promise<string | null> {
+  const response = await fetch(`/api/projects/${project}/revisions/${rev}/package`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    return body.detail ?? `packaging failed: ${response.status}`;
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1];
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(await response.blob());
+  link.download = name ?? `optopus-app-${project}-r${rev}.zip`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  return null;
+}
+
 export function Canvas({ project, state, mode, onSelect, onAsk }: Props) {
   const [tab, setTab] = useState<Tab>("result");
+  const [packageError, setPackageError] = useState<string | null>(null);
   const latest = state.revisions.at(-1);
+  const packageRevision = async () => {
+    if (!project || state.rev == null) return;
+    setPackageError(await downloadPackage(project, state.rev));
+  };
   return (
     <main className="canvas">
       <div className="canvas-bar">
@@ -37,20 +58,39 @@ export function Canvas({ project, state, mode, onSelect, onAsk }: Props) {
           ))}
         </div>
         {state.revisions.length > 0 && (
-          <label className="rev-select">
-            Revision
-            <select value={state.rev ?? ""} onChange={(e) => onSelect(Number(e.target.value))}>
-              {[...state.revisions].reverse().map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                  {r === latest ? " (latest)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="rev-actions">
+            <label className="rev-select">
+              Revision
+              <select value={state.rev ?? ""} onChange={(e) => onSelect(Number(e.target.value))}>
+                {[...state.revisions].reverse().map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                    {r === latest ? " (latest)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="secondary"
+              title="Download this revision as an app that runs without the agent (needs app.json)"
+              disabled={state.busy}
+              onClick={packageRevision}
+            >
+              Package
+            </button>
+          </div>
         )}
       </div>
       <div className="canvas-body">
+        {packageError && (
+          <div className="banner warning package-error">
+            <strong>Cannot package revision {state.rev}</strong>
+            <pre>{packageError}</pre>
+            <button className="secondary" onClick={() => setPackageError(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
         {tab === "result" && <Result state={state} mode={mode} onAsk={onAsk} />}
         {tab === "model" && <Files files={state.files} />}
         {tab === "runs" && state.summary && <Runs summary={state.summary} />}
@@ -104,36 +144,7 @@ function Result({
           </button>
         </div>
       )}
-      {summary.error && (
-        <div className="banner critical">
-          <strong>The solve failed at {summary.error.stage}:</strong> {summary.error.message}
-          {summary.error.traceback && (
-            <details>
-              <summary>traceback</summary>
-              <pre>{summary.error.traceback}</pre>
-            </details>
-          )}
-        </div>
-      )}
-      {viewError && (
-        <div className="banner warning">
-          <strong>view.py failed</strong>
-          <pre>{viewError}</pre>
-        </div>
-      )}
-      {view?.views.map((v, i) => <ViewCard key={`${summary.rev}-${i}`} view={v} mode={mode} />)}
-      {summary.runs.length > 0 && (
-        <section className="card">
-          <h3>
-            Convergence{" "}
-            <span className="sub">
-              {summary.problem} · {summary.worker} worker
-            </span>
-          </h3>
-          <Convergence summary={summary} mode={mode} />
-        </section>
-      )}
-      <Search summary={summary} />
+      <SolveResult summary={summary} view={view} viewError={viewError} mode={mode} />
     </div>
   );
 }

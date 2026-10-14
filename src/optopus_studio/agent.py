@@ -33,10 +33,11 @@ from claude_agent_sdk import (
     create_sdk_mcp_server,
     tool,
 )
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from optopus_studio import docs, rust
-from optopus_studio.projects import ALL_FILES, Project, ProjectError, variants_of
+from optopus_studio.apps import APP_FILE, check_spec, defaults, load_spec
+from optopus_studio.projects import ALL_FILES, Project, ProjectError
 from optopus_studio.protocol import (
     AssistantDelta,
     AssistantText,
@@ -51,6 +52,7 @@ from optopus_studio.protocol import (
     ViewUpdated,
 )
 from optopus_studio.runner import render_view, run_solve
+from optopus_studio.solving import rust_binary, solve_request, solve_timeout, with_stop
 from optopus_studio.tables import TableError, preview, read_records
 from optopus_studio.verify import verify
 
@@ -71,7 +73,6 @@ DOC_PAGES = (
 )
 SOLUTION_PREVIEW = 3000
 CHECK_SECONDS = 2.0
-DEFAULT_SOLVE_TIMEOUT = 300.0
 
 SYSTEM_PROMPT = """\
 You are the modeling agent of optopus-studio. The user describes an optimization task in chat; \
@@ -177,6 +178,38 @@ and call run_solver.
 
 Keep model.py: it stays the reference the port is verified against. After changing model.py, \
 change rust/main.rs the same way and verify again, or set "worker": "python".
+
+## Making it an app
+
+When the user wants to hand the model to others to run on their own data, write app.json. A \
+revision that has it can be packaged (the Package button above the canvas) into an app that \
+runs without you: its user replaces the tables and changes the parameters app.json lists, \
+solves, and sees the same views. Everything else stays as packaged and is changed here, in the \
+studio, then packaged again.
+
+    {"title": str, "description"?: str,
+     "inputs": [{"key": str, "label": str, "description"?: str, "required"?: bool,
+                 "columns": [{"name": str, "type"?: "number"|"integer"|"string"|"boolean",
+                              "required"?: bool, "description"?: str}]}],
+     "parameters": [{"name": str, "label": str, "type": "number"|"integer"|"boolean"|"string",
+                     "target": str, "min"?: number, "max"?: number, "choices"?: [...],
+                     "unit"?: str, "description"?: str}]}
+
+- An input replaces instance[key] with the rows of a CSV, Excel or JSON file, read as \
+import_upload reads them. List every column model.py and view.py read, with its type; the app \
+checks a file against them and tells its user what is missing or malformed, row by row. An \
+input the user does not give keeps the packaged data, so make one required only when that data \
+means nothing to another user.
+- A parameter's target is instance.<key>[.<key>...] (a value model.py reads, such as \
+instance.capacity) or solve.max_duration_secs, solve.runs or solve.seed. Its default is the \
+packaged value. Give min, max or choices that keep the model valid, and a unit.
+- Write labels and descriptions in the user's language.
+- The app's user cannot ask you why a solve failed, so have model.py check what it assumes of \
+the data (ids that must match across tables, positive quantities, a feasible total) and raise \
+ValueError with a message in the user's terms; the app shows it.
+
+Call check_app until it passes, then run_solver so a revision holds app.json, and tell the user \
+to package that revision.
 """
 
 
@@ -207,23 +240,6 @@ def api_help(name: str) -> str:
 
 READ_FILE_LIMIT = 20_000
 HISTORY_LIMIT = 40_000
-
-
-def solve_timeout(request: SolveRequest) -> float:
-    configured = os.environ.get("OPTOPUS_STUDIO_SOLVE_TIMEOUT")
-    if configured:
-        return float(configured)
-    total = 0.0
-    for variant in request.variants:
-        seconds = (variant.heuristic.get("stop") or {}).get("max_duration_secs")
-        if not isinstance(seconds, int | float):
-            return DEFAULT_SOLVE_TIMEOUT
-        total += seconds * request.runs
-    return min(total + 30.0, DEFAULT_SOLVE_TIMEOUT * 4)
-
-
-def with_stop(heuristic: dict[str, Any], **stop: Any) -> dict[str, Any]:
-    return {**heuristic, "stop": {**(heuristic.get("stop") or {}), **stop}}
 
 
 def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> str:
@@ -284,27 +300,18 @@ class Tools:
         self.project = project
         self.broadcast = broadcast
 
+    def solve_json(self) -> dict[str, Any]:
+        try:
+            return json.loads(self.project.read_file("solve.json"))
+        except json.JSONDecodeError as exc:
+            raise ProjectError(f"invalid JSON: {exc}") from exc
+
     def solve_request(self, overrides: dict[str, Any]) -> SolveRequest:
         try:
-            solve = json.loads(self.project.read_file("solve.json"))
             instance = json.loads(self.project.read_file("instance.json"))
         except json.JSONDecodeError as exc:
             raise ProjectError(f"invalid JSON: {exc}") from exc
-        try:
-            variants = variants_of(solve)
-            if "max_duration_secs" in overrides:
-                seconds = overrides["max_duration_secs"]
-                for v in variants:
-                    v.heuristic = with_stop(v.heuristic, max_duration_secs=seconds)
-            return SolveRequest(
-                model_path=str(self.project.work / "model.py"),
-                instance=instance,
-                variants=variants,
-                runs=overrides.get("runs", solve.get("runs", 1)),
-                seed=overrides.get("seed", solve.get("seed", 0)),
-            )
-        except ValidationError as exc:
-            raise ProjectError(f"solve.json does not describe a solve: {exc}") from exc
+        return solve_request(self.solve_json(), instance, self.project.work / "model.py", overrides)
 
     async def rust_guide(self, args: dict[str, Any]) -> dict[str, Any]:
         parts = [(rust.WORKER_LIB / "GUIDE.md").read_text()]
@@ -395,24 +402,9 @@ class Tools:
         await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(f"wrote {args['name']} ({len(args['content'])} characters)")
 
-    def worker(self) -> str:
-        """The worker solve.json asks for: "python" (the default) or "rust"."""
-        try:
-            worker = json.loads(self.project.read_file("solve.json")).get("worker", "python")
-        except json.JSONDecodeError as exc:
-            raise ProjectError(f"invalid JSON: {exc}") from exc
-        if worker not in ("python", "rust"):
-            raise ProjectError(f'"worker" must be "python" or "rust", not {worker!r}')
-        return worker
-
     async def rust_binary(self) -> Path | None:
         """The built port when solve.json asks for the Rust worker, else None."""
-        if self.worker() != "rust":
-            return None
-        built = await rust.build(self.project.read_file(rust.RUST_FILE))
-        if not built.ok:
-            raise ProjectError(f"rust/main.rs does not build:\n{built.log}")
-        return built.binary
+        return await rust_binary(self.solve_json(), self.project.files().get(rust.RUST_FILE))
 
     async def check_model(self, args: dict[str, Any]) -> dict[str, Any]:
         """One short run, without a revision: does the model build, run, encode and render?"""
@@ -435,6 +427,28 @@ class Tools:
         assert view is not None
         kinds = ", ".join(v.type for v in view.views)
         return text_result(f"{report}\n\nview.py ok: {kinds}. Now call run_solver.")
+
+    async def check_app(self, args: dict[str, Any]) -> dict[str, Any]:
+        spec = load_spec(self.project.read_file(APP_FILE))
+        try:
+            instance = json.loads(self.project.read_file("instance.json"))
+        except json.JSONDecodeError as exc:
+            raise ProjectError(f"invalid JSON: {exc}") from exc
+        solve = self.solve_json()
+        problems = check_spec(spec, instance, solve)
+        if problems:
+            return text_result("app.json does not fit:\n" + "\n".join(problems), is_error=True)
+        lines = [f"app {spec.title!r} fits the project."]
+        for i in spec.inputs:
+            data = instance[i.key]
+            size = f"{len(data)} rows" if isinstance(data, list) else type(data).__name__
+            columns = ", ".join(c.name for c in i.columns) or "any"
+            need = "required" if i.required else "optional, else the packaged data"
+            lines.append(f"input {i.key} ({need}): packaged {size}; columns {columns}")
+        for p, value in defaults(spec, instance, solve).items():
+            lines.append(f"parameter {p}: packaged value {value!r}")
+        lines.append("Now run_solver, so a revision holds app.json, and the user can package it.")
+        return text_result("\n".join(lines))
 
     async def run_solver(self, args: dict[str, Any]) -> dict[str, Any]:
         request = self.solve_request(args)
@@ -510,6 +524,12 @@ class Tools:
                 "Reports errors with tracebacks. Makes no revision and does not change the canvas.",
                 object_schema({}, []),
             )(guarded(self.check_model)),
+            tool(
+                "check_app",
+                "Check app.json against instance.json and solve.json: the inputs' keys and "
+                "columns on the packaged data, and each parameter's target and value.",
+                object_schema({}, []),
+            )(guarded(self.check_app)),
             tool(
                 "run_solver",
                 "Solve with solve.json, make a new revision, and show its result on the canvas. "

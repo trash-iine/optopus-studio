@@ -1,0 +1,1441 @@
+{
+  "$defs": {
+    "AppColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether every row must have a value.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "number",
+                "integer",
+                "string",
+                "boolean"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checked in every row when given.",
+          "title": "Type"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "required",
+        "description"
+      ],
+      "title": "AppColumn",
+      "type": "object"
+    },
+    "AppInput": {
+      "additionalProperties": false,
+      "description": "A file the app's user can give, whose rows replace one key of instance.json.",
+      "properties": {
+        "columns": {
+          "default": [],
+          "description": "The columns every row must have; empty accepts any table or JSON.",
+          "items": {
+            "$ref": "#/$defs/AppColumn"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "key": {
+          "description": "The key of instance.json the file replaces.",
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "description": "Whether a file must be given; otherwise the packaged data is used.",
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "description",
+        "columns",
+        "required"
+      ],
+      "title": "AppInput",
+      "type": "object"
+    },
+    "AppParameter": {
+      "additionalProperties": false,
+      "description": "A value the app's user can change. Its default is what the packaged files hold.",
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "target": {
+          "description": "Where the value goes: instance.<key>[.<key>...] in instance.json, or solve.max_duration_secs (every heuristic's time limit), solve.runs or solve.seed.",
+          "pattern": "^(instance(\\.[^.]+)+|solve\\.(max_duration_secs|runs|seed))$",
+          "title": "Target",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "number",
+            "integer",
+            "boolean",
+            "string"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "description",
+        "type",
+        "target",
+        "min",
+        "max",
+        "choices",
+        "unit"
+      ],
+      "title": "AppParameter",
+      "type": "object"
+    },
+    "AppSpec": {
+      "additionalProperties": false,
+      "description": "app.json: what a packaged app lets its user change. Everything else is fixed, and is\nchanged in the studio.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "inputs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AppInput"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "parameters": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AppParameter"
+          },
+          "title": "Parameters",
+          "type": "array"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "inputs",
+        "parameters"
+      ],
+      "title": "AppSpec",
+      "type": "object"
+    },
+    "BarSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "values"
+      ],
+      "title": "BarSeries",
+      "type": "object"
+    },
+    "BarView": {
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "series": {
+          "items": {
+            "$ref": "#/$defs/BarSeries"
+          },
+          "title": "Series",
+          "type": "array"
+        },
+        "stacked": {
+          "default": false,
+          "title": "Stacked",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "bar",
+          "default": "bar",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "categories",
+        "series",
+        "stacked"
+      ],
+      "title": "BarView",
+      "type": "object"
+    },
+    "CustomHtmlView": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "default": 400,
+          "maximum": 2000,
+          "minimum": 100,
+          "title": "Height",
+          "type": "integer"
+        },
+        "html": {
+          "description": "A whole document, drawn in a sandboxed iframe with scripts on.",
+          "title": "Html",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "custom_html",
+          "default": "custom_html",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "html",
+        "height"
+      ],
+      "title": "CustomHtmlView",
+      "type": "object"
+    },
+    "GanttTask": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tasks of one group share a color, e.g. a job.",
+          "title": "Group"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lane": {
+          "description": "The row the task is drawn on, such as a machine or a person.",
+          "title": "Lane",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lane",
+        "label",
+        "start",
+        "end",
+        "group"
+      ],
+      "title": "GanttTask",
+      "type": "object"
+    },
+    "GanttView": {
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/GanttTask"
+          },
+          "title": "Tasks",
+          "type": "array"
+        },
+        "time_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Unit"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "gantt",
+          "default": "gantt",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "tasks",
+        "time_unit"
+      ],
+      "title": "GanttView",
+      "type": "object"
+    },
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "highlight": {
+          "default": false,
+          "title": "Highlight",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Source"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Target"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "weight",
+        "highlight"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nodes of one group share a color.",
+          "title": "Group"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "x": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "X"
+        },
+        "y": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Y"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "group",
+        "x",
+        "y"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "GraphView": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/GraphEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/GraphNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "graph",
+          "default": "graph",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "nodes",
+        "edges"
+      ],
+      "title": "GraphView",
+      "type": "object"
+    },
+    "KpiItem": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "unit"
+      ],
+      "title": "KpiItem",
+      "type": "object"
+    },
+    "KpiView": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/KpiItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "kpi",
+          "default": "kpi",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "title": "KpiView",
+      "type": "object"
+    },
+    "LiveRun": {
+      "additionalProperties": false,
+      "description": "The run under way, as its progress events have reported it.",
+      "properties": {
+        "points": {
+          "description": "(elapsed_secs, objective)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "run": {
+          "title": "Run",
+          "type": "integer"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run",
+        "variant",
+        "points"
+      ],
+      "title": "LiveRun",
+      "type": "object"
+    },
+    "MapPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "kind": {
+          "default": "node",
+          "enum": [
+            "node",
+            "depot"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "x",
+        "y",
+        "label",
+        "kind"
+      ],
+      "title": "MapPoint",
+      "type": "object"
+    },
+    "MarkdownView": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "text"
+      ],
+      "title": "MarkdownView",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "path": {
+          "description": "Point ids in visiting order.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "label"
+      ],
+      "title": "Route",
+      "type": "object"
+    },
+    "RouteMapView": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "default": true,
+          "description": "Whether each route returns to its first point.",
+          "title": "Closed",
+          "type": "boolean"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/MapPoint"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "title": "Routes",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "route_map",
+          "default": "route_map",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "points",
+        "routes",
+        "closed"
+      ],
+      "title": "RouteMapView",
+      "type": "object"
+    },
+    "RunFinished": {
+      "additionalProperties": false,
+      "properties": {
+        "best_iteration": {
+          "title": "Best Iteration",
+          "type": "integer"
+        },
+        "best_objective": {
+          "title": "Best Objective",
+          "type": "number"
+        },
+        "initial_objective": {
+          "title": "Initial Objective",
+          "type": "number"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "run": {
+          "description": "The run's position among all runs of the solve, from 0.",
+          "title": "Run",
+          "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Seed"
+        },
+        "solution": {
+          "description": "The best solution, JSON-encoded by the model.",
+          "title": "Solution"
+        },
+        "time_to_best_secs": {
+          "title": "Time To Best Secs",
+          "type": "number"
+        },
+        "total_time_secs": {
+          "title": "Total Time Secs",
+          "type": "number"
+        },
+        "trajectory": {
+          "description": "(elapsed_secs, iteration, objective) for every improvement of the best.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Trajectory",
+          "type": "array"
+        },
+        "type": {
+          "const": "run_finished",
+          "default": "run_finished",
+          "title": "Type",
+          "type": "string"
+        },
+        "variant": {
+          "description": "The index of the variant the run belongs to.",
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "run",
+        "variant",
+        "seed",
+        "best_objective",
+        "initial_objective",
+        "solution",
+        "trajectory",
+        "iterations",
+        "best_iteration",
+        "time_to_best_secs",
+        "total_time_secs"
+      ],
+      "title": "RunFinished",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "What the GUI keeps of one solve, also stored as a revision's result.json.",
+      "properties": {
+        "best_run": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Run"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heuristics": {
+          "default": [],
+          "description": "The variants as solved, with any override of solve.json applied; empty in a result.json older than the field.",
+          "items": {
+            "$ref": "#/$defs/Variant"
+          },
+          "title": "Heuristics",
+          "type": "array"
+        },
+        "higher_is_better": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Higher Is Better"
+        },
+        "live": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "native": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Problem"
+        },
+        "rev": {
+          "title": "Rev",
+          "type": "integer"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RunFinished"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The seed the solve's runs were drawn from.",
+          "title": "Seed"
+        },
+        "variants": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Variants",
+          "type": "array"
+        },
+        "worker": {
+          "default": "python",
+          "enum": [
+            "python",
+            "rust"
+          ],
+          "title": "Worker",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rev",
+        "worker",
+        "problem",
+        "native",
+        "higher_is_better",
+        "live",
+        "variants",
+        "heuristics",
+        "seed",
+        "runs",
+        "best_run",
+        "error"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "TableView": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "table",
+          "default": "table",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "columns",
+        "rows"
+      ],
+      "title": "TableView",
+      "type": "object"
+    },
+    "Variant": {
+      "additionalProperties": false,
+      "description": "One heuristic of a solve, under the label the GUI shows it by.",
+      "properties": {
+        "heuristic": {
+          "additionalProperties": true,
+          "description": "A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.",
+          "title": "Heuristic",
+          "type": "object"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "heuristic"
+      ],
+      "title": "Variant",
+      "type": "object"
+    },
+    "ViewSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "views": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bar": "#/$defs/BarView",
+                "custom_html": "#/$defs/CustomHtmlView",
+                "gantt": "#/$defs/GanttView",
+                "graph": "#/$defs/GraphView",
+                "kpi": "#/$defs/KpiView",
+                "markdown": "#/$defs/MarkdownView",
+                "route_map": "#/$defs/RouteMapView",
+                "table": "#/$defs/TableView"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/KpiView"
+              },
+              {
+                "$ref": "#/$defs/TableView"
+              },
+              {
+                "$ref": "#/$defs/GanttView"
+              },
+              {
+                "$ref": "#/$defs/RouteMapView"
+              },
+              {
+                "$ref": "#/$defs/GraphView"
+              },
+              {
+                "$ref": "#/$defs/BarView"
+              },
+              {
+                "$ref": "#/$defs/MarkdownView"
+              },
+              {
+                "$ref": "#/$defs/CustomHtmlView"
+              }
+            ]
+          },
+          "title": "Views",
+          "type": "array"
+        }
+      },
+      "required": [
+        "views"
+      ],
+      "title": "ViewSpec",
+      "type": "object"
+    },
+    "WorkerError": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "request",
+            "build",
+            "heuristic",
+            "run",
+            "encode"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceback"
+        },
+        "type": {
+          "const": "error",
+          "default": "error",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "stage",
+        "message",
+        "traceback"
+      ],
+      "title": "WorkerError",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/app: the app a package holds.",
+  "properties": {
+    "defaults": {
+      "additionalProperties": true,
+      "description": "Each parameter's value in the packaged files.",
+      "title": "Defaults",
+      "type": "object"
+    },
+    "packaged_at": {
+      "title": "Packaged At",
+      "type": "string"
+    },
+    "project": {
+      "description": "The studio project the package was made from.",
+      "title": "Project",
+      "type": "string"
+    },
+    "rev": {
+      "description": "The revision of that project it holds.",
+      "title": "Rev",
+      "type": "integer"
+    },
+    "sample": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The revision's own result, on its own data."
+    },
+    "sample_view": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ViewSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "spec": {
+      "$ref": "#/$defs/AppSpec"
+    }
+  },
+  "required": [
+    "spec",
+    "project",
+    "rev",
+    "packaged_at",
+    "defaults",
+    "sample",
+    "sample_view"
+  ],
+  "title": "AppInfo",
+  "type": "object"
+}

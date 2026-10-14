@@ -14,6 +14,9 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from optopus_studio.protocol import (
+    AppInfo,
+    AppSpec,
+    CaseState,
     ClientEvent,
     ProjectInfo,
     RevisionDetail,
@@ -35,6 +38,9 @@ SCHEMAS = {
     "client-event.json": (TypeAdapter(ClientEvent), "validation"),
     "revision.json": (TypeAdapter(RevisionDetail), "serialization"),
     "projects.json": (TypeAdapter(list[ProjectInfo]), "serialization"),
+    "app-spec.json": (TypeAdapter(AppSpec), "validation"),
+    "app-info.json": (TypeAdapter(AppInfo), "serialization"),
+    "case.json": (TypeAdapter(CaseState), "serialization"),
 }
 
 
@@ -47,6 +53,9 @@ def render() -> dict[str, str]:
         "client-event.json": "ClientEvent",
         "revision.json": "RevisionDetail",
         "projects.json": "ProjectList",
+        "app-spec.json": "AppSpec",
+        "app-info.json": "AppInfo",
+        "case.json": "CaseState",
     }
     out = {}
     for name, (adapter, mode) in SCHEMAS.items():

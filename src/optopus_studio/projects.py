@@ -29,11 +29,12 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from optopus_studio.protocol import ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
+from optopus_studio.protocol import AppSpec, ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
-# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005).
-OPTIONAL_FILES = ("rust/main.rs",)
+# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005), and
+# what a packaged app lets its user change (docs/adr/0009).
+OPTIONAL_FILES = ("rust/main.rs", "app.json")
 ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
@@ -160,6 +161,11 @@ class Project:
                 json.loads(content)
             except json.JSONDecodeError as exc:
                 raise ProjectError(f"{name} is not valid JSON: {exc}") from exc
+        if name == "app.json":
+            try:
+                AppSpec.model_validate_json(content)
+            except ValidationError as exc:
+                raise ProjectError(f"app.json is not a valid app: {exc}") from exc
         (self.work / name).parent.mkdir(parents=True, exist_ok=True)
         (self.work / name).write_text(content)
 

@@ -1,0 +1,35 @@
+{
+  "title": "Pack the bag",
+  "description": "Choose the items of the most total value whose weight fits the capacity.",
+  "inputs": [
+    {
+      "key": "items",
+      "label": "Items",
+      "description": "One row per item you could take.",
+      "columns": [
+        {"name": "name", "type": "string"},
+        {"name": "weight", "type": "number", "description": "Must be positive."},
+        {"name": "value", "type": "number"}
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "capacity",
+      "label": "Capacity",
+      "type": "number",
+      "target": "instance.capacity",
+      "min": 0,
+      "unit": "kg"
+    },
+    {
+      "name": "runs",
+      "label": "Runs",
+      "description": "More runs try more starting points.",
+      "type": "integer",
+      "target": "solve.runs",
+      "min": 1,
+      "max": 20
+    }
+  ]
+}

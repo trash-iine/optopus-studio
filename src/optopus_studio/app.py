@@ -5,6 +5,8 @@ POST /api/projects                       create one
 POST /api/projects/import                create one from an exported zip, the body
 GET  /api/projects/{id}/export           the project as a zip to hand to someone
 GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
+GET  /api/projects/{id}/revisions/{rev}/package  the revision as an app package (docs/adr/0009)
+GET  /api/mode                           {"mode": "studio"}; an app server says "app"
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
 WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
 /                                        the built frontend (frontend/dist), when present
@@ -22,6 +24,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSoc
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from optopus_studio import apps
 from optopus_studio.agent import AgentSession
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
@@ -97,6 +100,11 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="optopus-studio", lifespan=lifespan)
 
 
+@app.get("/api/mode")
+def mode() -> dict[str, str]:
+    return {"mode": "studio"}
+
+
 @app.get("/api/projects")
 def list_projects() -> list[ProjectInfo]:
     return [Project.open(project_id).info() for project_id in Project.list()]
@@ -140,6 +148,21 @@ def get_revision(project_id: str, rev: int) -> RevisionDetail:
     except ProjectError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return RevisionDetail(rev=rev, files=files, summary=summary, view=view, view_error=view_error)
+
+
+@app.get("/api/projects/{project_id}/revisions/{rev}/package")
+def package_revision(project_id: str, rev: int) -> Response:
+    project = open_project(project_id)
+    try:
+        data, _ = apps.package(project, rev)
+    except ProjectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    name = f"optopus-app-{project.id}-r{rev}.zip"
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @app.post("/api/projects/{project_id}/uploads")
