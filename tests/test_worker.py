@@ -212,3 +212,16 @@ def test_the_workload_balances_every_worker_within_their_skills():
     assert solution["loads"] == [12.0] * 4
     for task, person in zip(instance["tasks"], solution["assignment"], strict=True):
         assert task["skill"] in instance["workers"][person]["skills"]
+
+
+def test_started_says_whether_the_search_runs_in_compiled_code(tmp_path):
+    builtin = run_worker(example_request("tsp", runs=1))[0]
+    assert builtin.native
+    python = run_worker(
+        SolveRequest(
+            model_path=write_model(tmp_path, ONE_MAX),
+            instance={},
+            variants=one({"kind": "LocalSearch", "neighbor": "Flip", "stop": {"max_iteration": 5}}),
+        )
+    )[0]
+    assert not python.native

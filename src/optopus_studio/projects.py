@@ -3,7 +3,7 @@
     <home>/projects/<id>/
         meta.json       the agent session to resume
         chat.jsonl      the conversation as shown in the GUI
-        work/           the files the agent edits (PROJECT_FILES)
+        work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
@@ -24,6 +24,9 @@ from typing import Any
 from optopus_studio.protocol import ChatEntry, RunSummary, ViewSpec
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
+# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005).
+OPTIONAL_FILES = ("rust/main.rs",)
+ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -88,14 +91,14 @@ class Project:
 
     @staticmethod
     def check_name(name: str) -> str:
-        if name not in PROJECT_FILES:
-            raise ProjectError(f"{name!r} is not a project file; expected one of {PROJECT_FILES}")
+        if name not in ALL_FILES:
+            raise ProjectError(f"{name!r} is not a project file; expected one of {ALL_FILES}")
         return name
 
     def files(self) -> dict[str, str]:
         return {
             name: (self.work / name).read_text()
-            for name in PROJECT_FILES
+            for name in ALL_FILES
             if (self.work / name).is_file()
         }
 
@@ -111,6 +114,7 @@ class Project:
                 json.loads(content)
             except json.JSONDecodeError as exc:
                 raise ProjectError(f"{name} is not valid JSON: {exc}") from exc
+        (self.work / name).parent.mkdir(parents=True, exist_ok=True)
         (self.work / name).write_text(content)
 
     # --- revisions -----------------------------------------------------------------------------
@@ -126,8 +130,10 @@ class Project:
         rev = max(self.revisions(), default=0) + 1
         target = self.revs / str(rev)
         target.mkdir()
-        for name in PROJECT_FILES:
-            shutil.copy2(self.work / name, target / name)
+        for name in ALL_FILES:
+            if (self.work / name).is_file():
+                (target / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(self.work / name, target / name)
         return rev
 
     def rev_dir(self, rev: int) -> Path:
@@ -147,7 +153,7 @@ class Project:
         self, rev: int
     ) -> tuple[dict[str, str], RunSummary | None, ViewSpec | None, str | None]:
         path = self.rev_dir(rev)
-        files = {name: (path / name).read_text() for name in PROJECT_FILES}
+        files = {name: (path / name).read_text() for name in ALL_FILES if (path / name).is_file()}
         result = path / "result.json"
         summary = RunSummary.model_validate_json(result.read_text()) if result.is_file() else None
         view, error = None, None

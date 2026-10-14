@@ -107,6 +107,11 @@ def load_model(path: str) -> ModuleType:
     return module
 
 
+def is_builtin(problem: Any) -> bool:
+    name = type(problem).__name__
+    return type(problem) is getattr(optopus, name, None)
+
+
 def higher_is_better(problem: Any) -> bool:
     name = type(problem).__name__
     if type(problem) is getattr(optopus, name, None):
@@ -140,6 +145,7 @@ def solve(request: SolveRequest, emit) -> None:
             variants=[v.label for v in request.variants],
             higher_is_better=direction,
             problem=type(problem).__name__,
+            native=is_builtin(problem),
         )
     )
 

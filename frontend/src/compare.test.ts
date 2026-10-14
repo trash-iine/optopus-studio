@@ -25,6 +25,9 @@ function run(index: number, variant: number, best: number): RunFinished {
 
 const summary: RunSummary = {
   rev: 1,
+  worker: "python",
+  native: false,
+  live: null,
   problem: "Workload",
   higher_is_better: false,
   variants: ["SA", "Tabu"],

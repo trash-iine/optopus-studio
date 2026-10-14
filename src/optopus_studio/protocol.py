@@ -59,6 +59,20 @@ class Started(Strict):
     variants: list[str] = Field(description="The variants' labels, in the order they run.")
     higher_is_better: bool = Field(description="The direction best_objective is ranked in.")
     problem: str = Field(description="The class name of the problem the model built.")
+    native: bool = Field(
+        description="Whether the search runs in compiled code: a built-in problem, or any "
+        "problem in a Rust worker. A problem written in Python is not."
+    )
+
+
+class Progress(Strict):
+    """A run's best so far, while it runs. Only a worker that can see inside a run sends it."""
+
+    type: Literal["progress"] = "progress"
+    run: int
+    variant: int
+    elapsed_secs: float
+    objective: float
 
 
 class RunFinished(Strict):
@@ -91,7 +105,9 @@ class WorkerError(Strict):
     traceback: str | None = None
 
 
-WorkerEvent = Annotated[Started | RunFinished | Done | WorkerError, Field(discriminator="type")]
+WorkerEvent = Annotated[
+    Started | Progress | RunFinished | Done | WorkerError, Field(discriminator="type")
+]
 
 
 # --- ViewSpec ----------------------------------------------------------------------------------
@@ -220,12 +236,23 @@ class ViewSpec(Strict):
 # --- Backend to browser ------------------------------------------------------------------------
 
 
+class LiveRun(Strict):
+    """The run under way, as its progress events have reported it."""
+
+    run: int
+    variant: int
+    points: list[tuple[float, float]] = Field(description="(elapsed_secs, objective)")
+
+
 class RunSummary(Strict):
     """What the GUI keeps of one solve, also stored as a revision's result.json."""
 
     rev: int
+    worker: Literal["python", "rust"] = "python"
     problem: str | None = None
+    native: bool | None = None
     higher_is_better: bool | None = None
+    live: LiveRun | None = None
     variants: list[str] = []
     runs: list[RunFinished] = []
     best_run: int | None = None

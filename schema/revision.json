@@ -460,6 +460,45 @@
       "title": "KpiView",
       "type": "object"
     },
+    "LiveRun": {
+      "additionalProperties": false,
+      "description": "The run under way, as its progress events have reported it.",
+      "properties": {
+        "points": {
+          "description": "(elapsed_secs, objective)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "run": {
+          "title": "Run",
+          "type": "integer"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run",
+        "variant",
+        "points"
+      ],
+      "title": "LiveRun",
+      "type": "object"
+    },
     "MapPoint": {
       "additionalProperties": false,
       "properties": {
@@ -774,6 +813,29 @@
           "default": null,
           "title": "Higher Is Better"
         },
+        "live": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "native": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native"
+        },
         "problem": {
           "anyOf": [
             {
@@ -805,12 +867,24 @@
           },
           "title": "Variants",
           "type": "array"
+        },
+        "worker": {
+          "default": "python",
+          "enum": [
+            "python",
+            "rust"
+          ],
+          "title": "Worker",
+          "type": "string"
         }
       },
       "required": [
         "rev",
+        "worker",
         "problem",
+        "native",
         "higher_is_better",
+        "live",
         "variants",
         "runs",
         "best_run",

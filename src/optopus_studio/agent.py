@@ -35,7 +35,8 @@ from claude_agent_sdk import (
 )
 from pydantic import BaseModel, ValidationError
 
-from optopus_studio.projects import PROJECT_FILES, Project, ProjectError
+from optopus_studio import rust
+from optopus_studio.projects import ALL_FILES, Project, ProjectError
 from optopus_studio.protocol import (
     AssistantDelta,
     AssistantText,
@@ -52,6 +53,7 @@ from optopus_studio.protocol import (
 )
 from optopus_studio.runner import render_view, run_solve
 from optopus_studio.tables import TableError, preview, read_records
+from optopus_studio.verify import verify
 
 log = logging.getLogger(__name__)
 
@@ -159,6 +161,23 @@ input. A Python problem runs thousands of moves per second, not millions: check_
 the iterations it managed, so size the stop condition from that.
 - When the user asks which heuristic is best, or the first one finds poor solutions, compare a \
 few with "heuristics" in solve.json instead of guessing.
+
+## Speeding up with Rust
+
+A problem written in Python can be ported to Rust: rust/main.rs, written with write_file, is \
+the same model as model.py, and `"worker": "rust"` in solve.json makes run_solver use it. Port \
+when the user asks, or when a Python problem cannot search enough within the time the user \
+accepts. A built-in problem or a Formula already searches in Rust; porting it gains almost \
+nothing, so say that instead.
+
+1. Call rust_guide and follow it; it holds the API and two complete ports.
+2. Write rust/main.rs and call build_rust until it compiles.
+3. Call verify_rust. It must PASS; on FAIL fix the port, never the check.
+4. Set "worker": "rust" in solve.json, raise the stop condition to use the speed if it helps, \
+and call run_solver.
+
+Keep model.py: it stays the reference the port is verified against. After changing model.py, \
+change rust/main.rs the same way and verify again, or set "worker": "python".
 """
 
 
@@ -313,6 +332,40 @@ class Tools:
         except ValidationError as exc:
             raise ProjectError(f"solve.json does not describe a solve: {exc}") from exc
 
+    async def rust_guide(self, args: dict[str, Any]) -> dict[str, Any]:
+        parts = [(rust.WORKER_LIB / "GUIDE.md").read_text()]
+        examples = rust.WORKER_LIB.parents[1] / "examples"
+        for name in ("tsp", "workload"):
+            parts.append(f"## examples/{name}/rust/main.rs\n\n```rust\n")
+            parts[-1] += (examples / name / "rust" / "main.rs").read_text() + "```"
+        parts.append("## examples/workload/model.py, which that port mirrors\n\n```python\n")
+        parts[-1] += (examples / "workload" / "model.py").read_text() + "```"
+        return text_result("\n\n".join(parts))
+
+    async def build_rust(self, args: dict[str, Any]) -> dict[str, Any]:
+        built = await rust.build(self.project.read_file(rust.RUST_FILE))
+        if not built.ok:
+            return text_result(f"rust/main.rs does not build:\n{built.log}", is_error=True)
+        if built.cached:
+            return text_result("built (unchanged since the last build). Now call verify_rust.")
+        return text_result(f"built in {built.seconds:.1f}s. Now call verify_rust.")
+
+    async def verify_rust(self, args: dict[str, Any]) -> dict[str, Any]:
+        built = await rust.build(self.project.read_file(rust.RUST_FILE))
+        if not built.ok:
+            return text_result(f"rust/main.rs does not build:\n{built.log}", is_error=True)
+        assert built.binary is not None
+        request = self.solve_request({})
+        request.model_path = str(self.project.work / "model.py")
+        verdict = await verify(
+            request,
+            built.binary,
+            self.project.work,
+            self.project.work / "view.py",
+            solve_timeout(request),
+        )
+        return text_result(verdict.text, is_error=not verdict.ok)
+
     async def read_docs(self, args: dict[str, Any]) -> dict[str, Any]:
         return text_result(read_doc_page(args["page"]))
 
@@ -368,9 +421,29 @@ class Tools:
         await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(f"wrote {args['name']} ({len(args['content'])} characters)")
 
+    def worker(self) -> str:
+        """The worker solve.json asks for: "python" (the default) or "rust"."""
+        try:
+            worker = json.loads(self.project.read_file("solve.json")).get("worker", "python")
+        except json.JSONDecodeError as exc:
+            raise ProjectError(f"invalid JSON: {exc}") from exc
+        if worker not in ("python", "rust"):
+            raise ProjectError(f'"worker" must be "python" or "rust", not {worker!r}')
+        return worker
+
+    async def rust_binary(self) -> Path | None:
+        """The built port when solve.json asks for the Rust worker, else None."""
+        if self.worker() != "rust":
+            return None
+        built = await rust.build(self.project.read_file(rust.RUST_FILE))
+        if not built.ok:
+            raise ProjectError(f"rust/main.rs does not build:\n{built.log}")
+        return built.binary
+
     async def check_model(self, args: dict[str, Any]) -> dict[str, Any]:
         """One short run, without a revision: does the model build, run, encode and render?"""
         request = self.solve_request({"runs": 1})
+        binary = await self.rust_binary()
         for v in request.variants:
             seconds = (v.heuristic.get("stop") or {}).get("max_duration_secs") or CHECK_SECONDS
             v.heuristic = with_stop(v.heuristic, max_duration_secs=min(seconds, CHECK_SECONDS))
@@ -378,7 +451,7 @@ class Tools:
         async def ignore(_: RunSummary) -> None:
             pass
 
-        summary = await run_solve(request, 0, self.project.work, ignore, 60.0)
+        summary = await run_solve(request, 0, self.project.work, ignore, 60.0, binary)
         report = describe(summary)
         if summary.error:
             return text_result(report, is_error=True)
@@ -391,6 +464,9 @@ class Tools:
 
     async def run_solver(self, args: dict[str, Any]) -> dict[str, Any]:
         request = self.solve_request(args)
+        # Built before the snapshot, so a port that does not compile makes no revision. The
+        # snapshot holds the same rust/main.rs, so its binary is this one.
+        binary = await self.rust_binary()
         rev = self.project.snapshot()
         rev_dir = self.project.rev_dir(rev)
         request.model_path = str(rev_dir / "model.py")
@@ -401,7 +477,7 @@ class Tools:
             await self.broadcast(SolveProgress(rev=rev, summary=summary))
 
         timeout = solve_timeout(request)
-        summary = await run_solve(request, rev, rev_dir, progress, timeout)
+        summary = await run_solve(request, rev, rev_dir, progress, timeout, binary)
         self.project.save_result(rev, summary)
         view, error = await render_view(rev_dir / "view.py", request.instance, summary)
         self.project.save_view(rev, view, error)
@@ -425,7 +501,7 @@ class Tools:
             return call
 
         page = {"type": "string", "enum": list(DOC_PAGES)}
-        file_name = {"type": "string", "enum": list(PROJECT_FILES)}
+        file_name = {"type": "string", "enum": list(ALL_FILES)}
         tools = [
             tool(
                 "read_docs",
@@ -473,6 +549,24 @@ class Tools:
                     [],
                 ),
             )(guarded(self.run_solver)),
+            tool(
+                "rust_guide",
+                "How to port model.py to Rust (rust/main.rs): the API, what each part of a "
+                "Python problem becomes, and two complete ports.",
+                object_schema({}, []),
+            )(guarded(self.rust_guide)),
+            tool(
+                "build_rust",
+                "Compile rust/main.rs and report the compiler's errors.",
+                object_schema({}, []),
+            )(guarded(self.build_rust)),
+            tool(
+                "verify_rust",
+                "Run the Python and the Rust worker on solve.json with the same seeds and check "
+                "that the port scores solutions identically, searches as well, renders with "
+                "view.py, and how much faster it is. Makes no revision.",
+                object_schema({}, []),
+            )(guarded(self.verify_rust)),
             tool(
                 "list_uploads",
                 "The files the user has attached to this project.",

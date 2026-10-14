@@ -26,6 +26,43 @@
       "title": "Done",
       "type": "object"
     },
+    "Progress": {
+      "additionalProperties": false,
+      "description": "A run's best so far, while it runs. Only a worker that can see inside a run sends it.",
+      "properties": {
+        "elapsed_secs": {
+          "title": "Elapsed Secs",
+          "type": "number"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "run": {
+          "title": "Run",
+          "type": "integer"
+        },
+        "type": {
+          "const": "progress",
+          "default": "progress",
+          "title": "Type",
+          "type": "string"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "run",
+        "variant",
+        "elapsed_secs",
+        "objective"
+      ],
+      "title": "Progress",
+      "type": "object"
+    },
     "RunFinished": {
       "additionalProperties": false,
       "properties": {
@@ -131,6 +168,11 @@
           "title": "Higher Is Better",
           "type": "boolean"
         },
+        "native": {
+          "description": "Whether the search runs in compiled code: a built-in problem, or any problem in a Rust worker. A problem written in Python is not.",
+          "title": "Native",
+          "type": "boolean"
+        },
         "problem": {
           "description": "The class name of the problem the model built.",
           "title": "Problem",
@@ -161,7 +203,8 @@
         "runs",
         "variants",
         "higher_is_better",
-        "problem"
+        "problem",
+        "native"
       ],
       "title": "Started",
       "type": "object"
@@ -217,6 +260,7 @@
     "mapping": {
       "done": "#/$defs/Done",
       "error": "#/$defs/WorkerError",
+      "progress": "#/$defs/Progress",
       "run_finished": "#/$defs/RunFinished",
       "started": "#/$defs/Started"
     },
@@ -225,6 +269,9 @@
   "oneOf": [
     {
       "$ref": "#/$defs/Started"
+    },
+    {
+      "$ref": "#/$defs/Progress"
     },
     {
       "$ref": "#/$defs/RunFinished"

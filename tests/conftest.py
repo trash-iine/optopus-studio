@@ -5,17 +5,24 @@ from pathlib import Path
 import pytest
 
 from optopus_studio.agent import variants_of
-from optopus_studio.projects import PROJECT_FILES, Project
+from optopus_studio.projects import ALL_FILES, Project
 from optopus_studio.protocol import SolveRequest, Variant
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 EXAMPLE_NAMES = sorted(p.name for p in EXAMPLES.iterdir() if (p / "model.py").is_file())
 
 
+@pytest.fixture(scope="session")
+def rust_dir(tmp_path_factory):
+    # One build directory for the whole session, so optopus compiles once.
+    return tmp_path_factory.mktemp("rust")
+
+
 @pytest.fixture(autouse=True)
-def home(tmp_path, monkeypatch):
+def home(tmp_path, monkeypatch, rust_dir):
     path = tmp_path / "home"
     monkeypatch.setenv("OPTOPUS_STUDIO_HOME", str(path))
+    monkeypatch.setenv("OPTOPUS_STUDIO_RUST_DIR", str(rust_dir))
     return path
 
 
@@ -32,8 +39,10 @@ def example_request(name: str, **overrides) -> SolveRequest:
 
 def example_project(name: str, home: Path) -> Project:
     project = Project.create(home)
-    for file in PROJECT_FILES:
-        shutil.copy(EXAMPLES / name / file, project.work / file)
+    for file in ALL_FILES:
+        if (EXAMPLES / name / file).is_file():
+            (project.work / file).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(EXAMPLES / name / file, project.work / file)
     return project
 
 

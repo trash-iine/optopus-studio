@@ -23,6 +23,13 @@ export type Stage = "request" | "build" | "heuristic" | "run" | "encode";
 export type Traceback = string | null;
 export type Type = "error";
 export type HigherIsBetter = boolean | null;
+/**
+ * (elapsed_secs, objective)
+ */
+export type Points = [unknown, unknown][];
+export type Run = number;
+export type Variant = number;
+export type Native = boolean | null;
 export type Problem = string | null;
 export type Rev1 = number;
 export type BestIteration = number;
@@ -32,7 +39,7 @@ export type Iterations = number;
 /**
  * The run's position among all runs of the solve, from 0.
  */
-export type Run = number;
+export type Run1 = number;
 export type Seed = number | null;
 export type TimeToBestSecs = number;
 export type TotalTimeSecs = number;
@@ -44,9 +51,10 @@ export type Type1 = "run_finished";
 /**
  * The index of the variant the run belongs to.
  */
-export type Variant = number;
+export type Variant1 = number;
 export type Runs = RunFinished[];
 export type Variants = string[];
+export type Worker = "python" | "rust";
 export type Type2 = "snapshot";
 export type Label = string;
 export type Unit = string | null;
@@ -82,7 +90,7 @@ export type Kind = "node" | "depot";
 export type Label2 = string | null;
 export type X = number;
 export type Y = number;
-export type Points = MapPoint[];
+export type Points1 = MapPoint[];
 export type Label3 = string | null;
 /**
  * Point ids in visiting order.
@@ -183,10 +191,13 @@ export interface RunSummary {
   best_run: BestRun;
   error: WorkerError | null;
   higher_is_better: HigherIsBetter;
+  live: LiveRun | null;
+  native: Native;
   problem: Problem;
   rev: Rev1;
   runs: Runs;
   variants: Variants;
+  worker: Worker;
 }
 export interface WorkerError {
   message: Message;
@@ -194,19 +205,27 @@ export interface WorkerError {
   traceback: Traceback;
   type: Type;
 }
+/**
+ * The run under way, as its progress events have reported it.
+ */
+export interface LiveRun {
+  points: Points;
+  run: Run;
+  variant: Variant;
+}
 export interface RunFinished {
   best_iteration: BestIteration;
   best_objective: BestObjective;
   initial_objective: InitialObjective;
   iterations: Iterations;
-  run: Run;
+  run: Run1;
   seed: Seed;
   solution: Solution;
   time_to_best_secs: TimeToBestSecs;
   total_time_secs: TotalTimeSecs;
   trajectory: Trajectory;
   type: Type1;
-  variant: Variant;
+  variant: Variant1;
 }
 /**
  * The best solution, JSON-encoded by the model.
@@ -248,7 +267,7 @@ export interface GanttTask {
 }
 export interface RouteMapView {
   closed: Closed;
-  points: Points;
+  points: Points1;
   routes: Routes;
   title: Title3;
   type: Type6;

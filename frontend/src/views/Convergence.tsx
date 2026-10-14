@@ -44,6 +44,19 @@ export interface Series {
   color: string;
   data: [number, number][];
   emphasized?: boolean;
+  /** The run under way, drawn dashed until it finishes. */
+  live?: boolean;
+}
+
+/** The run under way as a series, on the time axis only: progress carries no iteration. */
+export function liveSeries(mode: Mode, summary: RunSummary, by: Axis): Series[] {
+  const live = summary.live;
+  if (!live || by !== "time" || live.points.length === 0) return [];
+  const points = live.points as unknown as [number, number][];
+  const label = summary.variants.length > 1 ? summary.variants[live.variant] : `run ${live.run}`;
+  const color =
+    summary.variants.length > 1 ? slotColor(mode, live.variant) : runColor(mode, summary, live.run);
+  return [{ name: `${label} (running)`, color, data: points, live: true }];
 }
 
 export function ConvergenceChart({
@@ -88,7 +101,7 @@ export function ConvergenceChart({
         data: s.data,
         showSymbol: false,
         symbolSize: 8,
-        lineStyle: { width: 2, color: s.color },
+        lineStyle: { width: 2, color: s.color, type: s.live ? "dashed" : "solid" },
         itemStyle: { color: s.color },
         z: s.emphasized ? 3 : 2,
         emphasis: { focus: "series" },
@@ -114,13 +127,15 @@ export function AxisToggle({ by, onChange }: { by: Axis; onChange: (a: Axis) => 
 export function Convergence({ summary, mode }: { summary: RunSummary; mode: Mode }) {
   const [by, setBy] = useState<Axis>("time");
   const series = useMemo(
-    () =>
-      summary.runs.map((run) => ({
+    () => [
+      ...summary.runs.map((run) => ({
         name: runLabel(summary, run),
         color: runColor(mode, summary, run.run),
         data: curve(run, by),
         emphasized: run.run === summary.best_run,
       })),
+      ...liveSeries(mode, summary, by),
+    ],
     [summary, by, mode],
   );
   return (

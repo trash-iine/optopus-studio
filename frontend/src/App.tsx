@@ -73,6 +73,7 @@ export function App() {
           state={state}
           mode={mode}
           onSelect={(rev) => send({ type: "select_revision", rev })}
+          onAsk={say}
         />
       </div>
     </div>

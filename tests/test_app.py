@@ -75,7 +75,13 @@ def test_a_revision_is_served_for_comparison(client, home):
     detail = client.get(f"/api/projects/{project.id}/revisions/1").json()
     assert detail["rev"] == 1
     assert detail["summary"]["variants"] == ["SimulatedAnnealing"]
-    assert set(detail["files"]) == {"instance.json", "model.py", "view.py", "solve.json"}
+    assert set(detail["files"]) == {
+        "instance.json",
+        "model.py",
+        "view.py",
+        "solve.json",
+        "rust/main.rs",
+    }
     assert client.get(f"/api/projects/{project.id}/revisions/2").status_code == 404
     assert client.get("/api/projects/0123456789ab/revisions/1").status_code == 404
 

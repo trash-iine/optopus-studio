@@ -7,6 +7,10 @@ import { ViewCard } from "../views/View";
 import { Compare } from "./Compare";
 
 type Tab = "result" | "model" | "runs" | "compare";
+
+/** What the "Port to Rust" button asks the agent. */
+export const PORT_REQUEST =
+  "Port this model to Rust, verify it against the Python model, and switch to the Rust worker if it passes.";
 const TABS: Record<Tab, string> = { result: "Result", model: "Model", runs: "Runs", compare: "Compare" };
 const FILE_ORDER = ["model.py", "view.py", "instance.json", "solve.json"];
 
@@ -15,9 +19,10 @@ interface Props {
   state: StudioState;
   mode: Mode;
   onSelect: (rev: number) => void;
+  onAsk: (text: string) => void;
 }
 
-export function Canvas({ project, state, mode, onSelect }: Props) {
+export function Canvas({ project, state, mode, onSelect, onAsk }: Props) {
   const [tab, setTab] = useState<Tab>("result");
   const latest = state.revisions.at(-1);
   return (
@@ -45,7 +50,7 @@ export function Canvas({ project, state, mode, onSelect }: Props) {
         )}
       </div>
       <div className="canvas-body">
-        {tab === "result" && <Result state={state} mode={mode} />}
+        {tab === "result" && <Result state={state} mode={mode} onAsk={onAsk} />}
         {tab === "model" && <Files files={state.files} />}
         {tab === "runs" && state.summary && <Runs summary={state.summary} />}
         {tab === "compare" && project && (
@@ -62,7 +67,15 @@ export function Canvas({ project, state, mode, onSelect }: Props) {
   );
 }
 
-function Result({ state, mode }: { state: StudioState; mode: Mode }) {
+function Result({
+  state,
+  mode,
+  onAsk,
+}: {
+  state: StudioState;
+  mode: Mode;
+  onAsk: (text: string) => void;
+}) {
   const { summary, view, viewError, solving } = state;
   if (!summary) {
     return (
@@ -75,7 +88,19 @@ function Result({ state, mode }: { state: StudioState; mode: Mode }) {
     <div className="result">
       {solving && solving.rev === summary.rev && (
         <div className="status">
-          Solving revision {solving.rev}: {summary.runs.length} / {solving.runs} runs
+          Solving revision {solving.rev} with the {summary.worker} worker: {summary.runs.length} /{" "}
+          {solving.runs} runs
+          {summary.live && summary.live.points.length > 0 && (
+            <>, best so far {compact((summary.live.points.at(-1) as unknown as number[])[1])}</>
+          )}
+        </div>
+      )}
+      {summary.native === false && !solving && !state.busy && (
+        <div className="banner info">
+          This problem is written in Python, so every move runs through Python.
+          <button className="secondary" onClick={() => onAsk(PORT_REQUEST)}>
+            Port to Rust
+          </button>
         </div>
       )}
       {summary.error && (
@@ -99,7 +124,10 @@ function Result({ state, mode }: { state: StudioState; mode: Mode }) {
       {summary.runs.length > 0 && (
         <section className="card">
           <h3>
-            Convergence <span className="sub">{summary.problem}</span>
+            Convergence{" "}
+            <span className="sub">
+              {summary.problem} · {summary.worker} worker
+            </span>
           </h3>
           <Convergence summary={summary} mode={mode} />
         </section>

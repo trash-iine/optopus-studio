@@ -16,6 +16,10 @@ optopus (the Python bindings in ../optopus-py); a canvas on the right shows the 
 - `frontend/` — React + Vite + ECharts. `src/generated/` is generated; never edit it.
   Colors come from `src/theme.ts` (the dataviz reference palette): assign categorical slots in
   order, never cycle; past eight, use the muted ink and a label.
+- `workers/rust/` — the Rust worker library a project's `rust/main.rs` links (ADR 0005);
+  `src/serve.rs` mirrors `worker.py`'s run loop and `src/factory.rs` optopus-py's heuristic
+  arguments, so a seeded built-in run matches the Python worker exactly. `GUIDE.md` is what the
+  agent reads; keep it in step with the library. `rust.py` builds ports, `verify.py` checks them.
 - `examples/` — complete projects; the tests solve them and check the views against the core.
 - `docs/adr/` — decisions. Read them before changing the boundaries they describe.
 
@@ -29,5 +33,8 @@ optopus (the Python bindings in ../optopus-py); a canvas on the right shows the 
   read `uploads/`, or a revision stops being reproducible on its own.
 - English in code, comments and docs; the chat itself follows the user's language.
 - Python: Ruff, `line-length = 100`. Tests: tiny instances, hermetic, under `tmp_path`.
+- A change to the worker protocol touches `protocol.py`, `worker.py` and `workers/rust/src`
+  together; `tests/test_rust_worker.py` checks the Rust side against the Python models.
 - Before committing: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
-  and `npm test && npm run typecheck` in `frontend/`.
+  `npm test && npm run typecheck` in `frontend/`, and `cargo fmt --check` and
+  `cargo clippy --all-targets -- -D warnings` in `workers/rust/`.

@@ -221,3 +221,4 @@ tr.best td { font-weight: 600; }
 .diff-added { background: var(--added); }
 .diff-removed { background: var(--removed); }
 .diff-skip { color: var(--muted); font-style: italic; }
+.banner.info { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink-2); }

@@ -28,6 +28,9 @@ function run(index: number, overrides: Partial<RunFinished> = {}): RunFinished {
 function summary(runs: number, best = 0): RunSummary {
   return {
     rev: 1,
+    worker: "python",
+    native: true,
+    live: null,
     problem: "Tsp",
     higher_is_better: false,
     variants: ["SA"],
@@ -101,5 +104,19 @@ describe("groupColors", () => {
     expect(colors.get("g0")).toBe(CATEGORICAL.dark[0]);
     expect(colors.get("g7")).toBe(CATEGORICAL.dark[7]);
     expect(colors.get("g8")).toBe(CHROME.dark.muted);
+  });
+});
+
+describe("live progress", () => {
+  it("draws the run under way on the time axis only", async () => {
+    const { liveSeries } = await import("./views/Convergence");
+    const live = {
+      ...summary(1),
+      live: { run: 1, variant: 0, points: [[0.1, 9]] as unknown as [number, number][] },
+    } as unknown as RunSummary;
+    expect(liveSeries("light", live, "time")).toEqual([
+      { name: "run 1 (running)", color: CATEGORICAL.light[1], data: [[0.1, 9]], live: true },
+    ]);
+    expect(liveSeries("light", live, "iteration")).toEqual([]);
   });
 });

@@ -19,6 +19,8 @@ from pydantic import TypeAdapter, ValidationError
 
 from optopus_studio.protocol import (
     Done,
+    LiveRun,
+    Progress,
     RunFinished,
     RunSummary,
     SolveRequest,
@@ -64,10 +66,15 @@ async def run_solve(
     cwd: Path,
     on_update: Callable[[RunSummary], Awaitable[None]],
     timeout: float,
+    rust_binary: Path | None = None,
 ) -> RunSummary:
-    """Runs one solve and returns its summary, calling ``on_update`` after every event."""
-    summary = RunSummary(rev=rev)
-    process = await _spawn(worker_command(), cwd)
+    """Runs one solve and returns its summary, calling ``on_update`` after every event.
+
+    The Python worker runs it unless ``rust_binary``, a built port, is given.
+    """
+    summary = RunSummary(rev=rev, worker="rust" if rust_binary else "python")
+    command = [str(rust_binary)] if rust_binary else worker_command()
+    process = await _spawn(command, cwd)
     assert process.stdin
     assert process.stdout
     assert process.stderr
@@ -89,7 +96,15 @@ async def run_solve(
                     summary.problem = event.problem
                     summary.higher_is_better = event.higher_is_better
                     summary.variants = event.variants
+                    summary.native = event.native
+                case Progress():
+                    point = (event.elapsed_secs, event.objective)
+                    if summary.live and summary.live.run == event.run:
+                        summary.live.points.append(point)
+                    else:
+                        summary.live = LiveRun(run=event.run, variant=event.variant, points=[point])
                 case RunFinished():
+                    summary.live = None
                     summary.runs.append(event)
                 case Done():
                     summary.best_run = event.best_run
