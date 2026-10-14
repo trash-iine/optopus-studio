@@ -12,6 +12,17 @@ export function withAttachments(text: string, files: string[]): string {
   return text ? `${head}\n\n${text}` : head;
 }
 
+/**
+ * Whether a key press sends the message: Enter without Shift, and not the Enter that confirms an
+ * IME conversion (Japanese input). Safari, and some IMEs elsewhere, end the composition before
+ * that keydown, so `isComposing` is already false; its `keyCode` is still 229.
+ */
+export function sendsMessage(
+  e: Pick<globalThis.KeyboardEvent, "key" | "shiftKey" | "isComposing" | "keyCode">,
+): boolean {
+  return e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229;
+}
+
 const EXAMPLES = [
   "15 都市を回る最短の巡回路を求めて",
   "4 つのジョブを 3 台の機械で、全体が最短で終わるように並べて",
@@ -64,8 +75,7 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop, 
     }
   };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter while an IME is composing (Japanese input) confirms the conversion, not the message.
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (sendsMessage(e.nativeEvent)) {
       e.preventDefault();
       submit();
     }

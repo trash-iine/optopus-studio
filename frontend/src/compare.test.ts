@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withAttachments } from "./components/Chat";
+import { sendsMessage, withAttachments } from "./components/Chat";
 import { change, kpiRows } from "./components/Compare";
 import { diffLines } from "./diff";
 import type { RevisionDetail } from "./generated/revision";
@@ -98,5 +98,21 @@ describe("attachments", () => {
     expect(withAttachments("use this", ["a.csv", "b.xlsx"])).toBe("Attached: a.csv, b.xlsx\n\nuse this");
     expect(withAttachments("", ["a.csv"])).toBe("Attached: a.csv");
     expect(withAttachments("hi", [])).toBe("hi");
+  });
+});
+
+describe("the Enter key", () => {
+  const press = (over: Partial<KeyboardEvent> = {}) =>
+    sendsMessage({ key: "Enter", shiftKey: false, isComposing: false, keyCode: 13, ...over });
+
+  it("sends on Enter, not on Shift+Enter", () => {
+    expect(press()).toBe(true);
+    expect(press({ shiftKey: true })).toBe(false);
+  });
+
+  it("does not send when it confirms an IME conversion", () => {
+    expect(press({ isComposing: true, keyCode: 229 })).toBe(false);
+    // Safari: the composition has already ended, but the key is still the IME's.
+    expect(press({ keyCode: 229 })).toBe(false);
   });
 });
