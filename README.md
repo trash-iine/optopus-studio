@@ -18,8 +18,9 @@ a Gantt chart, the convergence of every run).
   maximum, a lookup, a simulation), the agent writes the problem in Python.
 - **Speeding up with Rust**: a problem written in Python can be ported to Rust (the "Port to
   Rust" button, or just ask). The agent writes `rust/main.rs`, the studio builds it, checks it
-  against the Python model with the same seeds, and switches the worker once it passes. The
-  Rust worker also shows each run's best while it runs.
+  against the Python model with the same seeds, and switches the worker once it passes.
+- **Live progress**: while a solve runs, the canvas shows each run's best so far, from either
+  worker (`docs/adr/0006`).
 
 ## Requirements
 

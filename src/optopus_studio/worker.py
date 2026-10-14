@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import threading
 import traceback
 from types import ModuleType
 from typing import Any, TextIO
@@ -20,7 +21,14 @@ from typing import Any, TextIO
 import optopus
 from pydantic import ValidationError
 
-from optopus_studio.protocol import Done, RunFinished, SolveRequest, Started, WorkerError
+from optopus_studio.protocol import (
+    Done,
+    Progress,
+    RunFinished,
+    SolveRequest,
+    Started,
+    WorkerError,
+)
 
 HEURISTICS = frozenset(
     {
@@ -128,6 +136,11 @@ def encode(model: ModuleType, instance: dict[str, Any], solution: Any) -> Any:
     return value
 
 
+def watches_runs(heuristic: Any) -> bool:
+    """Whether this optopus reports improvements during a run (``on_improvement``)."""
+    return "on_improvement" in (getattr(heuristic.run, "__text_signature__", None) or "")
+
+
 def solve(request: SolveRequest, emit) -> None:
     def stage(name: str, fn, *args):
         try:
@@ -154,7 +167,18 @@ def solve(request: SolveRequest, emit) -> None:
     for variant, heuristic in enumerate(heuristics):
         for run_index in range(request.runs):
             seed = None if request.seed is None else derive_seed(request.seed, run_index)
-            report = stage("run", heuristic.run, problem, 1, seed)
+            args = (problem, 1, seed)
+            if watches_runs(heuristic):
+
+                def progress(_run, elapsed, objective, index=index, variant=variant):
+                    emit(
+                        Progress(
+                            run=index, variant=variant, elapsed_secs=elapsed, objective=objective
+                        )
+                    )
+
+                args = (*args, progress)
+            report = stage("run", heuristic.run, *args)
             run = report.runs[0]
             solution = stage("encode", encode, model, request.instance, run.solution)
             emit(
@@ -185,10 +209,14 @@ def solve(request: SolveRequest, emit) -> None:
 def main(stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> int:
     out = stdout
     sys.stdout = sys.stderr
+    # Progress can arrive from optopus's ticker thread while the main thread writes.
+    lock = threading.Lock()
 
     def emit(event) -> None:
-        out.write(event.model_dump_json() + "\n")
-        out.flush()
+        line = event.model_dump_json() + "\n"
+        with lock:
+            out.write(line)
+            out.flush()
 
     try:
         request = SolveRequest.model_validate_json(stdin.readline())

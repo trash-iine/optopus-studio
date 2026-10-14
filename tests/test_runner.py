@@ -23,7 +23,12 @@ def test_a_solve_reports_every_run_as_it_finishes():
     assert summary.error is None
     assert summary.problem == "JobShopScheduling"
     assert summary.best_run is not None
-    assert [len(u.runs) for u in updates][:4] == [0, 1, 2, 2]
+    counts = [len(u.runs) for u in updates]
+    assert counts[0] == 0
+    assert counts == sorted(counts)
+    assert counts[-1] == 2
+    assert any(u.live for u in updates), "progress shows the run under way"
+    assert updates[-1].live is None
 
 
 def test_a_solve_that_hangs_is_killed(tmp_path):

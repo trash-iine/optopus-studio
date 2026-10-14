@@ -19,10 +19,12 @@ from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, one, write_
 EVENTS = TypeAdapter(list[WorkerEvent])
 
 
-def run_worker(request: SolveRequest) -> list:
+def run_worker(request: SolveRequest, progress: bool = False) -> list:
+    """The worker's events, without the progress ones unless asked for."""
     stdout = io.StringIO()
     worker.main(io.StringIO(request.model_dump_json() + "\n"), stdout)
-    return EVENTS.validate_python([json.loads(line) for line in stdout.getvalue().splitlines()])
+    events = EVENTS.validate_python([json.loads(line) for line in stdout.getvalue().splitlines()])
+    return [e for e in events if progress or e.type != "progress"]
 
 
 def load_view(name):
@@ -43,6 +45,7 @@ def test_the_worker_speaks_the_protocol_as_a_process(name):
         check=True,
     )
     events = EVENTS.validate_python([json.loads(line) for line in done.stdout.splitlines()])
+    events = [e for e in events if e.type != "progress"]
     runs = request.runs * len(request.variants)
     assert [e.type for e in events] == ["started"] + ["run_finished"] * runs + ["done"]
     runs = events[1:-1]
@@ -225,3 +228,19 @@ def test_started_says_whether_the_search_runs_in_compiled_code(tmp_path):
         )
     )[0]
     assert not python.native
+
+
+def test_a_python_problem_reports_progress_while_it_runs(tmp_path):
+    request = SolveRequest(
+        model_path=write_model(tmp_path, ONE_MAX.replace("range(8)", "range(400)")),
+        instance={},
+        variants=one(
+            {"kind": "RandomWalk", "neighbor": "Flip", "stop": {"max_duration_secs": 0.3}}
+        ),
+    )
+    stream = run_worker(request, progress=True)
+    progress = [e for e in stream if e.type == "progress"]
+    finished = next(e for e in stream if e.type == "run_finished")
+    assert progress, "the first improvement is reported at once"
+    assert progress[-1].objective == finished.best_objective
+    assert stream.index(progress[0]) < stream.index(finished)
