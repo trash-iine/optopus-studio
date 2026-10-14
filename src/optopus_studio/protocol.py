@@ -254,6 +254,12 @@ class RunSummary(Strict):
     higher_is_better: bool | None = None
     live: LiveRun | None = None
     variants: list[str] = []
+    heuristics: list[Variant] = Field(
+        [],
+        description="The variants as solved, with any override of solve.json applied; empty in "
+        "a result.json older than the field.",
+    )
+    seed: int | None = Field(None, description="The seed the solve's runs were drawn from.")
     runs: list[RunFinished] = []
     best_run: int | None = None
     error: WorkerError | None = None
@@ -346,6 +352,16 @@ class RevisionDetail(Strict):
     summary: RunSummary | None
     view: ViewSpec | None
     view_error: str | None = None
+
+
+class ProjectInfo(Strict):
+    """GET /api/projects: one project, newest first."""
+
+    id: str
+    title: str | None = Field(description="The first thing the user asked, shortened.")
+    imported_from: str | None = Field(
+        description="The id the project had in the studio it was exported from, if imported."
+    )
 
 
 class UserMessage(Strict):

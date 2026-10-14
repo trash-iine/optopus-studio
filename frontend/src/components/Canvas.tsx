@@ -5,6 +5,7 @@ import { compact, type Mode } from "../theme";
 import { Convergence, runLabel, variantStats } from "../views/Convergence";
 import { ViewCard } from "../views/View";
 import { Compare } from "./Compare";
+import { Search } from "./Search";
 
 type Tab = "result" | "model" | "runs" | "compare";
 
@@ -132,6 +133,7 @@ function Result({
           <Convergence summary={summary} mode={mode} />
         </section>
       )}
+      <Search summary={summary} />
     </div>
   );
 }
@@ -159,6 +161,7 @@ function Runs({ summary }: { summary: RunSummary }) {
   const several = summary.variants.length > 1;
   return (
     <div className="result">
+      <Search summary={summary} />
       {several && (
         <section className="card table-wrap">
           <h3>

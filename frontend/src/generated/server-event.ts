@@ -22,13 +22,18 @@ export type Message = string;
 export type Stage = "request" | "build" | "heuristic" | "run" | "encode";
 export type Traceback = string | null;
 export type Type = "error";
+export type Label = string;
+/**
+ * The variants as solved, with any override of solve.json applied; empty in a result.json older than the field.
+ */
+export type Heuristics = Variant[];
 export type HigherIsBetter = boolean | null;
 /**
  * (elapsed_secs, objective)
  */
 export type Points = [unknown, unknown][];
 export type Run = number;
-export type Variant = number;
+export type Variant1 = number;
 export type Native = boolean | null;
 export type Problem = string | null;
 export type Rev1 = number;
@@ -51,12 +56,16 @@ export type Type1 = "run_finished";
 /**
  * The index of the variant the run belongs to.
  */
-export type Variant1 = number;
+export type Variant2 = number;
 export type Runs = RunFinished[];
+/**
+ * The seed the solve's runs were drawn from.
+ */
+export type Seed1 = number | null;
 export type Variants = string[];
 export type Worker = "python" | "rust";
 export type Type2 = "snapshot";
-export type Label = string;
+export type Label1 = string;
 export type Unit = string | null;
 export type Value = number | string;
 export type Items = KpiItem[];
@@ -71,7 +80,7 @@ export type End = number;
  * Tasks of one group share a color, e.g. a job.
  */
 export type Group = string | null;
-export type Label1 = string;
+export type Label2 = string;
 /**
  * The row the task is drawn on, such as a machine or a person.
  */
@@ -87,11 +96,11 @@ export type Type5 = "gantt";
 export type Closed = boolean;
 export type Id = number | string;
 export type Kind = "node" | "depot";
-export type Label2 = string | null;
+export type Label3 = string | null;
 export type X = number;
 export type Y = number;
 export type Points1 = MapPoint[];
-export type Label3 = string | null;
+export type Label4 = string | null;
 /**
  * Point ids in visiting order.
  */
@@ -109,7 +118,7 @@ export type Edges = GraphEdge[];
  */
 export type Group1 = string | null;
 export type Id1 = number | string;
-export type Label4 = string | null;
+export type Label5 = string | null;
 export type X1 = number | null;
 export type Y1 = number | null;
 export type Nodes = GraphNode[];
@@ -190,12 +199,14 @@ export interface Files {
 export interface RunSummary {
   best_run: BestRun;
   error: WorkerError | null;
+  heuristics: Heuristics;
   higher_is_better: HigherIsBetter;
   live: LiveRun | null;
   native: Native;
   problem: Problem;
   rev: Rev1;
   runs: Runs;
+  seed: Seed1;
   variants: Variants;
   worker: Worker;
 }
@@ -206,12 +217,25 @@ export interface WorkerError {
   type: Type;
 }
 /**
+ * One heuristic of a solve, under the label the GUI shows it by.
+ */
+export interface Variant {
+  heuristic: Heuristic;
+  label: Label;
+}
+/**
+ * A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.
+ */
+export interface Heuristic {
+  [k: string]: unknown;
+}
+/**
  * The run under way, as its progress events have reported it.
  */
 export interface LiveRun {
   points: Points;
   run: Run;
-  variant: Variant;
+  variant: Variant1;
 }
 export interface RunFinished {
   best_iteration: BestIteration;
@@ -225,7 +249,7 @@ export interface RunFinished {
   total_time_secs: TotalTimeSecs;
   trajectory: Trajectory;
   type: Type1;
-  variant: Variant1;
+  variant: Variant2;
 }
 /**
  * The best solution, JSON-encoded by the model.
@@ -242,7 +266,7 @@ export interface KpiView {
   type: Type3;
 }
 export interface KpiItem {
-  label: Label;
+  label: Label1;
   unit: Unit;
   value: Value;
 }
@@ -261,7 +285,7 @@ export interface GanttView {
 export interface GanttTask {
   end: End;
   group: Group;
-  label: Label1;
+  label: Label2;
   lane: Lane;
   start: Start;
 }
@@ -275,12 +299,12 @@ export interface RouteMapView {
 export interface MapPoint {
   id: Id;
   kind: Kind;
-  label: Label2;
+  label: Label3;
   x: X;
   y: Y;
 }
 export interface Route {
-  label: Label3;
+  label: Label4;
   path: Path;
 }
 export interface GraphView {
@@ -298,7 +322,7 @@ export interface GraphEdge {
 export interface GraphNode {
   group: Group1;
   id: Id1;
-  label: Label4;
+  label: Label5;
   x: X1;
   y: Y1;
 }

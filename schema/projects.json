@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "ProjectInfo": {
+      "additionalProperties": false,
+      "description": "GET /api/projects: one project, newest first.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "imported_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The id the project had in the studio it was exported from, if imported.",
+          "title": "Imported From"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The first thing the user asked, shortened.",
+          "title": "Title"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "imported_from"
+      ],
+      "title": "ProjectInfo",
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/ProjectInfo"
+  },
+  "title": "ProjectList",
+  "type": "array"
+}

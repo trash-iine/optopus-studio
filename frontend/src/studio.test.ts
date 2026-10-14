@@ -29,6 +29,8 @@ function summary(runs: number, best = 0): RunSummary {
   return {
     rev: 1,
     worker: "python",
+    heuristics: [],
+    seed: null,
     native: true,
     live: null,
     problem: "Tsp",

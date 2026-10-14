@@ -72,7 +72,12 @@ async def run_solve(
 
     The Python worker runs it unless ``rust_binary``, a built port, is given.
     """
-    summary = RunSummary(rev=rev, worker="rust" if rust_binary else "python")
+    summary = RunSummary(
+        rev=rev,
+        worker="rust" if rust_binary else "python",
+        heuristics=request.variants,
+        seed=request.seed,
+    )
     command = [str(rust_binary)] if rust_binary else worker_command()
     process = await _spawn(command, cwd)
     assert process.stdin

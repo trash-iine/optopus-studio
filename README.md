@@ -53,6 +53,14 @@ forwards `/api` to the backend.
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | from the stop condition | seconds before a solve is killed |
 | `OPTOPUS_STUDIO_RUST_DIR` | `$OPTOPUS_STUDIO_HOME/rust` | where Rust ports are built and their binaries kept |
 
+## Sharing a project
+
+**Export** in the header downloads the open project as one zip: the chat, every revision with its
+result and view, and the attached files. A teammate opens it with **Import**, which adds it as a
+new project; the project menu in the header switches between projects. Their agent starts a new
+session that reads the conversation first, since the original one stays on the machine it ran on
+(`docs/adr/0007`).
+
 ## How it fits together
 
 ```

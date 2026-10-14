@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from optopus_studio import app as app_module
 from optopus_studio.agent import Tools
 from optopus_studio.projects import Project
+from optopus_studio.protocol import ChatEntry
 
 
 @pytest.fixture
@@ -21,7 +22,9 @@ def client():
 
 def test_a_new_project_starts_empty(client):
     project_id = client.post("/api/projects").json()["id"]
-    assert client.get("/api/projects").json() == [project_id]
+    assert client.get("/api/projects").json() == [
+        {"id": project_id, "title": None, "imported_from": None}
+    ]
     with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
         snapshot = ws.receive_json()
     assert snapshot["type"] == "snapshot"
@@ -75,6 +78,8 @@ def test_a_revision_is_served_for_comparison(client, home):
     detail = client.get(f"/api/projects/{project.id}/revisions/1").json()
     assert detail["rev"] == 1
     assert detail["summary"]["variants"] == ["SimulatedAnnealing"]
+    assert detail["summary"]["heuristics"][0]["heuristic"]["kind"] == "SimulatedAnnealing"
+    assert detail["summary"]["seed"] == 0
     assert set(detail["files"]) == {
         "instance.json",
         "model.py",
@@ -95,3 +100,24 @@ def test_a_file_is_attached_by_posting_its_content(client, home):
     assert Project.open(project_id).uploads() == ["stores.csv"]
     bad = client.post(f"/api/projects/{project_id}/uploads", params={"name": "x.exe"}, content=b"")
     assert bad.status_code == 400
+
+
+def test_a_project_is_handed_over_as_a_zip(client, home):
+    from tests.conftest import example_project
+
+    project = example_project("tsp", home)
+    project.append_chat(ChatEntry(role="user", text="visit every city"))
+    asyncio.run(Tools(project, lambda event: asyncio.sleep(0)).run_solver({"runs": 1}))
+    exported = client.get(f"/api/projects/{project.id}/export")
+    assert exported.headers["content-type"] == "application/zip"
+    assert f"optopus-studio-{project.id}.zip" in exported.headers["content-disposition"]
+
+    copy_id = client.post("/api/projects/import", content=exported.content).json()["id"]
+    assert client.get("/api/projects").json()[0] == {
+        "id": copy_id,
+        "title": "visit every city",
+        "imported_from": project.id,
+    }
+    assert client.get(f"/api/projects/{copy_id}/revisions/1").json()["summary"]["runs"]
+    assert client.post("/api/projects/import", content=b"hello").status_code == 400
+    assert client.get("/api/projects/0123456789ab/export").status_code == 404

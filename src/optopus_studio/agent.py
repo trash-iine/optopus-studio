@@ -36,7 +36,7 @@ from claude_agent_sdk import (
 from pydantic import BaseModel, ValidationError
 
 from optopus_studio import rust
-from optopus_studio.projects import ALL_FILES, Project, ProjectError
+from optopus_studio.projects import ALL_FILES, Project, ProjectError, variants_of
 from optopus_studio.protocol import (
     AssistantDelta,
     AssistantText,
@@ -48,7 +48,6 @@ from optopus_studio.protocol import (
     SolveStarted,
     ToolActivity,
     TurnEnd,
-    Variant,
     ViewUpdated,
 )
 from optopus_studio.runner import render_view, run_solve
@@ -220,6 +219,7 @@ def api_help(name: str) -> str:
 
 
 READ_FILE_LIMIT = 20_000
+HISTORY_LIMIT = 40_000
 
 
 def solve_timeout(request: SolveRequest) -> float:
@@ -233,19 +233,6 @@ def solve_timeout(request: SolveRequest) -> float:
             return DEFAULT_SOLVE_TIMEOUT
         total += seconds * request.runs
     return min(total + 30.0, DEFAULT_SOLVE_TIMEOUT * 4)
-
-
-def variants_of(solve: dict[str, Any]) -> list[Variant]:
-    """The heuristics of solve.json: one under "heuristic", or labeled ones under "heuristics"."""
-    if "heuristics" in solve:
-        entries = solve["heuristics"]
-        if not isinstance(entries, list):
-            raise ProjectError('"heuristics" must be a list of {"label", "heuristic"}')
-        return [Variant.model_validate(entry) for entry in entries]
-    heuristic = solve.get("heuristic")
-    if not isinstance(heuristic, dict):
-        raise ProjectError('solve.json needs "heuristic" or "heuristics"')
-    return [Variant(label=str(heuristic.get("kind", "heuristic")), heuristic=heuristic)]
 
 
 def with_stop(heuristic: dict[str, Any], **stop: Any) -> dict[str, Any]:
@@ -597,6 +584,24 @@ class Tools:
         return create_sdk_mcp_server(SERVER, tools=tools), allowed
 
 
+def with_history(chat: list[ChatEntry], text: str) -> str:
+    """The first message of a session that joins a conversation it was not part of, as in an
+    imported project: the agent session stayed with the studio that exported it."""
+    lines = [
+        f"[tool] {entry.text}" if entry.role == "tool" else f"[{entry.role}]\n{entry.text}"
+        for entry in chat
+    ]
+    history = "\n\n".join(lines)
+    if len(history) > HISTORY_LIMIT:
+        history = "[earlier messages left out]\n\n" + history[-HISTORY_LIMIT:]
+    return (
+        "This project was shared from another studio, so you were not part of the conversation "
+        "so far. Here it is as the user saw it. The project files are as that conversation left "
+        "them; read them before changing anything.\n\n"
+        f"<conversation>\n{history}\n</conversation>\n\nThe user now says:\n\n{text}"
+    )
+
+
 def tool_summary(block: ToolUseBlock) -> ToolActivity:
     name = block.name.removeprefix(f"mcp__{SERVER}__")
     detail = block.input.get("name") or block.input.get("page") or ""
@@ -665,10 +670,12 @@ class AgentSession:
             self.client = None
 
     async def _turn(self, client: ClaudeSDKClient, text: str) -> None:
+        history = self.project.chat()
+        joining = bool(history) and not self.project.meta().get("session_id")
         self.project.append_chat(ChatEntry(role="user", text=text))
         error = None
         try:
-            await client.query(text)
+            await client.query(with_history(history, text) if joining else text)
             async for message in client.receive_response():
                 await self._handle(message)
                 if isinstance(message, ResultMessage):

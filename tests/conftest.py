@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from optopus_studio.agent import variants_of
-from optopus_studio.projects import ALL_FILES, Project
+from optopus_studio.projects import ALL_FILES, Project, variants_of
 from optopus_studio.protocol import SolveRequest, Variant
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"

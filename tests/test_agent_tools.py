@@ -5,9 +5,18 @@ import json
 
 import pytest
 
-from optopus_studio.agent import DOC_PAGES, Tools, api_help, describe, read_doc_page
+from optopus_studio.agent import (
+    DOC_PAGES,
+    HISTORY_LIMIT,
+    Tools,
+    api_help,
+    describe,
+    read_doc_page,
+    with_history,
+)
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
+    ChatEntry,
     FilesChanged,
     RunSummary,
     SolveProgress,
@@ -81,6 +90,14 @@ def test_max_duration_overrides_the_stop_of_solve_json(home):
     request = tools.solve_request({"max_duration_secs": 0.5})
     stop = request.variants[0].heuristic["stop"]
     assert stop == {"max_iteration": 20000, "max_duration_secs": 0.5}
+
+
+def test_a_result_keeps_the_heuristics_as_solved(home):
+    project = example_project("knapsack", home)
+    asyncio.run(Tools(project, Recorder()).run_solver({"max_duration_secs": 0.2, "seed": 5}))
+    summary = project.load_revision(1)[1]
+    assert summary.heuristics[0].heuristic["stop"]["max_duration_secs"] == 0.2
+    assert summary.seed == 5
 
 
 def test_a_failed_solve_is_an_error_result_with_the_traceback(home):
@@ -177,3 +194,17 @@ def test_check_model_runs_every_variant_briefly(home):
     assert not result["is_error"], text(result)
     assert "SA:" in text(result)
     assert "LAHC:" in text(result)
+
+
+def test_an_agent_joining_a_conversation_reads_it_first():
+    chat = [
+        ChatEntry(role="user", text="visit every city"),
+        ChatEntry(role="tool", text="write_file model.py"),
+        ChatEntry(role="assistant", text="The tour is 412 long."),
+    ]
+    prompt = with_history(chat, "now from the depot")
+    assert prompt.index("visit every city") < prompt.index("[tool] write_file model.py")
+    assert prompt.index("412") < prompt.index("now from the depot")
+    long = with_history([ChatEntry(role="user", text="x" * (2 * HISTORY_LIMIT))], "next")
+    assert "[earlier messages left out]" in long
+    assert len(long) < HISTORY_LIMIT + 1000

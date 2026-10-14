@@ -9,19 +9,27 @@
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
 model and its result, and a later worker can re-run exactly what an earlier one did.
+
+A project is shared as a zip of all of it but meta.json (``Project.export``), which another
+studio imports as a new project (``Project.import_archive``).
 """
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import shutil
 import uuid
+import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from optopus_studio.protocol import ChatEntry, RunSummary, ViewSpec
+from pydantic import ValidationError
+
+from optopus_studio.protocol import ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
 # The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005).
@@ -30,6 +38,17 @@ ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+TITLE_LENGTH = 60
+
+ARCHIVE_MANIFEST = "optopus-studio-project.json"
+ARCHIVE_FORMAT = 1
+MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
+_FILE = "|".join(re.escape(name) for name in ALL_FILES)
+# Everything of a project but meta.json, whose agent session lives in this machine's Claude Code.
+ARCHIVE_MEMBER = re.compile(
+    rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
+    r"|uploads/(?P<upload>[^/]+))\Z"
+)
 
 
 def studio_home() -> Path:
@@ -38,6 +57,19 @@ def studio_home() -> Path:
 
 class ProjectError(ValueError):
     pass
+
+
+def variants_of(solve: dict[str, Any]) -> list[Variant]:
+    """The heuristics of solve.json: one under "heuristic", or labeled ones under "heuristics"."""
+    if "heuristics" in solve:
+        entries = solve["heuristics"]
+        if not isinstance(entries, list):
+            raise ProjectError('"heuristics" must be a list of {"label", "heuristic"}')
+        return [Variant.model_validate(entry) for entry in entries]
+    heuristic = solve.get("heuristic")
+    if not isinstance(heuristic, dict):
+        raise ProjectError('solve.json needs "heuristic" or "heuristics"')
+    return [Variant(label=str(heuristic.get("kind", "heuristic")), heuristic=heuristic)]
 
 
 class Project:
@@ -75,6 +107,20 @@ class Project:
             return []
         roots = [p for p in base.iterdir() if (p / "meta.json").is_file()]
         return [p.name for p in sorted(roots, key=lambda p: p.stat().st_mtime, reverse=True)]
+
+    def info(self) -> ProjectInfo:
+        return ProjectInfo(
+            id=self.id, title=self.title(), imported_from=self.meta().get("imported_from")
+        )
+
+    def title(self) -> str | None:
+        first = next((entry.text for entry in self.chat() if entry.role == "user"), None)
+        if first is None:
+            return None
+        if first.startswith("Attached: ") and "\n\n" in first:
+            first = first.split("\n\n", 1)[1]
+        line = " ".join(first.split())
+        return line if len(line) <= TITLE_LENGTH else line[: TITLE_LENGTH - 1] + "…"
 
     # --- meta ----------------------------------------------------------------------------------
 
@@ -156,6 +202,14 @@ class Project:
         files = {name: (path / name).read_text() for name in ALL_FILES if (path / name).is_file()}
         result = path / "result.json"
         summary = RunSummary.model_validate_json(result.read_text()) if result.is_file() else None
+        if summary and not summary.heuristics and "solve.json" in files:
+            # Solved before results kept their heuristics: solve.json says, barring overrides.
+            try:
+                solve = json.loads(files["solve.json"])
+                summary.heuristics = variants_of(solve)
+                summary.seed = solve.get("seed", 0)
+            except (json.JSONDecodeError, ProjectError, ValidationError):
+                pass
         view, error = None, None
         if (path / "view.json").is_file():
             stored = json.loads((path / "view.json").read_text())
@@ -200,3 +254,83 @@ class Project:
         if not path.is_file():
             return []
         return [ChatEntry.model_validate_json(line) for line in path.read_text().splitlines()]
+
+    # --- sharing -------------------------------------------------------------------------------
+
+    def export(self) -> bytes:
+        """The project as a zip another studio imports: the chat, the files, every revision with
+        its result, and the uploads. Not the agent's session, which this machine's Claude Code
+        keeps; the importing studio's agent reads the chat instead."""
+        manifest = {
+            "format": ARCHIVE_FORMAT,
+            "project": self.id,
+            "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(ARCHIVE_MANIFEST, json.dumps(manifest, indent=2))
+            for path in sorted(self.root.rglob("*")):
+                name = path.relative_to(self.root).as_posix()
+                if path.is_file() and ARCHIVE_MEMBER.match(name):
+                    archive.write(path, name)
+        return buffer.getvalue()
+
+    @classmethod
+    def import_archive(cls, data: bytes, home: Path | None = None) -> Project:
+        """Creates a project from what ``export`` wrote, after checking all of it."""
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                members = [info for info in archive.infolist() if not info.is_dir()]
+                if sum(info.file_size for info in members) > MAX_ARCHIVE_BYTES:
+                    raise ProjectError(
+                        f"the archive unpacks to over {MAX_ARCHIVE_BYTES // 2**20} MiB"
+                    )
+                contents = {info.filename: archive.read(info) for info in members}
+        except (zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+            raise ProjectError(f"not a zip file: {exc}") from exc
+        manifest = _manifest(contents.pop(ARCHIVE_MANIFEST, None))
+        for name, content in contents.items():
+            _check_member(name, content)
+        project = cls.create(home)
+        for name, content in contents.items():
+            path = project.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        origin = manifest.get("project")
+        project.set_meta(imported_from=origin if isinstance(origin, str) else None)
+        return project
+
+
+def _manifest(content: bytes | None) -> dict[str, Any]:
+    if content is None:
+        raise ProjectError(f"not an exported studio project: {ARCHIVE_MANIFEST} is missing")
+    try:
+        manifest = json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ProjectError(f"{ARCHIVE_MANIFEST} is not JSON: {exc}") from exc
+    if not isinstance(manifest, dict) or manifest.get("format") != ARCHIVE_FORMAT:
+        raise ProjectError(
+            f"the archive is in a format this studio cannot read; expected {ARCHIVE_FORMAT}"
+        )
+    return manifest
+
+
+def _check_member(name: str, content: bytes) -> None:
+    """Rejects a file the archive may not hold, or one the studio would fail on later."""
+    match = ARCHIVE_MEMBER.match(name)
+    upload = match and match["upload"]
+    if not match or (upload and (not UPLOAD_NAME.match(upload) or upload.startswith("."))):
+        raise ProjectError(f"the archive holds a file a project does not: {name!r}")
+    if upload:
+        return
+    try:
+        text = content.decode()
+        if name == "chat.jsonl":
+            for line in text.splitlines():
+                ChatEntry.model_validate_json(line)
+        elif name.endswith("/result.json"):
+            RunSummary.model_validate_json(text)
+        elif name.endswith(".json"):
+            json.loads(text)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
+        raise ProjectError(f"{name} in the archive is broken: {exc}") from exc

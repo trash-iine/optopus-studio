@@ -1,7 +1,9 @@
 """The HTTP and WebSocket server the browser talks to.
 
-GET  /api/projects                       project ids, newest first
+GET  /api/projects                       the projects (ProjectInfo), newest first
 POST /api/projects                       create one
+POST /api/projects/import                create one from an exported zip, the body
+GET  /api/projects/{id}/export           the project as a zip to hand to someone
 GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
 WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
@@ -16,7 +18,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -25,6 +27,7 @@ from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
     ClientEvent,
     Interrupt,
+    ProjectInfo,
     RevisionDetail,
     SelectRevision,
     Snapshot,
@@ -95,8 +98,8 @@ app = FastAPI(title="optopus-studio", lifespan=lifespan)
 
 
 @app.get("/api/projects")
-def list_projects() -> list[str]:
-    return Project.list()
+def list_projects() -> list[ProjectInfo]:
+    return [Project.open(project_id).info() for project_id in Project.list()]
 
 
 @app.post("/api/projects")
@@ -104,11 +107,29 @@ def create_project() -> dict[str, str]:
     return {"id": Project.create().id}
 
 
+@app.post("/api/projects/import")
+async def import_project(request: Request) -> dict[str, str]:
+    try:
+        return {"id": Project.import_archive(await request.body()).id}
+    except ProjectError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def open_project(project_id: str) -> Project:
     try:
         return Project.open(project_id)
     except ProjectError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/projects/{project_id}/export")
+def export_project(project_id: str) -> Response:
+    project = open_project(project_id)
+    return Response(
+        project.export(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="optopus-studio-{project.id}.zip"'},
+    )
 
 
 @app.get("/api/projects/{project_id}/revisions/{rev}")

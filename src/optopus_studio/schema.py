@@ -15,6 +15,7 @@ from pydantic import TypeAdapter
 
 from optopus_studio.protocol import (
     ClientEvent,
+    ProjectInfo,
     RevisionDetail,
     ServerEvent,
     SolveRequest,
@@ -33,6 +34,7 @@ SCHEMAS = {
     "server-event.json": (TypeAdapter(ServerEvent), "serialization"),
     "client-event.json": (TypeAdapter(ClientEvent), "validation"),
     "revision.json": (TypeAdapter(RevisionDetail), "serialization"),
+    "projects.json": (TypeAdapter(list[ProjectInfo]), "serialization"),
 }
 
 
@@ -44,6 +46,7 @@ def render() -> dict[str, str]:
         "server-event.json": "ServerEvent",
         "client-event.json": "ClientEvent",
         "revision.json": "RevisionDetail",
+        "projects.json": "ProjectList",
     }
     out = {}
     for name, (adapter, mode) in SCHEMAS.items():

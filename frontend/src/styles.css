@@ -72,7 +72,6 @@ header {
   background: var(--surface);
 }
 .brand { font-weight: 600; }
-.project { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--axis); }
 .dot.on { background: var(--good); }
 .spacer { flex: 1; }
@@ -222,3 +221,20 @@ tr.best td { font-weight: 600; }
 .diff-removed { background: var(--removed); }
 .diff-skip { color: var(--muted); font-style: italic; }
 .banner.info { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink-2); }
+
+/* How a solve searched: heuristics, their arguments and the ones nested in them. */
+.search .variant + .variant { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.variant-label { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.heuristic-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.heuristic-head code { font-size: 13px; font-weight: 600; }
+.heuristic-summary { margin: 4px 0 6px; color: var(--ink-2); font-size: 12px; max-width: 72ch; }
+.heuristic dl { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0; font-size: 12px; }
+.heuristic dl > div { display: flex; gap: 6px; }
+.heuristic dt { color: var(--muted); }
+.heuristic dd { margin: 0; font-variant-numeric: tabular-nums; }
+.heuristic-child { margin: 8px 0 0 4px; padding-left: 12px; border-left: 2px solid var(--border); }
+.heuristic-role { color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+
+/* Sharing a project: the project picker and its export / import. */
+header select.projects { max-width: 320px; }
+header .header-error { color: var(--critical); font-size: 12px; }

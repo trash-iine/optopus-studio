@@ -891,6 +891,15 @@
           ],
           "default": null
         },
+        "heuristics": {
+          "default": [],
+          "description": "The variants as solved, with any override of solve.json applied; empty in a result.json older than the field.",
+          "items": {
+            "$ref": "#/$defs/Variant"
+          },
+          "title": "Heuristics",
+          "type": "array"
+        },
         "higher_is_better": {
           "anyOf": [
             {
@@ -950,6 +959,19 @@
           "title": "Runs",
           "type": "array"
         },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The seed the solve's runs were drawn from.",
+          "title": "Seed"
+        },
         "variants": {
           "default": [],
           "items": {
@@ -976,6 +998,8 @@
         "higher_is_better",
         "live",
         "variants",
+        "heuristics",
+        "seed",
         "runs",
         "best_run",
         "error"
@@ -1249,6 +1273,29 @@
         "error"
       ],
       "title": "TurnEnd",
+      "type": "object"
+    },
+    "Variant": {
+      "additionalProperties": false,
+      "description": "One heuristic of a solve, under the label the GUI shows it by.",
+      "properties": {
+        "heuristic": {
+          "additionalProperties": true,
+          "description": "A heuristic as {'kind': <optopus class>, **constructor arguments}; 'stop' is a StopCondition's arguments, and a nested heuristic is another such dict.",
+          "title": "Heuristic",
+          "type": "object"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "heuristic"
+      ],
+      "title": "Variant",
       "type": "object"
     },
     "ViewSpec": {
