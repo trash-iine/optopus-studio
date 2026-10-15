@@ -272,7 +272,7 @@ header .header-error { color: var(--critical); font-size: 12px; }
 }
 .file-button.disabled { opacity: 0.4; cursor: default; }
 .app-param { font-size: 13px; }
-.app-param input[type="number"], .app-param input[type="text"] {
+.app-param input[type="number"], .app-param input[type="text"], .app-param textarea {
   font: inherit;
   color: inherit;
   background: var(--plane);

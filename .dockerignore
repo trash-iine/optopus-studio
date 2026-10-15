@@ -1,0 +1,11 @@
+# What docker/app.Dockerfile copies from the repository is listed there; keep the rest out.
+.git
+.venv
+**/__pycache__
+**/node_modules
+frontend/dist
+workers/rust/target
+tests
+docs
+examples
+schema

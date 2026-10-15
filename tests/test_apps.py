@@ -392,3 +392,54 @@ def test_a_case_goes_from_the_app_server_to_the_studio_and_its_agent(home, tmp_p
     assert listed == f"case:{case_id}"
     report = asyncio.run(tools.read_case({"case": f"case:{case_id}"}))["content"][0]["text"]
     assert "input items:" in report
+
+
+# --- handing an app over (docs/adr/0010) -------------------------------------------------------
+
+
+def test_a_case_carries_its_users_note_into_the_studio(home, tmp_path, monkeypatch):
+    from optopus_studio.apps import describe_case, import_case
+
+    monkeypatch.setenv("OPTOPUS_APP_IMAGE", "optopus-app-x:r1")
+    app, project = app_and_project(home, tmp_path)
+    case = app.new_case()
+    solve(case, {})
+    case.set_note("地図より毛布を優先してほしい")
+    assert app.case(case.id).state().note == "地図より毛布を優先してほしい"
+    with pytest.raises(ProjectError, match="longer than"):
+        case.set_note("x" * 10_001)
+    import_case(project, exported(app.case(case.id)))
+    report = describe_case(project, case.id, lambda path: "")
+    assert "run in the image optopus-app-x:r1" in report
+    assert "in their words:\n地図より毛布を優先してほしい" in report
+
+
+def test_the_app_server_keeps_a_note(home, tmp_path):
+    with TestClient(create_app(packaged(home, tmp_path), home)) as client:
+        case_id = client.post("/api/app/cases").json()["id"]
+        saved = client.put(f"/api/app/cases/{case_id}/note", json={"note": "too slow"})
+        assert saved.json()["note"] == "too slow"
+        assert client.get(f"/api/app/cases/{case_id}").json()["note"] == "too slow"
+        long = client.put(f"/api/app/cases/{case_id}/note", json={"note": "x" * 10_001})
+        assert long.status_code == 400
+
+
+def test_a_package_opens_from_the_folder_it_was_unpacked_into(home, tmp_path):
+    import zipfile
+
+    path = packaged(home, tmp_path)
+    folder = tmp_path / "unpacked"
+    with zipfile.ZipFile(path) as archive:
+        archive.extractall(folder)
+    (folder / ".DS_Store").write_bytes(b"\0")
+    assert App.open_package(folder, home).root == App.open_package(path, home).root
+
+
+def test_a_package_is_checked_and_solved_before_it_becomes_an_image(home, tmp_path):
+    app = App.open_package(packaged(home, tmp_path), home)
+    assert asyncio.run(app.prebuild()) is None
+    summary = asyncio.run(app.self_test(seconds=0.2))
+    assert len(summary.runs) == 1
+    app.instance["capacity"] = -1
+    with pytest.raises(ProjectError, match="does not fit the package"):
+        asyncio.run(app.prebuild())

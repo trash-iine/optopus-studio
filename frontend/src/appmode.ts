@@ -44,6 +44,12 @@ export const api = {
     }),
   removeInput: (id: string, key: string) =>
     call<CaseState>(`/api/app/cases/${id}/inputs/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  setNote: (id: string, note: string) =>
+    call<CaseState>(`/api/app/cases/${id}/note`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    }),
   solve: (id: string, parameters: Record<string, unknown>) =>
     call<CaseState>(`/api/app/cases/${id}/solve`, {
       method: "POST",

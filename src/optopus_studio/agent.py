@@ -229,6 +229,11 @@ should be) or the model is; fix the model when it is, make it report such data c
 time, and say that the revision must be packaged again for the app's users to get the fix. \
 load_case replaces instance.json, so after the fix put the packaged data back if the app should \
 keep showing it.
+
+A case may carry the app user's note, in their own words. A case that solved but whose note says \
+the result is not what they expected is feedback, not a failure: reproduce it, work out which \
+requirement the model misses or gets wrong, and confirm it with the user before changing the \
+model.
 """
 
 

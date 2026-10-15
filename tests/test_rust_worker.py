@@ -62,6 +62,15 @@ def test_a_build_is_kept_and_reused():
     assert again.binary == first.binary
 
 
+def test_a_built_port_runs_where_there_is_no_cargo(monkeypatch):
+    source = port("tsp")
+    built = binary(source)
+    # An app's image holds the binary and no cargo (docs/adr/0010).
+    monkeypatch.setattr(rust, "cargo", lambda: None)
+    assert asyncio.run(rust.build(source)).binary == built
+    assert not asyncio.run(rust.build(source + "\n")).ok
+
+
 def test_a_port_that_does_not_compile_returns_the_errors():
     built = asyncio.run(rust.build('fn main() { let x: u32 = "no"; }\n'))
     assert not built.ok
