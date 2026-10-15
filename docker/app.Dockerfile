@@ -25,7 +25,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md LICENSE-MIT LICENSE-APACHE ./
 RUN uv sync --frozen --no-default-groups --no-install-project
 COPY src/ src/
-COPY workers/rust/Cargo.toml workers/rust/Cargo.lock workers/rust/
+COPY workers/rust/Cargo.toml workers/rust/
 COPY workers/rust/src/ workers/rust/src/
 RUN uv sync --frozen --no-default-groups
 COPY --from=package package.zip /opt/optopus-app/package.zip
