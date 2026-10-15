@@ -689,6 +689,10 @@ class AgentSession:
             system_prompt=SYSTEM_PROMPT,
             tools=[],
             mcp_servers={SERVER: server},
+            # Only the studio's tools: without this, the CLI also connects the MCP servers of
+            # the Claude account it signs in with (claude.ai connectors), and the agent mentions
+            # them to the user.
+            strict_mcp_config=True,
             allowed_tools=allowed,
             setting_sources=[],
             cwd=str(self.project.work),
