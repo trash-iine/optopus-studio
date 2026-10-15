@@ -10,12 +10,16 @@ async function createProject(): Promise<string> {
   return (await response.json()).id;
 }
 
+/** Attaches a file, or a case an app exported (a .zip), and returns the name the agent sees. */
 async function upload(project: string, file: File): Promise<string> {
-  const url = `/api/projects/${project}/uploads?name=${encodeURIComponent(file.name)}`;
+  const isCase = file.name.toLowerCase().endsWith(".zip");
+  const url = isCase
+    ? `/api/projects/${project}/cases`
+    : `/api/projects/${project}/uploads?name=${encodeURIComponent(file.name)}`;
   const response = await fetch(url, { method: "POST", body: file });
   const body = await response.json();
   if (!response.ok) throw new Error(body.detail ?? `upload failed: ${response.status}`);
-  return body.name;
+  return isCase ? `case:${body.case}` : body.name;
 }
 
 async function listProjects(): Promise<ProjectInfo[]> {

@@ -238,3 +238,49 @@ tr.best td { font-weight: 600; }
 /* Sharing a project: the project picker and its export / import. */
 header select.projects { max-width: 320px; }
 header .header-error { color: var(--critical); font-size: 12px; }
+
+/* Packaging a revision as an app (docs/adr/0009). */
+.rev-actions { display: flex; align-items: center; gap: 8px; }
+.package-error { max-width: 1100px; margin: 0 auto 16px; }
+.package-error pre { white-space: pre-wrap; }
+
+/* --- a packaged app --- */
+.app-version { font-size: 12px; }
+.app-form h3 { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.app-description { margin: 0; color: var(--ink-2); }
+.app-input, .app-param {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.app-input p { margin: 0; font-size: 12px; }
+.app-input-head { display: flex; justify-content: space-between; gap: 8px; }
+.app-columns { display: flex; flex-wrap: wrap; gap: 4px; }
+.app-columns code { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--plane); }
+.app-input-file { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.app-input-file > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.file-button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.file-button.disabled { opacity: 0.4; cursor: default; }
+.app-param { font-size: 13px; }
+.app-param input[type="number"], .app-param input[type="text"] {
+  font: inherit;
+  color: inherit;
+  background: var(--plane);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.app-param small { font-size: 12px; }
+.app-actions { align-items: center; }
+.app-actions > span { flex: 1; }
+.banner ul { margin: 6px 0 0; padding-left: 18px; }

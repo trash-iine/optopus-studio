@@ -62,6 +62,26 @@ new project; the project menu in the header switches between projects. Their age
 session that reads the conversation first, since the original one stays on the machine it ran on
 (`docs/adr/0007`).
 
+## Packaging a model as an app
+
+When a model is ready for others, ask the agent to make it an app. It writes `app.json`: the
+tables the app's user may replace and the settings they may change, each checked before a solve.
+**Package**, above the canvas, downloads the selected revision as a zip. Whoever runs it needs
+this repository installed, but no Claude Code login:
+
+```bash
+uv run optopus-studio app optopus-app-<project>-r<rev>.zip   # http://127.0.0.1:8766
+```
+
+The app shows the revision's own result first. Its user gives files, sets values and solves, and
+the app says, row by row, what keeps a file from being solved. Anything else about the model is
+changed in the studio and packaged again (`docs/adr/0009`).
+
+When a case goes wrong, **Export case** downloads its files, settings, problems and result as a
+zip. Attach it with **+** in the studio's chat: the agent reads it (`read_case`), reproduces it
+(`load_case`), and tells whether the data or the model is at fault. A fixed model reaches the
+app's users when its revision is packaged again.
+
 ## How it fits together
 
 ```
@@ -81,6 +101,7 @@ A project is four files the agent writes, frozen into a revision on every solve:
 | `solve.json` | the worker | the heuristic as `{"kind": ..., **arguments}`, or labeled `"heuristics"` to compare; runs, seed |
 | `view.py` | the backend's viewer process | `to_view(instance, result)` returns a `ViewSpec` for the canvas |
 | `rust/main.rs` (optional) | a Rust worker | the model ported to Rust; `"worker": "rust"` in `solve.json` runs it |
+| `app.json` (optional) | a packaged app | what the app's user may change: input tables and parameters |
 
 The three contracts live in `src/optopus_studio/protocol.py`, the single source of the schemas in
 `schema/` and of the TypeScript types in `frontend/src/generated/`. Because the worker only

@@ -5,6 +5,7 @@
         chat.jsonl      the conversation as shown in the GUI
         work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json
+        cases/<id>/     cases attached from a packaged app (docs/adr/0009)
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
@@ -29,11 +30,12 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from optopus_studio.protocol import ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
+from optopus_studio.protocol import AppSpec, ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
-# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005).
-OPTIONAL_FILES = ("rust/main.rs",)
+# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005), and
+# what a packaged app lets its user change (docs/adr/0009).
+OPTIONAL_FILES = ("rust/main.rs", "app.json")
 ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
@@ -47,7 +49,7 @@ _FILE = "|".join(re.escape(name) for name in ALL_FILES)
 # Everything of a project but meta.json, whose agent session lives in this machine's Claude Code.
 ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
-    r"|uploads/(?P<upload>[^/]+))\Z"
+    r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+))\Z"
 )
 
 
@@ -160,6 +162,11 @@ class Project:
                 json.loads(content)
             except json.JSONDecodeError as exc:
                 raise ProjectError(f"{name} is not valid JSON: {exc}") from exc
+        if name == "app.json":
+            try:
+                AppSpec.model_validate_json(content)
+            except ValidationError as exc:
+                raise ProjectError(f"app.json is not a valid app: {exc}") from exc
         (self.work / name).parent.mkdir(parents=True, exist_ok=True)
         (self.work / name).write_text(content)
 
@@ -322,6 +329,12 @@ def _check_member(name: str, content: bytes) -> None:
     if not match or (upload and (not UPLOAD_NAME.match(upload) or upload.startswith("."))):
         raise ProjectError(f"the archive holds a file a project does not: {name!r}")
     if upload:
+        return
+    if match["case"]:
+        # apps imports this module, so import it here.
+        from optopus_studio.apps import check_case_member
+
+        check_case_member(match["case_file"], content)
         return
     try:
         text = content.decode()

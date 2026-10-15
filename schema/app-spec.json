@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "AppColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "description": "Whether every row must have a value.",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "number",
+                "integer",
+                "string",
+                "boolean"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checked in every row when given.",
+          "title": "Type"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AppColumn",
+      "type": "object"
+    },
+    "AppInput": {
+      "additionalProperties": false,
+      "description": "A file the app's user can give, whose rows replace one key of instance.json.",
+      "properties": {
+        "columns": {
+          "default": [],
+          "description": "The columns every row must have; empty accepts any table or JSON.",
+          "items": {
+            "$ref": "#/$defs/AppColumn"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "key": {
+          "description": "The key of instance.json the file replaces.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "description": "Whether a file must be given; otherwise the packaged data is used.",
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "label"
+      ],
+      "title": "AppInput",
+      "type": "object"
+    },
+    "AppParameter": {
+      "additionalProperties": false,
+      "description": "A value the app's user can change. Its default is what the packaged files hold.",
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "target": {
+          "description": "Where the value goes: instance.<key>[.<key>...] in instance.json, or solve.max_duration_secs (every heuristic's time limit), solve.runs or solve.seed.",
+          "pattern": "^(instance(\\.[^.]+)+|solve\\.(max_duration_secs|runs|seed))$",
+          "title": "Target",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "number",
+            "integer",
+            "boolean",
+            "string"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "type",
+        "target"
+      ],
+      "title": "AppParameter",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "app.json: what a packaged app lets its user change. Everything else is fixed, and is\nchanged in the studio.",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "inputs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AppInput"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "parameters": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AppParameter"
+      },
+      "title": "Parameters",
+      "type": "array"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "title": "AppSpec",
+  "type": "object"
+}

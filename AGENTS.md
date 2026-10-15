@@ -12,7 +12,10 @@ optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right show
 - `worker.py` (solver process), `viewer.py` (runs a project's `view.py`), `runner.py` (starts
   both), `projects.py` (files, revisions and uploads on disk), `tables.py` (reading uploaded
   CSV/TSV/Excel/JSON), `agent.py` (Agent SDK session, tools and system prompt), `app.py` (FastAPI +
-  WebSocket), `cli.py` (entry point).
+  WebSocket), `cli.py` (entry point). `solving.py` turns a model's files into a solve for both the
+  agent and apps; `apps.py` and `appserver.py` package a revision with its `app.json` and run it
+  without the agent (ADR 0009); the frontend shows `components/AppMode.tsx` when `/api/mode`
+  says "app".
 - `frontend/` — React + Vite + ECharts. `src/generated/` is generated; never edit it.
   Colors come from `src/theme.ts` (the dataviz reference palette): assign categorical slots in
   order, never cycle; past eight, use the muted ink and a label.
