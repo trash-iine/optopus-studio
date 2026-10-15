@@ -2,7 +2,8 @@
 
 optopus studio: a chat on the left drives an agent that models and solves optimization tasks with
 optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right shows the result.
-`README.md` is the source for setup and usage; this file is a digest for coding agents.
+`README.md` and `docs/guide/` are the source for setup and usage; this file is a digest for
+coding agents.
 
 ## Layout
 
@@ -26,6 +27,9 @@ optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right show
   agent reads; keep it in step with the library. `rust.py` builds ports, `verify.py` checks them.
 - `examples/` — complete projects; the tests solve them and check the views against the core.
 - `docs/adr/` — decisions. Read them before changing the boundaries they describe.
+- `docs/guide/` — the user and contributor guide, linked from `README.md`. Keep it in step with
+  changes to the UI, the CLI, error messages and the checks. `docs/ja/guide/` is its Japanese
+  translation, page for page: change both together.
 
 ## Rules
 
@@ -38,13 +42,14 @@ optopus (the Python bindings, trash-iine/optopus-py); a canvas on the right show
   (ADR 0010; `tests/test_image.py` checks it).
 - Uploaded data reaches a model only through `instance.json` (ADR 0004); never let `model.py`
   read `uploads/`, or a revision stops being reproducible on its own.
-- English in code, comments and docs; the chat itself follows the user's language.
+- English in code, comments and docs (the one exception: the translation in `docs/ja/`); the chat
+  itself follows the user's language.
 - Python: Ruff, `line-length = 100`. Tests: tiny instances, hermetic, under `tmp_path`.
 - A change to the worker protocol touches `protocol.py`, `worker.py` and `workers/rust/src`
   together; `tests/test_rust_worker.py` checks the Rust side against the Python models.
 - optopus comes from a pinned optopus-py commit (`pyproject.toml`), and the Rust worker's core
   from the commit that one vendors (`workers/rust/Cargo.toml`); move them together and run
-  `uv run pytest -m network` (README, "Develop"; docs/adr/0008).
+  `uv run pytest -m network` (docs/guide/development.md; docs/adr/0008).
 - Before committing: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
   `npm test && npm run typecheck` in `frontend/`, and `cargo fmt --check` and
   `cargo clippy --all-targets -- -D warnings` in `workers/rust/`.
