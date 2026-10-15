@@ -245,3 +245,14 @@ def test_an_agent_joining_a_conversation_reads_it_first():
     long = with_history([ChatEntry(role="user", text="x" * (2 * HISTORY_LIMIT))], "next")
     assert "[earlier messages left out]" in long
     assert len(long) < HISTORY_LIMIT + 1000
+
+
+def test_the_agent_sees_only_the_studios_tools(home):
+    from optopus_studio.agent import SERVER, AgentSession
+
+    options = AgentSession(Project.create(home), lambda event: asyncio.sleep(0)).options()
+    assert options.tools == []
+    assert options.setting_sources == []
+    assert list(options.mcp_servers) == [SERVER]
+    # Not the MCP servers of the Claude account it signs in with, such as claude.ai connectors.
+    assert options.strict_mcp_config
