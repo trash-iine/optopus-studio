@@ -22,19 +22,11 @@ a Gantt chart, the convergence of every run).
 - **Live progress**: while a solve runs, the canvas shows each run's best so far, from either
   worker (`docs/adr/0006`).
 
-## Requirements
+## Quick start
 
-- [uv](https://docs.astral.sh/uv/) and Python 3.12+
-- Node 24 for the frontend (`mise.toml` pins it; `mise install` provides it)
-- A Rust toolchain (`cargo`, 1.88+): `uv sync` builds optopus from source, and Rust workers are
-  built with it
-- Claude Code, signed in (`claude` then `/login`). The agent runs on that login through the
-  Claude Agent SDK; `ANTHROPIC_API_KEY` is ignored (see `docs/adr/0003`).
-- Network access to GitHub: optopus is built from a pinned commit of
-  [optopus-py](https://github.com/trash-iine/optopus-py), and the agent reads that commit's user
-  guide, fetched once per page (see `docs/adr/0008`)
-
-## Run
+You need git, [uv](https://docs.astral.sh/uv/), a Rust toolchain (1.88+), Node 24 and
+[Claude Code](https://docs.claude.com/en/docs/claude-code/setup) signed in (`claude`, then
+`/login`). The agent runs on that login; `ANTHROPIC_API_KEY` is ignored (`docs/adr/0003`).
 
 ```bash
 uv sync                                   # builds optopus from optopus-py's pinned commit
@@ -42,17 +34,22 @@ uv sync                                   # builds optopus from optopus-py's pin
 uv run optopus-studio                     # http://127.0.0.1:8765
 ```
 
-For frontend work, run `npm run dev` in `frontend/` as well and open http://127.0.0.1:5173; it
-forwards `/api` to the backend.
+First time? [Getting started](docs/guide/getting-started.md) goes through each step with a check,
+and [Your first session](docs/guide/first-session.md) through the first model.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | where projects and their revisions are stored |
-| `OPTOPUS_STUDIO_MODEL` | Claude Code's default | the model the agent runs on |
-| `OPTOPUS_STUDIO_DOCS` | fetched from GitHub | a `docs/source` of optopus-py for the agent to read instead |
-| `OPTOPUS_STUDIO_WORKER` | the Python worker | the solver command, e.g. a Rust worker |
-| `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | from the stop condition | seconds before a solve is killed |
-| `OPTOPUS_STUDIO_RUST_DIR` | `$OPTOPUS_STUDIO_HOME/rust` | where Rust ports are built and their binaries kept |
+## Documentation
+
+The [guide](docs/guide/README.md) ([日本語](docs/ja/guide/README.md)):
+
+- [Getting started](docs/guide/getting-started.md): install, start, options, environment
+  variables, where data is kept
+- [Your first session](docs/guide/first-session.md): ask, read the result, change, compare, bring
+  your own data
+- [The interface](docs/guide/interface.md): every button, tab and banner
+- [Projects, revisions and files](docs/guide/projects.md): what the agent writes, and the examples
+- [Troubleshooting](docs/guide/troubleshooting.md): symptoms and fixes
+- [Development](docs/guide/development.md): architecture, checks, changing the protocol, moving
+  the optopus pin
 
 ## Sharing a project
 
@@ -122,49 +119,11 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
                                                           solver worker (a subprocess)
 ```
 
-A project is four files the agent writes, frozen into a revision on every solve:
-
-| File | Runs in | Says |
-|---|---|---|
-| `instance.json` | — | the data |
-| `model.py` | the worker | `build(instance)` returns an optopus problem; optional `encode_solution` makes the solution JSON |
-| `solve.json` | the worker | the heuristic as `{"kind": ..., **arguments}`, or labeled `"heuristics"` to compare; runs, seed |
-| `view.py` | the backend's viewer process | `to_view(instance, result)` returns a `ViewSpec` for the canvas |
-| `rust/main.rs` (optional) | a Rust worker | the model ported to Rust; `"worker": "rust"` in `solve.json` runs it |
-| `app.json` (optional) | a packaged app | what the app's user may change: input tables and parameters |
-
-The three contracts live in `src/optopus_studio/protocol.py`, the single source of the schemas in
-`schema/` and of the TypeScript types in `frontend/src/generated/`. Because the worker only
-speaks `SolveRequest` / `WorkerEvent` and the canvas only reads `ViewSpec`, a solver written in
-Rust replaces the Python worker without touching the GUI (`docs/adr/0001`). Attached files are kept
-under the project's `uploads/` and imported into `instance.json`, so each revision carries its data
-(`docs/adr/0004`). A Rust worker is the project's own port linked against `workers/rust`
-(`docs/adr/0005`, `workers/rust/GUIDE.md`). `examples/` holds four complete projects: TSP and job
-shop (built-in problems), a knapsack (`Formula`), and a workload balance written in Python that
-compares three heuristics; the TSP and the workload also have Rust ports.
-
-## Develop
-
-```bash
-uv run pytest                      # backend: worker, runner, projects, tools, server
-uv run ruff check . && uv run ruff format --check .
-(cd frontend && npm test && npm run typecheck)
-(cd workers/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
-```
-
-`uv run pytest -m network` runs the tests that read from GitHub: every docs page the agent reads
-exists at the pinned commit, and the Rust worker links the core that commit vendors.
-
-To move to a newer optopus-py, set `rev` in `pyproject.toml` to its commit and `rev` in
-`workers/rust/Cargo.toml` to the commit of its `vendor/optopus`, then `uv sync` and run both test
-sets. To try an optopus-py checkout before it is merged, point `[tool.uv.sources]` at it with
-`path` and `OPTOPUS_STUDIO_DOCS` at its `docs/source`, without committing that.
-
-After changing `protocol.py`, regenerate the schemas and types:
-
-```bash
-uv run python -m optopus_studio.schema && (cd frontend && npm run gen:types)
-```
+A project is the files the agent writes (`instance.json`, `model.py`, `solve.json`, `view.py`, and
+optionally `rust/main.rs` and `app.json`), frozen into a revision on every solve. The contracts
+live in `src/optopus_studio/protocol.py`; the decisions behind the design are in `docs/adr/`.
+`examples/` holds four complete projects. [Development](docs/guide/development.md) has the details,
+the checks to run before committing, and how to move to a newer optopus-py.
 
 ## License
 
