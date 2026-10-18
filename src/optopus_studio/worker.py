@@ -59,8 +59,10 @@ HEURISTICS = frozenset(
 )
 
 # Arguments the binding takes as a tuple, which JSON can only spell as a list.
-TUPLE_ARGUMENTS = frozenset({"tabu_tenure"})
+TUPLE_ARGUMENTS = frozenset({"tabu_tenure", "scores", "penalty_adaptation", "initial_population"})
 STOP_ARGUMENTS = frozenset({"stop", "restart"})
+# The optopus classes a heuristic takes as an argument other than a heuristic, by argument name.
+ARGUMENT_CLASSES = {"relaxation": frozenset({"EigenvalueRelaxation"})}
 
 # The built-in problems whose report ranks higher values first. A Formula reports
 # higher-is-better whichever way it optimizes.
@@ -90,6 +92,9 @@ def build_heuristic(spec: dict[str, Any]) -> Any:
 def _argument(key: str, value: Any) -> Any:
     if key in STOP_ARGUMENTS and isinstance(value, dict):
         return optopus.StopCondition(**value)
+    if isinstance(value, dict) and value.get("kind") in ARGUMENT_CLASSES.get(key, ()):
+        kwargs = dict(value)
+        return getattr(optopus, kwargs.pop("kind"))(**kwargs)
     if isinstance(value, dict) and "kind" in value:
         return build_heuristic(value)
     if isinstance(value, list):

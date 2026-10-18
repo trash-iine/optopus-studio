@@ -99,11 +99,12 @@ Python. Optional `encode_solution(instance, solution)` turns RunResult.solution 
 (lists, numbers, strings, dicts); without it the solution must already be JSON-like.
 - solve.json — `{"heuristic": {"kind": "<optopus heuristic class>", ...constructor arguments, \
 "stop": {...StopCondition arguments}}, "runs": 3, "seed": 0}`. A nested heuristic is the same \
-kind of dict (Iterated's "search", Restart's "heuristic", Sequential's "steps"), and a stop is a \
-dict of max_iteration / max_duration_secs / max_failed_update. To compare heuristics, give \
-`"heuristics": [{"label": "SA", "heuristic": {...}}, ...]` (up to 8) instead of "heuristic": \
-each runs `runs` times with the same seeds, so they start from the same solutions, and the \
-canvas overlays their convergence.
+kind of dict (Iterated's "search", Restart's "heuristic", Sequential's "steps"), a stop is a \
+dict of max_iteration / max_duration_secs / max_failed_update, BranchAndBound's "relaxation" is \
+a name or `{"kind": "EigenvalueRelaxation", ...}`, and a tuple argument is a list. To compare \
+heuristics, give `"heuristics": [{"label": "SA", "heuristic": {...}}, ...]` (up to 8) instead \
+of "heuristic": each runs `runs` times with the same seeds, so they start from the same \
+solutions, and the canvas overlays their convergence.
 - view.py — `to_view(instance, result)` returns `{"views": [...]}`. `result` has "problem", \
 "higher_is_better", "variants" (the heuristics' labels), "runs" (each with variant (an index), \
 best_objective, initial_objective, solution, trajectory, iterations, total_time_secs), \

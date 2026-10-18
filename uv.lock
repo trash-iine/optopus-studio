@@ -538,7 +538,7 @@ wheels = [
 [[package]]
 name = "optopus"
 version = "0.1.0"
-source = { git = "https://github.com/trash-iine/optopus-py?rev=f44dfbcffc0aa200201b982db3aeb1bb0c3da81b#f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" }
+source = { git = "https://github.com/trash-iine/optopus-py?rev=fee315d1c9342d5fe8763753c2e7894aed2fb915#fee315d1c9342d5fe8763753c2e7894aed2fb915" }
 
 [[package]]
 name = "optopus-studio"
@@ -566,7 +566,7 @@ studio = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "optopus", git = "https://github.com/trash-iine/optopus-py?rev=f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" },
+    { name = "optopus", git = "https://github.com/trash-iine/optopus-py?rev=fee315d1c9342d5fe8763753c2e7894aed2fb915" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]

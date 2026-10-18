@@ -156,6 +156,28 @@ def test_nested_heuristics_and_tuple_arguments_are_built():
     assert isinstance(heuristic, optopus.Iterated)
 
 
+def test_tuning_tuples_and_a_relaxation_object_are_built():
+    stop = {"max_iteration": 10}
+    alns = {"kind": "AdaptiveLargeNeighborhoodSearch", "scores": [4.0, 2.0, 1.0], "stop": stop}
+    assert isinstance(worker.build_heuristic(alns), optopus.AdaptiveLargeNeighborhoodSearch)
+    hgs = {
+        "kind": "HybridGeneticSearch",
+        "penalty_adaptation": [100, 1.2, 0.85, 0.05],
+        "initial_population": [4, 2],
+        "stop": stop,
+    }
+    assert isinstance(worker.build_heuristic(hgs), optopus.HybridGeneticSearch)
+    bnb = worker.build_heuristic(
+        {
+            "kind": "BranchAndBound",
+            "heuristic": {"kind": "LocalSearch", "neighbor": "Flip", "stop": stop},
+            "relaxation": {"kind": "EigenvalueRelaxation", "max_iterations": 10},
+        }
+    )
+    triangle = optopus.MaxCut.from_edges([(0, 1, 1.0), (1, 2, 1.0), (0, 2, 1.0)])
+    assert bnb.run(triangle, 1, 0).runs[0].best_objective == 2.0
+
+
 BROKEN = {
     "build": ("def solve(instance):\n    pass\n", {"kind": "LocalSearch"}),
     "heuristic": (
