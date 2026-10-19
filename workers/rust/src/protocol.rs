@@ -64,6 +64,9 @@ pub enum WorkerEvent {
         best_iteration: u64,
         time_to_best_secs: f64,
         total_time_secs: f64,
+        /// What a `BranchAndBound` run proved; the factory builds none, so always `None`.
+        proven_optimal: Option<bool>,
+        dual_bound: Option<f64>,
     },
     Done {
         best_run: usize,

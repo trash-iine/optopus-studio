@@ -6,6 +6,7 @@ import type { RevisionDetail } from "../generated/revision";
 import type { KpiView } from "../generated/server-event";
 import { compact, type Mode, slotColor } from "../theme";
 import { Legend } from "../views/Legend";
+import { proof } from "./SolveResult";
 import { type Axis, AxisToggle, ConvergenceChart, curve } from "../views/Convergence";
 
 const FILES = ["instance.json", "model.py", "view.py", "solve.json"];
@@ -131,7 +132,15 @@ function CompareBody({
       <section className="card">
         <h3>Best objective</h3>
         {bestA && bestB ? (
-          <Verdict before={bestB.best_objective} after={bestA.best_objective} higherIsBetter={higherIsBetter} revA={a.rev} revB={b.rev} />
+          <Verdict
+            before={bestB.best_objective}
+            after={bestA.best_objective}
+            higherIsBetter={higherIsBetter}
+            revA={a.rev}
+            revB={b.rev}
+            proofA={proof(bestA)}
+            proofB={proof(bestB)}
+          />
         ) : (
           <p className="muted">One of the revisions has no result.</p>
         )}
@@ -199,12 +208,16 @@ function Verdict({
   higherIsBetter,
   revA,
   revB,
+  proofA,
+  proofB,
 }: {
   before: number;
   after: number;
   higherIsBetter: boolean | null;
   revA: number;
   revB: number;
+  proofA: string | null;
+  proofB: string | null;
 }) {
   const { delta, verdict } = change(before, after, higherIsBetter);
   const relative = before !== 0 ? ` (${((delta / Math.abs(before)) * 100).toFixed(1)}%)` : "";
@@ -214,9 +227,11 @@ function Verdict({
     <div className="verdict">
       <div>
         <span className="muted">revision {revB}</span> <strong>{compact(before)}</strong>
+        {proofB && <span className="muted"> {proofB}</span>}
       </div>
       <div>
         <span className="muted">revision {revA}</span> <strong>{compact(after)}</strong>
+        {proofA && <span className="muted"> {proofA}</span>}
       </div>
       <div className={`verdict-${verdict}`}>
         {icon} {verdict}

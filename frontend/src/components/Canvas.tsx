@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { RunSummary } from "../generated/server-event";
+import type { RunFinished, RunSummary } from "../generated/server-event";
 import { download } from "../download";
 import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
@@ -153,8 +153,15 @@ function Files({ files }: { files: Record<string, string> }) {
   );
 }
 
+/** A BranchAndBound run's bound: "optimal" once proven, else the bound it reached. */
+export function bound(run: RunFinished): string {
+  if (run.proven_optimal) return "optimal";
+  return run.dual_bound != null ? compact(run.dual_bound) : "—";
+}
+
 function Runs({ summary }: { summary: RunSummary }) {
   const stats = variantStats(summary);
+  const proving = summary.runs.some((r) => r.proven_optimal != null);
   const several = summary.variants.length > 1;
   return (
     <div className="result">
@@ -205,6 +212,7 @@ function Runs({ summary }: { summary: RunSummary }) {
               <th className="num">time to best (s)</th>
               <th className="num">total (s)</th>
               <th className="num">seed</th>
+              {proving && <th className="num">bound</th>}
             </tr>
           </thead>
           <tbody>
@@ -218,6 +226,7 @@ function Runs({ summary }: { summary: RunSummary }) {
                 <td className="num">{r.time_to_best_secs.toFixed(4)}</td>
                 <td className="num">{r.total_time_secs.toFixed(4)}</td>
                 <td className="num">{r.seed ?? ""}</td>
+                {proving && <td className="num">{bound(r)}</td>}
               </tr>
             ))}
           </tbody>

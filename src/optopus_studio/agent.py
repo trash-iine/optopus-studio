@@ -51,6 +51,7 @@ from optopus_studio.protocol import (
     AssistantText,
     ChatEntry,
     FilesChanged,
+    RunFinished,
     RunSummary,
     SolveProgress,
     SolveRequest,
@@ -107,8 +108,9 @@ of "heuristic": each runs `runs` times with the same seeds, so they start from t
 solutions, and the canvas overlays their convergence.
 - view.py — `to_view(instance, result)` returns `{"views": [...]}`. `result` has "problem", \
 "higher_is_better", "variants" (the heuristics' labels), "runs" (each with variant (an index), \
-best_objective, initial_objective, solution, trajectory, iterations, total_time_secs), \
-"best_run", and "best" (the best run's dict, or null when the solve failed). The canvas already \
+best_objective, initial_objective, solution, trajectory, iterations, total_time_secs, and \
+proven_optimal / dual_bound, which only a BranchAndBound run sets), "best_run", and "best" \
+(the best run's dict, or null when the solve failed). The canvas already \
 shows the objective per run, per-heuristic statistics and the convergence curves; view.py shows \
 what the solution means in the user's terms.
 
@@ -173,6 +175,9 @@ input. A Python problem runs thousands of moves per second, not millions: check_
 the iterations it managed, so size the stop condition from that.
 - When the user asks which heuristic is best, or the first one finds poor solutions, compare a \
 few with "heuristics" in solve.json instead of guessing.
+- When the user needs to know a solution is optimal, and the model is one BranchAndBound \
+applies to (see heuristics_exact), solve with it: run_solver then says whether the optimum was \
+proven, or how far from it the run may have stopped, and the canvas shows the same.
 
 ## Speeding up with Rust
 
@@ -267,6 +272,17 @@ READ_FILE_LIMIT = 20_000
 HISTORY_LIMIT = 40_000
 
 
+def certificate(run: RunFinished) -> str:
+    """What a BranchAndBound run proved, as the tail of its line in ``describe``."""
+    if run.proven_optimal:
+        return ", proven optimal"
+    if run.dual_bound is not None:
+        return f", not proven optimal: no solution beats {run.dual_bound:g}"
+    if run.proven_optimal is False:
+        return ", not proven optimal, no bound yet"
+    return ""
+
+
 def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> str:
     """What the agent reads back after a solve."""
     lines = []
@@ -292,6 +308,7 @@ def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> s
                 f"{run.initial_objective:g}), {run.iterations} iterations in "
                 f"{run.total_time_secs:.3f}s ({rate:,.0f}/s), best found at iteration "
                 f"{run.best_iteration} ({len(run.trajectory)} improvements)"
+                f"{certificate(run)}"
             )
     if summary.best_run is not None:
         best = summary.runs[summary.best_run]

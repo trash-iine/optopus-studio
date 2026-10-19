@@ -778,6 +778,19 @@
           "title": "Best Objective",
           "type": "number"
         },
+        "dual_bound": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The best objective a solution a BranchAndBound run had not ruled out could reach, on best_objective's scale: best_objective once proven optimal, and how far from the optimum the run may have stopped otherwise. Null for every other heuristic, and when the run stopped before it had a finite bound.",
+          "title": "Dual Bound"
+        },
         "initial_objective": {
           "title": "Initial Objective",
           "type": "number"
@@ -785,6 +798,19 @@
         "iterations": {
           "title": "Iterations",
           "type": "integer"
+        },
+        "proven_optimal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether a BranchAndBound run proved its best solution optimal; null for every other heuristic.",
+          "title": "Proven Optimal"
         },
         "run": {
           "description": "The run's position among all runs of the solve, from 0.",
@@ -859,7 +885,9 @@
         "iterations",
         "best_iteration",
         "time_to_best_secs",
-        "total_time_secs"
+        "total_time_secs",
+        "proven_optimal",
+        "dual_bound"
       ],
       "title": "RunFinished",
       "type": "object"

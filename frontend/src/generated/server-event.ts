@@ -39,8 +39,16 @@ export type Problem = string | null;
 export type Rev1 = number;
 export type BestIteration = number;
 export type BestObjective = number;
+/**
+ * The best objective a solution a BranchAndBound run had not ruled out could reach, on best_objective's scale: best_objective once proven optimal, and how far from the optimum the run may have stopped otherwise. Null for every other heuristic, and when the run stopped before it had a finite bound.
+ */
+export type DualBound = number | null;
 export type InitialObjective = number;
 export type Iterations = number;
+/**
+ * Whether a BranchAndBound run proved its best solution optimal; null for every other heuristic.
+ */
+export type ProvenOptimal = boolean | null;
 /**
  * The run's position among all runs of the solve, from 0.
  */
@@ -240,8 +248,10 @@ export interface LiveRun {
 export interface RunFinished {
   best_iteration: BestIteration;
   best_objective: BestObjective;
+  dual_bound: DualBound;
   initial_objective: InitialObjective;
   iterations: Iterations;
+  proven_optimal: ProvenOptimal;
   run: Run1;
   seed: Seed;
   solution: Solution;

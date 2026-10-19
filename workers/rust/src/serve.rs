@@ -185,6 +185,8 @@ fn run_once<P: StudioProblem>(
             .saturating_duration_since(start)
             .as_secs_f64(),
         total_time_secs: total_time.as_secs_f64(),
+        proven_optimal: None,
+        dual_bound: None,
     })
 }
 
