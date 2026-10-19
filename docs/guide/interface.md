@@ -73,7 +73,9 @@ What the selected revision gave, from top to bottom:
   Gantt chart, route map, graph, bar chart, a text note, and, when none of those fits, a custom
   HTML page shown in a sandbox.
 - **Convergence**: the best objective so far in each run, against time or iterations (the toggle
-  on the chart). The title shows the optopus problem and the worker (python or rust).
+  on the chart). The title shows the optopus problem and the worker (python or rust), and, for a
+  `BranchAndBound` solve, what the best run proved: "proven optimal", or the bound it reached and
+  the gap to it.
 - **Heuristic**: the search method and its parameters, the stop condition, the seed and the number
   of runs.
 
@@ -86,8 +88,10 @@ The files of the selected revision: `model.py`, `view.py`, `instance.json`, `sol
 ### Runs
 
 The heuristic card again, then a table with one row per run: best and initial objective,
-iterations, the iteration and time at which the best was found, total time, and seed. The best
-run is highlighted. When the solve compared several heuristics, a second table gives each one's
+iterations, the iteration and time at which the best was found, total time, and seed; a
+`BranchAndBound` solve adds a bound column, "optimal" for a run that proved its best optimal and
+otherwise the best objective a solution it had not ruled out could reach. The best run is
+highlighted. When the solve compared several heuristics, a second table gives each one's
 best, mean and worst result and mean times.
 
 ### Compare
@@ -95,7 +99,8 @@ best, mean and worst result and mean times.
 Two revisions side by side; it needs at least two. The menus at the top choose them (the selected
 revision and the one before it at first).
 
-- **Best objective**: the change between them, marked better, worse or the same.
+- **Best objective**: the change between them, marked better, worse or the same, with what a
+  `BranchAndBound` revision proved next to its value.
 - **Headline numbers**: the numbers of both revisions' views, row by row.
 - **Convergence of the best runs**: one curve per revision.
 - **Changed files**: a line diff of every file that differs. "The files are the same; only the

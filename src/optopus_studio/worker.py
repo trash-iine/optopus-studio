@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 import sys
 import threading
 import traceback
@@ -141,6 +142,11 @@ def encode(model: ModuleType, instance: dict[str, Any], solution: Any) -> Any:
     return value
 
 
+def finite(value: float | None) -> float | None:
+    """``value``, or None when it is not a finite number, which JSON cannot carry."""
+    return value if value is not None and math.isfinite(value) else None
+
+
 def watches_runs(heuristic: Any) -> bool:
     """Whether this optopus reports improvements during a run (``on_improvement``)."""
     return "on_improvement" in (getattr(heuristic.run, "__text_signature__", None) or "")
@@ -199,6 +205,8 @@ def solve(request: SolveRequest, emit) -> None:
                     best_iteration=run.best_iteration,
                     time_to_best_secs=run.time_to_best_secs,
                     total_time_secs=run.total_time_secs,
+                    proven_optimal=run.proven_optimal,
+                    dual_bound=finite(run.dual_bound),
                 )
             )
             better = best is None or (

@@ -21,6 +21,8 @@ function run(index: number, overrides: Partial<RunFinished> = {}): RunFinished {
     best_iteration: 9,
     time_to_best_secs: 0.2,
     total_time_secs: 1,
+    proven_optimal: null,
+    dual_bound: null,
     ...overrides,
   };
 }

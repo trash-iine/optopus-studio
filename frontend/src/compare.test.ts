@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { sendsMessage, withAttachments } from "./components/Chat";
+import { bound } from "./components/Canvas";
 import { change, kpiRows } from "./components/Compare";
+import { proof } from "./components/SolveResult";
 import { diffLines } from "./diff";
 import type { RevisionDetail } from "./generated/revision";
 import type { RunFinished, RunSummary } from "./generated/server-event";
@@ -20,6 +22,8 @@ function run(index: number, variant: number, best: number): RunFinished {
     best_iteration: 1,
     time_to_best_secs: index,
     total_time_secs: 10,
+    proven_optimal: null,
+    dual_bound: null,
   };
 }
 
@@ -116,5 +120,24 @@ describe("the Enter key", () => {
     expect(press({ isComposing: true, keyCode: 229 })).toBe(false);
     // Safari: the composition has already ended, but the key is still the IME's.
     expect(press({ keyCode: 229 })).toBe(false);
+  });
+});
+
+describe("what a BranchAndBound run proved", () => {
+  it("is said only for a run that has a certificate", () => {
+    expect(proof(run(0, 0, 12))).toBeNull();
+    expect(proof(null)).toBeNull();
+    expect(bound(run(0, 0, 12))).toBe("—");
+  });
+
+  it("says proven optimal, or the bound and the gap to it", () => {
+    const proven = { ...run(0, 0, 12), proven_optimal: true, dual_bound: 12 };
+    expect(proof(proven)).toBe("proven optimal");
+    expect(bound(proven)).toBe("optimal");
+    const open = { ...run(0, 0, 12), proven_optimal: false, dual_bound: 9 };
+    expect(proof(open)).toBe("not proven optimal: bound 9, gap 25.0%");
+    expect(bound(open)).toBe("9");
+    const unbounded = { ...run(0, 0, 12), proven_optimal: false };
+    expect(proof(unbounded)).toBe("not proven optimal");
   });
 });

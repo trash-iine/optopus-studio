@@ -1,8 +1,18 @@
-import type { RunSummary, ViewSpec } from "../generated/server-event";
-import type { Mode } from "../theme";
+import type { RunFinished, RunSummary, ViewSpec } from "../generated/server-event";
+import { compact, type Mode } from "../theme";
 import { Convergence } from "../views/Convergence";
 import { ViewCard } from "../views/View";
 import { Search } from "./Search";
+
+/** What a BranchAndBound run proved, in a few words; null for every other heuristic. */
+export function proof(run: RunFinished | null | undefined): string | null {
+  if (run?.proven_optimal == null) return null;
+  if (run.proven_optimal) return "proven optimal";
+  if (run.dual_bound == null) return "not proven optimal";
+  const best = run.best_objective;
+  const gap = best !== 0 ? `, gap ${((Math.abs(run.dual_bound - best) / Math.abs(best)) * 100).toFixed(1)}%` : "";
+  return `not proven optimal: bound ${compact(run.dual_bound)}${gap}`;
+}
 
 /** What a solve gave: its error, the model's views, the convergence and how it searched. */
 export function SolveResult({
@@ -16,6 +26,7 @@ export function SolveResult({
   viewError: string | null;
   mode: Mode;
 }) {
+  const proved = proof(summary.best_run != null ? summary.runs[summary.best_run] : null);
   return (
     <>
       {summary.error && (
@@ -41,7 +52,7 @@ export function SolveResult({
           <h3>
             Convergence{" "}
             <span className="sub">
-              {summary.problem} · {summary.worker} worker
+              {summary.problem} · {summary.worker} worker{proved && ` · best run ${proved}`}
             </span>
           </h3>
           <Convergence summary={summary} mode={mode} />

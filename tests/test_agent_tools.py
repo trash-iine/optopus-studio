@@ -137,6 +137,39 @@ def test_describe_truncates_a_long_solution():
     assert "characters)" in describe(summary, solution_preview=100)
 
 
+@pytest.mark.parametrize(
+    ("proven", "bound", "said"),
+    [
+        (None, None, None),
+        (True, 1.0, ", proven optimal"),
+        (False, 0.5, ", not proven optimal: no solution beats 0.5"),
+        (False, None, ", not proven optimal, no bound yet"),
+    ],
+)
+def test_describe_says_what_a_branch_and_bound_run_proved(proven, bound, said):
+    run = {
+        "run": 0,
+        "variant": 0,
+        "seed": 0,
+        "best_objective": 1.0,
+        "initial_objective": 2.0,
+        "solution": [],
+        "trajectory": [],
+        "iterations": 1,
+        "best_iteration": 0,
+        "time_to_best_secs": 0.0,
+        "total_time_secs": 0.0,
+        "proven_optimal": proven,
+        "dual_bound": bound,
+    }
+    summary = RunSummary.model_validate({"rev": 1, "best_run": 0, "runs": [run]})
+    line = describe(summary).splitlines()[0]
+    if said is None:
+        assert "proven" not in line
+    else:
+        assert line.endswith(said)
+
+
 def test_api_help_shows_constructors():
     assert "from_coordinates" in api_help("Tsp")
     with pytest.raises(ProjectError):

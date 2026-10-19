@@ -13,7 +13,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from optopus_studio import worker
-from optopus_studio.protocol import SolveRequest, WorkerEvent
+from optopus_studio.protocol import SolveRequest, Variant, WorkerEvent
 from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, one, write_model
 
 EVENTS = TypeAdapter(list[WorkerEvent])
@@ -176,6 +176,35 @@ def test_tuning_tuples_and_a_relaxation_object_are_built():
     )
     triangle = optopus.MaxCut.from_edges([(0, 1, 1.0), (1, 2, 1.0), (0, 2, 1.0)])
     assert bnb.run(triangle, 1, 0).runs[0].best_objective == 2.0
+
+
+TRIANGLE = (
+    "import optopus\n"
+    "def build(i):\n"
+    "    return optopus.MaxCut.from_edges([(0, 1, 1.0), (1, 2, 1.0), (0, 2, 1.0)])\n"
+)
+
+
+def test_a_branch_and_bound_run_reports_what_it_proved(tmp_path):
+    local = {"kind": "LocalSearch", "neighbor": "Flip", "stop": {"max_iteration": 10}}
+    request = SolveRequest(
+        model_path=write_model(tmp_path, TRIANGLE),
+        instance={},
+        variants=[
+            Variant(label="BnB", heuristic={"kind": "BranchAndBound", "heuristic": local}),
+            Variant(label="LS", heuristic=local),
+        ],
+    )
+    bnb, plain = [e for e in run_worker(request) if e.type == "run_finished"]
+    assert (bnb.best_objective, bnb.proven_optimal, bnb.dual_bound) == (2.0, True, 2.0)
+    assert (plain.proven_optimal, plain.dual_bound) == (None, None)
+
+
+def test_an_infinite_bound_is_sent_as_null():
+    assert worker.finite(math.inf) is None
+    assert worker.finite(-math.inf) is None
+    assert worker.finite(1.5) == 1.5
+    assert worker.finite(None) is None
 
 
 BROKEN = {

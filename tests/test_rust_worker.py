@@ -120,6 +120,18 @@ def test_a_port_with_another_objective_fails_verification():
         (None, {"kind": "LocalSearch", "neighbor": "Flip"}, "heuristic"),
         (None, {"kind": "LocalSearch", "neighbor": "TwoOpt", "speed": 3}, "heuristic"),
         (None, {"kind": "TabuSearch", "neighbor": "TwoOpt", "tabu_tenure": 3}, "heuristic"),
+        # Two cities leave TwoOpt no move, which the heuristic reports and the run fails on.
+        (
+            {"cities": [{"name": "a", "x": 0, "y": 0}, {"name": "b", "x": 1, "y": 0}]},
+            {
+                "kind": "SimulatedAnnealing",
+                "neighbor": "TwoOpt",
+                "initial_temperature": 1.0,
+                "cooling_rate": 0.9,
+                "stop": {"max_iteration": 10},
+            },
+            "run",
+        ),
     ],
 )
 def test_failures_are_reported_with_their_stage(instance, heuristic, stage):

@@ -116,14 +116,14 @@ fn solve<P: StudioProblem>(
             let mut heuristic =
                 build_heuristic::<P>(&variant.heuristic).map_err(|e| ("heuristic", e))?;
             let event = guarded(|| {
-                Ok(run_once(
+                run_once(
                     &problem,
                     heuristic.as_mut(),
                     index,
                     variant_index,
                     seed,
                     higher,
-                ))
+                )
             })
             .map_err(|e| ("run", e))?;
             if let WorkerEvent::RunFinished { best_objective, .. } = &event {
@@ -158,7 +158,7 @@ fn run_once<P: StudioProblem>(
     variant: usize,
     seed: Option<u64>,
     higher: bool,
-) -> WorkerEvent {
+) -> Result<WorkerEvent, String> {
     let start = Instant::now();
     let mut state = match seed {
         Some(s) => SearchState::new_with_seed(problem, s),
@@ -166,10 +166,11 @@ fn run_once<P: StudioProblem>(
     };
     state.set_objective_probe(probe::<P>);
     let initial_objective = P::objective(&state.initial_solution);
-    // optopus-py ignores the error too and reports the best solution reached.
-    let _ = live::watch(run, variant, start, higher, || heuristic.run(&mut state));
+    // A run the heuristic cannot continue fails the solve, as optopus-py raises it from `run`.
+    live::watch(run, variant, start, higher, || heuristic.run(&mut state))
+        .map_err(|e| e.to_string())?;
     let total_time = start.elapsed();
-    WorkerEvent::RunFinished {
+    Ok(WorkerEvent::RunFinished {
         run,
         variant,
         seed,
@@ -184,7 +185,9 @@ fn run_once<P: StudioProblem>(
             .saturating_duration_since(start)
             .as_secs_f64(),
         total_time_secs: total_time.as_secs_f64(),
-    }
+        proven_optimal: None,
+        dual_bound: None,
+    })
 }
 
 /// The improvements as `(elapsed_secs, iteration, objective)`, keeping only those better than

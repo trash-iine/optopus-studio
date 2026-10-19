@@ -90,6 +90,18 @@ class RunFinished(Strict):
     best_iteration: int
     time_to_best_secs: float
     total_time_secs: float
+    proven_optimal: bool | None = Field(
+        None,
+        description="Whether a BranchAndBound run proved its best solution optimal; null for "
+        "every other heuristic.",
+    )
+    dual_bound: float | None = Field(
+        None,
+        description="The best objective a solution a BranchAndBound run had not ruled out could "
+        "reach, on best_objective's scale: best_objective once proven optimal, and how far from "
+        "the optimum the run may have stopped otherwise. Null for every other heuristic, and "
+        "when the run stopped before it had a finite bound.",
+    )
 
 
 class Done(Strict):
