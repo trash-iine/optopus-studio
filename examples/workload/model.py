@@ -93,3 +93,15 @@ def build(instance):
 def encode_solution(instance, solution):
     assignment, loads = solution
     return {"assignment": list(assignment), "loads": list(loads)}
+
+
+def decode_solution(instance, value):
+    """The inverse of encode_solution, for a solve that starts from a given assignment."""
+    problem = Workload(instance)
+    assignment = tuple(value["assignment"])
+    if len(assignment) != len(problem.hours):
+        raise ValueError(f"the assignment has {len(assignment)} tasks, not {len(problem.hours)}")
+    for task, (worker, eligible) in enumerate(zip(assignment, problem.eligible, strict=True)):
+        if worker not in eligible:
+            raise ValueError(f"task {task} goes to worker {worker}, who lacks its skill")
+    return (assignment, problem.loads(assignment))

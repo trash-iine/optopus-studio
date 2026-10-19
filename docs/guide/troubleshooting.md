@@ -89,9 +89,11 @@ a long, winding conversation.
 
 ### Red banner "The solve failed at …"
 
-The solve stopped with an error at that stage (request, build, heuristic, run or encode). The
-agent sees the same message and traceback and usually fixes it on its own; if it stopped, ask it
-to fix the error.
+The solve stopped with an error at that stage (request, build, heuristic, start, run or encode).
+The agent sees the same message and traceback and usually fixes it on its own; if it stopped, ask
+it to fix the error. At start, the solution `solve.json`'s `"initial_solution"` names does not fit
+the problem, as when the data changed since the solution was found; see
+[Starting from a solution](projects.md#starting-from-a-solution).
 
 ### "the solve took longer than 300.0s"
 

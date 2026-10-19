@@ -89,6 +89,7 @@ export function reduce(state: StudioState, action: Action): StudioState {
           worker: "python",
           heuristics: [],
           seed: null,
+          initial_solution: null,
           native: null,
           live: null,
           best_run: null,

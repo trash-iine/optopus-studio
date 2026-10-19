@@ -10,7 +10,7 @@ from pydantic import TypeAdapter
 from optopus_studio import rust
 from optopus_studio.agent import Tools
 from optopus_studio.projects import ProjectError
-from optopus_studio.protocol import RunSummary, SolveRequest, WorkerEvent
+from optopus_studio.protocol import InitialSolution, RunSummary, SolveRequest, WorkerEvent
 from optopus_studio.runner import run_solve
 from optopus_studio.verify import verify
 from tests.conftest import EXAMPLES, example_project, example_request, one
@@ -144,6 +144,27 @@ def test_failures_are_reported_with_their_stage(instance, heuristic, stage):
     error = events(binary(port("tsp")), request)[-1]
     assert error.type == "error"
     assert error.stage == stage
+
+
+@pytest.mark.parametrize("name", ["tsp", "workload"])
+def test_both_workers_start_from_the_same_solution(name):
+    from tests.test_worker import run_worker
+
+    request = example_request(name, runs=1)
+    first = run_worker(request)[1]
+    request.initial_solution = InitialSolution(key="plan", solution=first.solution)
+    python = run_worker(request)[1]
+    port_run = [e for e in events(binary(port(name)), request) if e.type == "run_finished"]
+    assert port_run[0].initial_objective == pytest.approx(python.initial_objective)
+    assert python.initial_objective == pytest.approx(first.best_objective)
+
+
+def test_a_solution_the_port_cannot_decode_fails_at_the_start():
+    request = example_request("workload", runs=1)
+    request.initial_solution = InitialSolution(key="plan", solution={"assignment": [0]})
+    error = events(binary(port("workload")), request)[-1]
+    assert error.type == "error"
+    assert error.stage == "start"
 
 
 def test_nested_heuristics_run_in_the_rust_worker():

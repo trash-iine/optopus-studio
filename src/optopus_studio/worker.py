@@ -16,6 +16,7 @@ import math
 import sys
 import threading
 import traceback
+from functools import partial
 from types import ModuleType
 from typing import Any, TextIO
 
@@ -70,6 +71,9 @@ ARGUMENT_CLASSES = {"relaxation": frozenset({"EigenvalueRelaxation"})}
 HIGHER_IS_BETTER = frozenset({"MaxCut", "Sat", "Formula"})
 
 MASK_64 = (1 << 64) - 1
+
+# How optopus-py's ValueError for an initial_solution that does not fit the problem begins.
+UNFIT_START = "'initial_solution' does not fit the problem"
 
 
 class StageError(Exception):
@@ -142,6 +146,12 @@ def encode(model: ModuleType, instance: dict[str, Any], solution: Any) -> Any:
     return value
 
 
+def decode(model: ModuleType, instance: dict[str, Any], value: Any) -> Any:
+    """The problem's own solution for ``value``, which is in the form ``encode`` gives."""
+    decoder = getattr(model, "decode_solution", None)
+    return decoder(instance, value) if callable(decoder) else value
+
+
 def finite(value: float | None) -> float | None:
     """``value``, or None when it is not a finite number, which JSON cannot carry."""
     return value if value is not None and math.isfinite(value) else None
@@ -156,13 +166,22 @@ def solve(request: SolveRequest, emit) -> None:
     def stage(name: str, fn, *args):
         try:
             return fn(*args)
-        except Exception as exc:
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        # BaseException: a panic in optopus arrives as pyo3's PanicException, which is not an
+        # Exception, and is a failure of the stage like any other.
+        except BaseException as exc:
             raise StageError(name, f"{type(exc).__name__}: {exc}", traceback.format_exc()) from exc
 
     model = stage("build", load_model, request.model_path)
     problem = stage("build", model.build, request.instance)
     direction = stage("build", higher_is_better, problem)
     heuristics = [stage("heuristic", build_heuristic, v.heuristic) for v in request.variants]
+    # Every run starts from the same solution, so it is decoded once.
+    start = {}
+    if request.initial_solution is not None:
+        solution = request.initial_solution.solution
+        start["initial_solution"] = stage("start", decode, model, request.instance, solution)
     emit(
         Started(
             runs=request.runs,
@@ -189,7 +208,13 @@ def solve(request: SolveRequest, emit) -> None:
                     )
 
                 args = (*args, progress)
-            report = stage("run", heuristic.run, *args)
+            try:
+                report = stage("run", partial(heuristic.run, **start), *args)
+            except StageError as exc:
+                # optopus checks the solution a run starts from as the run begins.
+                if start and exc.message.startswith(f"ValueError: {UNFIT_START}"):
+                    exc.stage = "start"
+                raise
             run = report.runs[0]
             solution = stage("encode", encode, model, request.instance, run.solution)
             emit(

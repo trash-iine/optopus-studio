@@ -97,7 +97,10 @@ Four files, written with write_file:
 - model.py — `build(instance)` returns an optopus problem: a built-in one (optopus.Tsp, \
 optopus.Vrp, optopus.JobShopScheduling, ...), an optopus.Formula, or a problem written in \
 Python. Optional `encode_solution(instance, solution)` turns RunResult.solution into JSON \
-(lists, numbers, strings, dicts); without it the solution must already be JSON-like.
+(lists, numbers, strings, dicts); without it the solution must already be JSON-like. Optional \
+`decode_solution(instance, value)` is its inverse, needed to start from a solution when \
+encode_solution changes its form; raise ValueError, in the user's terms, for one that breaks a \
+constraint the search keeps.
 - solve.json — `{"heuristic": {"kind": "<optopus heuristic class>", ...constructor arguments, \
 "stop": {...StopCondition arguments}}, "runs": 3, "seed": 0}`. A nested heuristic is the same \
 kind of dict (Iterated's "search", Restart's "heuristic", Sequential's "steps"), a stop is a \
@@ -105,7 +108,8 @@ dict of max_iteration / max_duration_secs / max_failed_update, BranchAndBound's 
 a name or `{"kind": "EigenvalueRelaxation", ...}`, and a tuple argument is a list. To compare \
 heuristics, give `"heuristics": [{"label": "SA", "heuristic": {...}}, ...]` (up to 8) instead \
 of "heuristic": each runs `runs` times with the same seeds, so they start from the same \
-solutions, and the canvas overlays their convergence.
+solutions, and the canvas overlays their convergence. `"initial_solution": "<key>"` starts \
+every run from instance[key], a solution as encode_solution writes it, instead of a random one.
 - view.py — `to_view(instance, result)` returns `{"views": [...]}`. `result` has "problem", \
 "higher_is_better", "variants" (the heuristics' labels), "runs" (each with variant (an index), \
 best_objective, initial_objective, solution, trajectory, iterations, total_time_secs, and \
@@ -175,6 +179,11 @@ input. A Python problem runs thousands of moves per second, not millions: check_
 the iterations it managed, so size the stop condition from that.
 - When the user asks which heuristic is best, or the first one finds poor solutions, compare a \
 few with "heuristics" in solve.json instead of guessing.
+- When the user has a plan of their own (the current schedule, last week's routes), import it \
+into instance.json and start from it with "initial_solution": the runs' initial objective is \
+then what the plan scores, and the best how much the search improved on it. To search further \
+from an earlier result ("keep going"), import_solution puts a revision's best solution into \
+instance.json for the same purpose.
 - When the user needs to know a solution is optimal, and the model is one BranchAndBound \
 applies to (see heuristics_exact), solve with it: run_solver then says whether the optimum was \
 proven, or how far from it the run may have stopped, and the canvas shows the same.
@@ -289,6 +298,8 @@ def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> s
     if summary.problem:
         direction = "higher" if summary.higher_is_better else "lower"
         lines.append(f"problem {summary.problem}, {direction} objective is better")
+    if summary.initial_solution:
+        lines.append(f'every run started from instance["{summary.initial_solution}"]')
     labels = summary.variants or ["heuristic"]
     for index, label in enumerate(labels):
         runs = [r for r in summary.runs if r.variant == index]
@@ -421,15 +432,7 @@ class Tools:
             data = read_records(path, args.get("sheet"))
         except (TableError, ValueError, OSError) as exc:
             return text_result(f"cannot read {args['name']}: {exc}", is_error=True)
-        try:
-            instance = json.loads(self.project.read_file("instance.json"))
-        except ProjectError:
-            instance = {}
-        if not isinstance(instance, dict):
-            raise ProjectError("instance.json must be a JSON object to import into")
-        instance[args["key"]] = data
-        self.project.write_file("instance.json", json.dumps(instance, ensure_ascii=False, indent=1))
-        await self.broadcast(FilesChanged(files=self.project.files()))
+        instance = await self.store_in_instance(args["key"], data)
         if isinstance(data, list) and data and isinstance(data[0], dict):
             shape = f"{len(data)} records with keys {list(data[0])}"
         else:
@@ -437,6 +440,32 @@ class Tools:
         others = [k for k in instance if k != args["key"]]
         return text_result(
             f'instance["{args["key"]}"] is now {shape}. Other keys in instance.json: {others}'
+        )
+
+    async def store_in_instance(self, key: str, data: Any) -> dict[str, Any]:
+        """Puts ``data`` into instance.json under ``key``, keeping the other keys."""
+        try:
+            instance = json.loads(self.project.read_file("instance.json"))
+        except ProjectError:
+            instance = {}
+        if not isinstance(instance, dict):
+            raise ProjectError("instance.json must be a JSON object to import into")
+        instance[key] = data
+        self.project.write_file("instance.json", json.dumps(instance, ensure_ascii=False, indent=1))
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        return instance
+
+    async def import_solution(self, args: dict[str, Any]) -> dict[str, Any]:
+        rev, key = int(args["rev"]), args["key"]
+        _, summary, _, _ = self.project.load_revision(rev)
+        if summary is None or summary.best_run is None:
+            raise ProjectError(f"revision {rev} has no solution to start from")
+        best = summary.runs[summary.best_run]
+        await self.store_in_instance(key, best.solution)
+        return text_result(
+            f'instance["{key}"] is now the best solution of revision {rev} (run {best.run}, '
+            f'objective {best.best_objective:g}). "initial_solution": "{key}" in solve.json '
+            "starts every run from it."
         )
 
     async def write_file(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -660,6 +689,19 @@ class Tools:
                     ["name", "key"],
                 ),
             )(guarded(self.import_upload)),
+            tool(
+                "import_solution",
+                "Store the best solution of revision 'rev' in instance.json under 'key', as "
+                'encode_solution wrote it, for solve.json\'s "initial_solution" to start from. '
+                "Other keys of instance.json are kept.",
+                object_schema(
+                    {
+                        "rev": {"type": "integer", "minimum": 1},
+                        "key": {"type": "string", "minLength": 1},
+                    },
+                    ["rev", "key"],
+                ),
+            )(guarded(self.import_solution)),
         ]
         allowed = [f"mcp__{SERVER}__{t.name}" for t in tools]
         return create_sdk_mcp_server(SERVER, tools=tools), allowed

@@ -39,6 +39,16 @@ class Variant(Strict):
     )
 
 
+class InitialSolution(Strict):
+    """Where every run of a solve starts instead of a random solution."""
+
+    key: str = Field(description="The key of instance.json the solution was read from.")
+    solution: Any = Field(
+        description="The solution in the form encode_solution writes it, which the worker turns "
+        "back into the problem's own with the model's decode_solution."
+    )
+
+
 class SolveRequest(Strict):
     """One solve: the model to build, its data, and how to search.
 
@@ -51,6 +61,7 @@ class SolveRequest(Strict):
     variants: list[Variant] = Field(min_length=1, max_length=MAX_VARIANTS)
     runs: int = Field(1, ge=1, le=100)
     seed: int | None = Field(0, ge=0, lt=2**64)
+    initial_solution: InitialSolution | None = None
 
 
 class Started(Strict):
@@ -112,7 +123,7 @@ class Done(Strict):
 
 class WorkerError(Strict):
     type: Literal["error"] = "error"
-    stage: Literal["request", "build", "heuristic", "run", "encode"]
+    stage: Literal["request", "build", "heuristic", "start", "run", "encode"]
     message: str
     traceback: str | None = None
 
@@ -272,6 +283,9 @@ class RunSummary(Strict):
         "a result.json older than the field.",
     )
     seed: int | None = Field(None, description="The seed the solve's runs were drawn from.")
+    initial_solution: str | None = Field(
+        None, description="The key of instance.json every run started from, if not at random."
+    )
     runs: list[RunFinished] = []
     best_run: int | None = None
     error: WorkerError | None = None

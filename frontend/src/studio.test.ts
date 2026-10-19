@@ -33,6 +33,7 @@ function summary(runs: number, best = 0): RunSummary {
     worker: "python",
     heuristics: [],
     seed: null,
+    initial_solution: null,
     native: true,
     live: null,
     problem: "Tsp",

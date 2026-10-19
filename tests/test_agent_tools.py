@@ -101,6 +101,34 @@ def test_a_result_keeps_the_heuristics_as_solved(home):
     assert summary.seed == 5
 
 
+def test_a_solve_starts_from_a_solution_an_earlier_revision_found(home):
+    project = example_project("tsp", home)
+    tools = Tools(project, Recorder())
+    call(tools.run_solver, runs=1)
+    best = project.load_revision(1)[1].runs[0]
+    result = call(tools.import_solution, rev=1, key="tour")
+    assert not result["is_error"], text(result)
+    assert json.loads(project.read_file("instance.json"))["tour"] == best.solution
+    solve = json.loads(project.read_file("solve.json"))
+    project.write_file("solve.json", json.dumps({**solve, "initial_solution": "tour"}))
+    result = call(tools.run_solver, runs=1)
+    assert 'every run started from instance["tour"]' in text(result)
+    summary = project.load_revision(2)[1]
+    assert summary.initial_solution == "tour"
+    assert summary.runs[0].initial_objective == pytest.approx(best.best_objective)
+
+
+def test_a_start_that_instance_json_lacks_is_explained(home):
+    project = example_project("tsp", home)
+    solve = json.loads(project.read_file("solve.json"))
+    project.write_file("solve.json", json.dumps({**solve, "initial_solution": "tour"}))
+    with pytest.raises(ProjectError, match=r'instance\["tour"\]'):
+        call(Tools(project, Recorder()).run_solver)
+    assert project.revisions() == []
+    with pytest.raises(ProjectError, match="no revision 1"):
+        call(Tools(project, Recorder()).import_solution, rev=1, key="tour")
+
+
 def test_a_failed_solve_is_an_error_result_with_the_traceback(home):
     project = example_project("tsp", home)
     project.write_file("model.py", "def build(instance):\n    return 1 / 0\n")

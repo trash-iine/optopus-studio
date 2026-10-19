@@ -940,6 +940,19 @@
           "default": null,
           "title": "Higher Is Better"
         },
+        "initial_solution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The key of instance.json every run started from, if not at random.",
+          "title": "Initial Solution"
+        },
         "live": {
           "anyOf": [
             {
@@ -1028,6 +1041,7 @@
         "variants",
         "heuristics",
         "seed",
+        "initial_solution",
         "runs",
         "best_run",
         "error"
@@ -1438,6 +1452,7 @@
             "request",
             "build",
             "heuristic",
+            "start",
             "run",
             "encode"
           ],

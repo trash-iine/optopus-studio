@@ -13,7 +13,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from optopus_studio import worker
-from optopus_studio.protocol import SolveRequest, Variant, WorkerEvent
+from optopus_studio.protocol import InitialSolution, SolveRequest, Variant, WorkerEvent
 from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, one, write_model
 
 EVENTS = TypeAdapter(list[WorkerEvent])
@@ -205,6 +205,50 @@ def test_an_infinite_bound_is_sent_as_null():
     assert worker.finite(-math.inf) is None
     assert worker.finite(1.5) == 1.5
     assert worker.finite(None) is None
+
+
+def started_from(name: str, solution, **overrides) -> SolveRequest:
+    request = example_request(name, **overrides)
+    request.initial_solution = InitialSolution(key="plan", solution=solution)
+    return request
+
+
+def test_every_run_starts_from_the_given_solution():
+    request = started_from("tsp", list(range(len(example_request("tsp").instance["cities"]))))
+    tour = optopus.Tsp.from_coordinates(
+        [(c["x"], c["y"]) for c in request.instance["cities"]]
+    ).tour_length(request.initial_solution.solution)
+    runs = [e for e in run_worker(request) if e.type == "run_finished"]
+    assert [r.initial_objective for r in runs] == [pytest.approx(tour)] * len(runs)
+    assert all(r.best_objective <= r.initial_objective for r in runs)
+
+
+def test_a_model_decodes_the_solution_it_starts_from():
+    request = example_request("workload", runs=1)
+    tasks = len(request.instance["tasks"])
+    model = worker.load_model(request.model_path)
+    first = run_worker(request)[1]
+    request.initial_solution = InitialSolution(key="plan", solution=first.solution)
+    again = run_worker(request)[1]
+    assert again.initial_objective == first.best_objective
+    decoded = model.decode_solution(request.instance, first.solution)
+    assert len(decoded[0]) == tasks
+
+
+@pytest.mark.parametrize(
+    ("name", "solution", "says"),
+    [
+        # decode_solution refuses it.
+        ("workload", {"assignment": [0]}, "ValueError: the assignment has 1 tasks"),
+        # optopus refuses it as the run begins.
+        ("tsp", [0, *range(14)], "does not fit the problem"),
+    ],
+)
+def test_a_solution_that_cannot_start_a_run_fails_at_the_start(name, solution, says):
+    error = run_worker(started_from(name, solution, runs=1))[-1]
+    assert error.type == "error"
+    assert error.stage == "start"
+    assert says in error.message
 
 
 BROKEN = {

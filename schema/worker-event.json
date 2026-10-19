@@ -249,6 +249,7 @@
             "request",
             "build",
             "heuristic",
+            "start",
             "run",
             "encode"
           ],

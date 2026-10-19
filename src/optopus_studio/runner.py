@@ -77,6 +77,7 @@ async def run_solve(
         worker="rust" if rust_binary else "python",
         heuristics=request.variants,
         seed=request.seed,
+        initial_solution=request.initial_solution.key if request.initial_solution else None,
     )
     command = [str(rust_binary)] if rust_binary else worker_command()
     process = await _spawn(command, cwd)

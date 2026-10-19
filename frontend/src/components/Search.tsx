@@ -9,6 +9,7 @@ export function Search({ summary }: { summary: RunSummary }) {
   const facts = [
     `${summary.worker} worker`,
     summary.seed != null ? `seed ${summary.seed}` : "unseeded",
+    summary.initial_solution != null ? `starts from instance.${summary.initial_solution}` : null,
     runs > 0 ? `${runs} run${runs === 1 ? "" : "s"}${heuristics.length > 1 ? " each" : ""}` : null,
   ].filter(Boolean);
   return (
