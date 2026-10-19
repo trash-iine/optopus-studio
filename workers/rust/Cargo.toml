@@ -10,6 +10,6 @@ publish = false
 [dependencies]
 # The core the optopus-py commit in ../../pyproject.toml vendors (its vendor/optopus), so a Rust
 # worker runs the same search as the Python one it replaces. Move both together (docs/adr/0008).
-optopus = { git = "https://github.com/trash-iine/optopus", rev = "1314a942dd13ffef7972d0185af6cbd5ab6a3549" }
+optopus = { git = "https://github.com/trash-iine/optopus", rev = "7b2690ddd13f8159ea147d7fa07336c70170bf57" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
