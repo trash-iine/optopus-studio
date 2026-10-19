@@ -1,5 +1,7 @@
 # optopus studio
 
+https://github.com/user-attachments/assets/f29cac4a-f6d2-4088-9db1-d94da3d08a42
+
 Chat-driven optimization on [optopus](https://github.com/trash-iine/optopus-py). Describe a task
 in the chat on the left; an agent models it, solves it with optopus, and draws the result on the
 canvas on the right. Ask for a change and it re-models, re-solves and redraws, keeping every solve
