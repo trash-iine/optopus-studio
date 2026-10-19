@@ -56,8 +56,10 @@ For a problem written in Python, implement, mirroring the Python class:
 - `higher_is_better(&self)` — `not minimize`.
 - `objective(s)` — what Python's `objective` returns, as `f64`.
 - `encode(&self, s)` — exactly what `encode_solution` returns (same keys, same order of lists).
-- `decode(&self, value)` — the inverse; the studio checks the port by scoring the Python
-  worker's solutions with it.
+- `decode(&self, value)` — the inverse, as `decode_solution` reads it when `model.py` has one;
+  the studio checks the port by scoring the Python worker's solutions with it, and starts every
+  run from it when `solve.json` has `"initial_solution"`. Return `Err` for a value that breaks a
+  constraint the search keeps, as `decode_solution` raises `ValueError`.
 - `with_neighbor(name, visitor)` — `match name { "Move" => Ok(visitor.visit::<Move>()), _ =>
   Err(unknown_neighbor(name, &["Move"])) }`, one arm per neighborhood name in `model.py`.
 

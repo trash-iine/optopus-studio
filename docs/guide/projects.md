@@ -56,6 +56,23 @@ Three runs of simulated annealing, each stopping after 5000 iterations, seeded s
 give the same result. To compare heuristics, `"heuristics"` lists several, each with a label (see
 [`examples/workload/solve.json`](../../examples/workload/solve.json)).
 
+### Starting from a solution
+
+Every run starts from a random solution unless `solve.json` names one:
+`"initial_solution": "plan"` starts every run from `instance.json`'s `"plan"`. The solution is in
+the form the result shows it, which `model.py`'s `encode_solution` writes and its
+`decode_solution` reads back (the workload example has both). It is how to:
+
+- **score a plan of your own**, such as the current schedule. Attach it and ask the agent to start
+  from it: each run's initial objective is then what your plan scores, and the best objective how
+  much the search improved on it.
+- **keep searching from an earlier result** ("keep going from revision 3"). The agent copies that
+  revision's best solution into `instance.json`, so the new revision holds what it started from
+  ([ADR 0011](../adr/0011-start-from-a-solution-in-the-instance.md)).
+
+A solution that does not fit the problem, such as a tour that visits a city twice, stops the solve
+at the start stage.
+
 ## The examples
 
 [`examples/`](../../examples/) holds four complete projects; the tests solve each one:

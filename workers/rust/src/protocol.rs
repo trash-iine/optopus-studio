@@ -21,6 +21,16 @@ fn zero() -> Option<u64> {
     Some(0)
 }
 
+/// Where every run starts instead of a random solution.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InitialSolution {
+    /// The key of `instance.json` it was read from.
+    pub key: String,
+    /// The solution as [`encode`](crate::StudioProblem::encode) writes it.
+    pub solution: Value,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SolveRequest {
@@ -33,6 +43,8 @@ pub struct SolveRequest {
     pub runs: usize,
     #[serde(default = "zero")]
     pub seed: Option<u64>,
+    #[serde(default)]
+    pub initial_solution: Option<InitialSolution>,
 }
 
 #[derive(Debug, Serialize)]

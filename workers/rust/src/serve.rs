@@ -99,6 +99,11 @@ fn solve<P: StudioProblem>(
         build_heuristic::<P>(&variant.heuristic)
             .map_err(|e| ("heuristic", format!("{}: {e}", variant.label)))?;
     }
+    // Every run starts from the same solution, so it is decoded once.
+    let initial = match &request.initial_solution {
+        Some(start) => Some(guarded(|| problem.decode(&start.solution)).map_err(|e| ("start", e))?),
+        None => None,
+    };
     WorkerEvent::Started {
         runs: request.runs,
         variants: request.variants.iter().map(|v| v.label.clone()).collect(),
@@ -118,6 +123,7 @@ fn solve<P: StudioProblem>(
             let event = guarded(|| {
                 run_once(
                     &problem,
+                    initial.clone(),
                     heuristic.as_mut(),
                     index,
                     variant_index,
@@ -153,6 +159,7 @@ fn solve<P: StudioProblem>(
 
 fn run_once<P: StudioProblem>(
     problem: &P,
+    initial: Option<P::Solution>,
     heuristic: &mut dyn Heuristic<P>,
     run: usize,
     variant: usize,
@@ -160,9 +167,11 @@ fn run_once<P: StudioProblem>(
     higher: bool,
 ) -> Result<WorkerEvent, String> {
     let start = Instant::now();
-    let mut state = match seed {
-        Some(s) => SearchState::new_with_seed(problem, s),
-        None => SearchState::new(problem),
+    let mut state = match (initial, seed) {
+        (Some(solution), Some(s)) => SearchState::with_solution_and_seed(problem, solution, s),
+        (Some(solution), None) => SearchState::with_solution(problem, solution),
+        (None, Some(s)) => SearchState::new_with_seed(problem, s),
+        (None, None) => SearchState::new(problem),
     };
     state.set_objective_probe(probe::<P>);
     let initial_objective = P::objective(&state.initial_solution);

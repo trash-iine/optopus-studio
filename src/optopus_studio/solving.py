@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from optopus_studio import rust
 from optopus_studio.projects import ProjectError, variants_of
-from optopus_studio.protocol import SolveRequest
+from optopus_studio.protocol import InitialSolution, SolveRequest
 
 DEFAULT_SOLVE_TIMEOUT = 300.0
 
@@ -28,6 +28,7 @@ def solve_request(
 ) -> SolveRequest:
     """The request solve.json describes, with ``max_duration_secs``, ``runs`` or ``seed``
     replaced by ``overrides``."""
+    start = initial_solution(solve, instance)
     try:
         variants = variants_of(solve)
         if "max_duration_secs" in overrides:
@@ -40,9 +41,25 @@ def solve_request(
             variants=variants,
             runs=overrides.get("runs", solve.get("runs", 1)),
             seed=overrides.get("seed", solve.get("seed", 0)),
+            initial_solution=start,
         )
     except ValidationError as exc:
         raise ProjectError(f"solve.json does not describe a solve: {exc}") from exc
+
+
+def initial_solution(solve: dict[str, Any], instance: Any) -> InitialSolution | None:
+    """The solution solve.json's "initial_solution" names: a key of instance.json, so the data a
+    revision starts from is in its own files (docs/adr/0011)."""
+    key = solve.get("initial_solution")
+    if key is None:
+        return None
+    if not isinstance(key, str):
+        raise ProjectError('"initial_solution" must be the key of instance.json that holds it')
+    if not isinstance(instance, dict) or key not in instance:
+        raise ProjectError(
+            f'solve.json starts from instance["{key}"], but instance.json has no such key'
+        )
+    return InitialSolution(key=key, solution=instance[key])
 
 
 def worker_of(solve: dict[str, Any]) -> str:

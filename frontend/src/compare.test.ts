@@ -32,6 +32,7 @@ const summary: RunSummary = {
   worker: "python",
   heuristics: [],
   seed: null,
+  initial_solution: null,
   native: false,
   live: null,
   problem: "Workload",

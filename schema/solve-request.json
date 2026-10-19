@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "InitialSolution": {
+      "additionalProperties": false,
+      "description": "Where every run of a solve starts instead of a random solution.",
+      "properties": {
+        "key": {
+          "description": "The key of instance.json the solution was read from.",
+          "title": "Key",
+          "type": "string"
+        },
+        "solution": {
+          "description": "The solution in the form encode_solution writes it, which the worker turns back into the problem's own with the model's decode_solution.",
+          "title": "Solution"
+        }
+      },
+      "required": [
+        "key",
+        "solution"
+      ],
+      "title": "InitialSolution",
+      "type": "object"
+    },
     "Variant": {
       "additionalProperties": false,
       "description": "One heuristic of a solve, under the label the GUI shows it by.",
@@ -27,6 +48,17 @@
   "additionalProperties": false,
   "description": "One solve: the model to build, its data, and how to search.\n\nEvery variant runs ``runs`` times with the same per-run seeds, so variants start from the same\ninitial solutions and compare fairly.",
   "properties": {
+    "initial_solution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InitialSolution"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "instance": {
       "additionalProperties": true,
       "description": "The project's instance.json.",

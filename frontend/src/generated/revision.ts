@@ -3,7 +3,7 @@
 export type Rev = number;
 export type BestRun = number | null;
 export type Message = string;
-export type Stage = "request" | "build" | "heuristic" | "run" | "encode";
+export type Stage = "request" | "build" | "heuristic" | "start" | "run" | "encode";
 export type Traceback = string | null;
 export type Type = "error";
 export type Label = string;
@@ -12,6 +12,10 @@ export type Label = string;
  */
 export type Heuristics = Variant[];
 export type HigherIsBetter = boolean | null;
+/**
+ * The key of instance.json every run started from, if not at random.
+ */
+export type InitialSolution = string | null;
 /**
  * (elapsed_secs, objective)
  */
@@ -165,6 +169,7 @@ export interface RunSummary {
   error: WorkerError | null;
   heuristics: Heuristics;
   higher_is_better: HigherIsBetter;
+  initial_solution: InitialSolution;
   live: LiveRun | null;
   native: Native;
   problem: Problem;

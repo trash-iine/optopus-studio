@@ -77,7 +77,7 @@ What the selected revision gave, from top to bottom:
   `BranchAndBound` solve, what the best run proved: "proven optimal", or the bound it reached and
   the gap to it.
 - **Heuristic**: the search method and its parameters, the stop condition, the seed and the number
-  of runs.
+  of runs, and the key of `instance.json` the runs started from when they did not start at random.
 
 ### Model
 

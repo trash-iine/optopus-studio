@@ -59,7 +59,7 @@ export type BestObjective1 = number;
 export type BestRun = number;
 export type Type3 = "done";
 export type Message = string;
-export type Stage = "request" | "build" | "heuristic" | "run" | "encode";
+export type Stage = "request" | "build" | "heuristic" | "start" | "run" | "encode";
 export type Traceback = string | null;
 export type Type4 = "error";
 

@@ -95,9 +95,11 @@ login" と記録されます)。
 
 ### 赤いバナー "The solve failed at …"
 
-求解がその段階(request、build、heuristic、run、encode)でエラーになりました。エージェントにも同じ
-メッセージとトレースバックが見えていて、たいていは自分で直します。止まっているなら、エラーを直すよう
-頼んでください。
+求解がその段階(request、build、heuristic、start、run、encode)でエラーになりました。エージェントにも
+同じメッセージとトレースバックが見えていて、たいていは自分で直します。止まっているなら、エラーを直す
+よう頼んでください。start の段階で止まった場合は、`solve.json` の `"initial_solution"` が指す解が
+問題に合っていません。その解を見つけた後でデータが変わったときなどに起きます。
+[解から始める](projects.md#解から始める)を参照してください。
 
 ### "the solve took longer than 300.0s"
 
