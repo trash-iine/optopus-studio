@@ -28,7 +28,7 @@ default-groups = ["dev", "studio"]
 [tool.uv.sources]
 # Built from a commit of optopus-py's main until a release carries RunResult.trajectory and
 # on_improvement. workers/rust/Cargo.toml pins the core that commit vendors. See docs/adr/0008.
-optopus = { git = "https://github.com/trash-iine/optopus-py", rev = "f44dfbcffc0aa200201b982db3aeb1bb0c3da81b" }
+optopus = { git = "https://github.com/trash-iine/optopus-py", rev = "498976ddac25a5e694657ac5a9aa26bbf413e490" }
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
