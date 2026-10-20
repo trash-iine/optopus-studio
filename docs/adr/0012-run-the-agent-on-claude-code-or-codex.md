@@ -17,16 +17,30 @@ interrupted, and resumes its session after a restart.
    thread can be started with `dynamicTools`; Codex calls one by sending the client an
    `item/tool/call` request, so the tools run in the studio's process, as the in-process MCP
    server does for Claude.
-2. **Codex with the studio as an MCP server.** The studio would serve its tools over HTTP for
-   Codex to connect to: a port and a token per session, and the tools' broadcasts would cross
-   that boundary.
+2. **The studio as an MCP server, for both agents.** The studio would serve its tools at `/mcp`
+   on 127.0.0.1, with a token per session, and give both agents its URL. The tools would still
+   run in the studio's process; Codex would no longer depend on an experimental API, and any
+   other agent that speaks MCP would be cheap to add. It costs a port and a token, the `-c`
+   overrides are still needed to turn off Codex's own tools, and whether Codex asks for approval
+   before an MCP tool call under `approvalPolicy: "never"` was not checked.
 3. **The OpenAI Agents SDK or the Responses API.** An API key, which ADR 0003 rules out.
+4. **The user's own agent drives the studio.** The studio would serve its tools and the canvas
+   over MCP, and the chat would move to Claude Code, Codex or an IDE: no code per agent. But the
+   studio could no longer keep that agent to its tools, the conversation would not be in the
+   project to share (ADR 0007) or to hand to another agent, and the system prompt would have to
+   travel as the MCP server's instructions.
+5. **The Agent Client Protocol.** The studio as an ACP client, reaching each agent through an
+   adapter (`claude-code-acp`, `codex-acp`) and handing it the tools in `session/new`'s
+   `mcpServers` (option 2's server): one protocol for many agents. The adapters are separate npm
+   packages, so the studio would need Node; ACP has no standard way to turn off an agent's own
+   tools, which leaves that to each adapter; and the adapters' packages were still moving.
 
 ## Decision
 
-Option 1. `agent.py` keeps the system prompt, the tools (`Tools.specs()`) and the conversation;
-a `Backend` holds one agent's session: `agent_claude.py` (unchanged from ADR 0003) and
-`agent_codex.py`, a small JSON-RPC client with no new dependency.
+Option 1: it is the only one that keeps all of what ADR 0003 guarantees, and the conversation in
+the project, with nothing more to run or listen on. `agent.py` keeps the system prompt, the tools
+(`Tools.specs()`) and the conversation; a `Backend` holds one agent's session: `agent_claude.py`
+(unchanged from ADR 0003) and `agent_codex.py`, a small JSON-RPC client with no new dependency.
 
 - Each project records its agent in `meta.json` (`agent`, next to `session_id`). The chat's
   **Agent** menu switches it while the agent is idle. Switching drops the session; the next
@@ -61,3 +75,9 @@ a `Backend` holds one agent's session: `agent_claude.py` (unchanged from ADR 000
   existing projects only after a switch or a new session.
 - The hermetic tests run against a fake app-server (`tests/fake_codex.py`); nothing in CI needs
   Codex or a login.
+- If dynamic tools go away or keep changing, option 2 is the way out: `Tools.specs()` carries
+  over as it is, and the same `/mcp` is the first step of option 4. Option 5 is worth another look
+  once ACP can turn off an agent's own tools. Running the agent and the generated code in a
+  container is a separate question, open under any of these options: it would contain what a
+  prompt injection through uploaded data or a shared project's conversation could make the
+  agent write.
