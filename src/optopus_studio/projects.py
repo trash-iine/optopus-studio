@@ -1,7 +1,7 @@
 """Projects on disk: the files the agent edits, and one revision per solve.
 
     <home>/projects/<id>/
-        meta.json       the agent session to resume
+        meta.json       the agent (Claude or Codex) and its session to resume
         chat.jsonl      the conversation as shown in the GUI
         work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json
@@ -46,7 +46,8 @@ ARCHIVE_MANIFEST = "optopus-studio-project.json"
 ARCHIVE_FORMAT = 1
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 _FILE = "|".join(re.escape(name) for name in ALL_FILES)
-# Everything of a project but meta.json, whose agent session lives in this machine's Claude Code.
+# Everything of a project but meta.json, whose agent session lives in this machine's Claude Code
+# or Codex.
 ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
     r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+))\Z"
@@ -266,8 +267,8 @@ class Project:
 
     def export(self) -> bytes:
         """The project as a zip another studio imports: the chat, the files, every revision with
-        its result, and the uploads. Not the agent's session, which this machine's Claude Code
-        keeps; the importing studio's agent reads the chat instead."""
+        its result, and the uploads. Not the agent's session, which this machine's Claude Code or
+        Codex keeps; the importing studio's agent reads the chat instead."""
         manifest = {
             "format": ARCHIVE_FORMAT,
             "project": self.id,

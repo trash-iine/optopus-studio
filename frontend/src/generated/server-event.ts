@@ -9,7 +9,22 @@ export type ServerEvent =
   | FilesChanged
   | SolveStarted
   | SolveProgress
-  | ViewUpdated;
+  | ViewUpdated
+  | AgentSelected;
+/**
+ * The agent this project's chat runs on.
+ */
+export type Agent = "claude" | "codex";
+export type Available = boolean;
+export type Name = "claude" | "codex";
+/**
+ * Why the agent cannot run here, if it cannot.
+ */
+export type Reason = string | null;
+/**
+ * The agents to choose from, in order.
+ */
+export type Agents = AgentChoice[];
 export type Busy = boolean;
 export type Role = "user" | "assistant" | "tool";
 export type Text = string;
@@ -137,7 +152,7 @@ export type Nodes = GraphNode[];
 export type Title4 = string | null;
 export type Type7 = "graph";
 export type Categories = string[];
-export type Name = string;
+export type Name1 = string;
 export type Values = number[];
 export type Series = BarSeries[];
 export type Stacked = boolean;
@@ -168,7 +183,7 @@ export type Text2 = string;
 export type Type11 = "assistant_delta";
 export type Text3 = string;
 export type Type12 = "assistant_text";
-export type Name1 = string;
+export type Name2 = string;
 export type Summary = string;
 export type Type13 = "tool";
 export type Error = string | null;
@@ -182,11 +197,15 @@ export type Type17 = "solve_progress";
 export type Error1 = string | null;
 export type Rev4 = number;
 export type Type18 = "view";
+export type Agent1 = "claude" | "codex";
+export type Type19 = "agent_selected";
 
 /**
  * Everything the GUI shows, sent when a browser connects.
  */
 export interface Snapshot {
+  agent: Agent;
+  agents: Agents;
   busy: Busy;
   chat: Chat;
   files: Files;
@@ -197,6 +216,11 @@ export interface Snapshot {
   type: Type2;
   view: ViewSpec | null;
   view_error: ViewError;
+}
+export interface AgentChoice {
+  available: Available;
+  name: Name;
+  reason: Reason;
 }
 export interface ChatEntry {
   role: Role;
@@ -349,7 +373,7 @@ export interface BarView {
   type: Type8;
 }
 export interface BarSeries {
-  name: Name;
+  name: Name1;
   values: Values;
 }
 export interface MarkdownView {
@@ -372,7 +396,7 @@ export interface AssistantText {
   type: Type12;
 }
 export interface ToolActivity {
-  name: Name1;
+  name: Name2;
   summary: Summary;
   type: Type13;
 }
@@ -402,4 +426,11 @@ export interface ViewUpdated {
   rev: Rev4;
   type: Type18;
   view: ViewSpec | null;
+}
+/**
+ * The project's chat now runs on another agent, which reads the conversation so far first.
+ */
+export interface AgentSelected {
+  agent: Agent1;
+  type: Type19;
 }

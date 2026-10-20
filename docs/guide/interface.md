@@ -40,6 +40,10 @@
   thinking.
 - **Red text** under the messages is an error from the agent or the server, for example "the agent
   stopped: …". See [Troubleshooting](troubleshooting.md).
+- **Agent**: the agent this project's chat runs on, Claude or Codex. Switching is possible while
+  the agent is idle; the other agent reads the conversation so far with its next message, and
+  continues from the project's files. An agent that cannot run on this machine is marked
+  "(unavailable)"; hover over it for the reason.
 
 The conversation is kept with the project. Coming back to a project later resumes the same agent
 session, so it remembers what was said.

@@ -13,6 +13,30 @@
       "title": "Interrupt",
       "type": "object"
     },
+    "SelectAgent": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "type": {
+          "const": "select_agent",
+          "default": "select_agent",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent"
+      ],
+      "title": "SelectAgent",
+      "type": "object"
+    },
     "SelectRevision": {
       "additionalProperties": false,
       "properties": {
@@ -58,6 +82,7 @@
   "discriminator": {
     "mapping": {
       "interrupt": "#/$defs/Interrupt",
+      "select_agent": "#/$defs/SelectAgent",
       "select_revision": "#/$defs/SelectRevision",
       "user_message": "#/$defs/UserMessage"
     },
@@ -72,6 +97,9 @@
     },
     {
       "$ref": "#/$defs/Interrupt"
+    },
+    {
+      "$ref": "#/$defs/SelectAgent"
     }
   ],
   "title": "ClientEvent"

@@ -13,9 +13,11 @@ from tests.test_apps import packaged
 
 def test_an_app_runs_without_the_agent():
     code = "import sys, optopus_studio.appserver, optopus_studio.image, optopus_studio.cli; "
-    code += "print('claude_agent_sdk' in sys.modules)"
+    code += "agents = ['claude_agent_sdk', 'optopus_studio.agent', 'optopus_studio.agent_claude', "
+    code += "'optopus_studio.agent_codex', 'optopus_studio.app']; "
+    code += "print([m for m in agents if m in sys.modules])"
     imported = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert imported.stdout.strip() == "False", imported.stderr
+    assert imported.stdout.strip() == "[]", imported.stderr
 
 
 def test_the_build_is_named_and_labeled_after_the_package(home, tmp_path):

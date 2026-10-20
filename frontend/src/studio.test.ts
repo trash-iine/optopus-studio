@@ -81,6 +81,34 @@ describe("reduce", () => {
     expect(state.solving).toBeNull();
     expect(state.view).toEqual({ views: [] });
   });
+
+  it("follows the project's agent from the snapshot and when it is switched", () => {
+    const agents = [
+      { name: "claude" as const, available: true, reason: null },
+      { name: "codex" as const, available: false, reason: "Codex is not installed" },
+    ];
+    const snapshot = {
+      type: "snapshot" as const,
+      project: "0123456789ab",
+      chat: [],
+      files: {},
+      revisions: [],
+      rev: null,
+      summary: null,
+      view: null,
+      view_error: null,
+      busy: false,
+      agent: "claude" as const,
+      agents,
+    };
+    let state = event(initialState, { type: "event", event: snapshot });
+    expect(state.agent).toBe("claude");
+    expect(state.agents).toEqual(agents);
+    state = { ...state, error: "the agent is still working" };
+    state = event(state, { type: "event", event: { type: "agent_selected", agent: "codex" } });
+    expect(state.agent).toBe("codex");
+    expect(state.error).toBeNull();
+  });
 });
 
 describe("convergence", () => {

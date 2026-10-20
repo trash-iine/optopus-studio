@@ -104,6 +104,8 @@ header {
 .working { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.4; } }
 .chat-error { color: var(--critical); font-size: 13px; }
+.agent-picker { display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; border-top: 1px solid var(--border); color: var(--ink-2); font-size: 13px; }
+.agent-picker + .composer { border-top: none; }
 .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); align-items: flex-end; }
 .composer textarea {
   flex: 1;

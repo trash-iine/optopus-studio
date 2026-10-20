@@ -296,6 +296,16 @@ class ChatEntry(Strict):
     text: str
 
 
+# The agents a project's chat can run on (docs/adr/0012).
+AgentName = Literal["claude", "codex"]
+
+
+class AgentChoice(Strict):
+    name: AgentName
+    available: bool
+    reason: str | None = Field(None, description="Why the agent cannot run here, if it cannot.")
+
+
 class AssistantDelta(Strict):
     type: Literal["assistant_delta"] = "assistant_delta"
     text: str
@@ -354,6 +364,15 @@ class Snapshot(Strict):
     view: ViewSpec | None
     view_error: str | None = None
     busy: bool
+    agent: AgentName = Field(description="The agent this project's chat runs on.")
+    agents: list[AgentChoice] = Field(description="The agents to choose from, in order.")
+
+
+class AgentSelected(Strict):
+    """The project's chat now runs on another agent, which reads the conversation so far first."""
+
+    type: Literal["agent_selected"] = "agent_selected"
+    agent: AgentName
 
 
 ServerEvent = Annotated[
@@ -365,7 +384,8 @@ ServerEvent = Annotated[
     | FilesChanged
     | SolveStarted
     | SolveProgress
-    | ViewUpdated,
+    | ViewUpdated
+    | AgentSelected,
     Field(discriminator="type"),
 ]
 
@@ -404,7 +424,14 @@ class Interrupt(Strict):
     type: Literal["interrupt"] = "interrupt"
 
 
-ClientEvent = Annotated[UserMessage | SelectRevision | Interrupt, Field(discriminator="type")]
+class SelectAgent(Strict):
+    type: Literal["select_agent"] = "select_agent"
+    agent: AgentName
+
+
+ClientEvent = Annotated[
+    UserMessage | SelectRevision | Interrupt | SelectAgent, Field(discriminator="type")
+]
 
 
 # --- Apps: a revision packaged to run without the agent (docs/adr/0009) ------------------------

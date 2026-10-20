@@ -31,10 +31,18 @@ Node 24 を入れます。バージョンを切り替えたら、`frontend/node_
 
 ## 起動
 
-### ``optopus-studio: error: the studio needs its agent: install it with `uv sync` (the studio group)``
+### `optopus-studio: error: the studio needs an agent, and none can run here (…)`
 
-Claude Agent SDK が入っていません。`uv sync` が `--no-default-groups` や `--only-group` 付きで実行
-されています。チェックアウトしたディレクトリで、オプション無しの `uv sync` を実行してください。
+どちらのエージェントも動かせません。括弧の中にそれぞれの理由があります。"the Claude Agent SDK is not
+installed" なら、`uv sync` が `--no-default-groups` や `--only-group` 付きで実行されています
+(チェックアウトしたディレクトリで、オプション無しの `uv sync` を実行してください)。"Codex is not
+installed" や "is too old" なら、`codex` が `PATH` に無いか 0.153 より古いので、入れるか
+`codex update` で更新するか、`OPTOPUS_STUDIO_CODEX` でその場所を指定してください。
+
+### `optopus-studio: error: the agent cannot run on codex: …`
+
+`--agent codex` か `OPTOPUS_STUDIO_AGENT=codex` で Codex を指定しましたが、示された理由で動かせません。
+上の項目を参照してください。`claude` の場合も同じです。
 
 ### `[Errno 48] … address already in use`(Linux では `Errno 98`)
 
@@ -57,13 +65,26 @@ Web ページがビルドされていないので、サーバーには表示す�
 
 ### ログイン、認証、API キーについての赤いエラーがチャットに出る
 
-エージェントは API キーではなく Claude Code のログインで動きます
-([ADR 0003](../../adr/0003-agent-on-claude-code-login.md))。`claude` を起動して `/login` を実行し、
-メッセージを送り直してください。`ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` は、意図して studio の
-環境から取り除かれます(ターミナルに "ignoring ANTHROPIC_API_KEY; the agent uses the Claude Code
-login" と記録されます)。
+エージェントは API キーではなく Claude Code か Codex のログインで動きます
+([ADR 0003](../../adr/0003-agent-on-claude-code-login.md)、
+[ADR 0012](../../adr/0012-run-the-agent-on-claude-code-or-codex.md))。Claude なら `claude` を起動して
+`/login` を、Codex なら("Codex is not signed in")`codex login` を実行し、メッセージを送り直して
+ください。`ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` は、意図して studio の環境から取り除かれます
+(ターミナルに "ignoring ANTHROPIC_API_KEY; the agent on Claude uses the Claude Code login" と記録
+されます)。Codex は `OPENAI_API_KEY` と `CODEX_API_KEY` 無しで起動されます。
 
-エラーが利用上限に触れているなら、Claude のプランの上限に達しています。リセットされるまで待ってください。
+エラーが利用上限に触れているなら、Claude か ChatGPT のプランの上限に達しています。リセットされるまで
+待つか、プロジェクトをもう一方のエージェントに切り替えてください。
+
+### **Agent** メニューのエージェントに "(unavailable)" と付いている
+
+そのエージェントはこのマシンでは動かせません。マウスを重ねると理由(未インストール、古すぎる)が出ます。
+それを直して studio を再起動してください。エージェントは起動時に確認されます。
+
+### "Codex stopped: …"
+
+Codex の app-server が終了しました。メッセージの続きは、それが最後に出力した内容です。メッセージを
+送り直すと再起動します。失敗が続くなら `codex doctor` を実行してください。
 
 ### "the agent stopped: …"
 

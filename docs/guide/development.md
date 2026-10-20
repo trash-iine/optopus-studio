@@ -23,15 +23,16 @@ shows it in app mode when `/api/mode` says `"app"`.
 ## How it fits together
 
 ```
-browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI, Agent SDK)
+browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI, the agent)
                                                                   |  stdin/stdout JSON Lines:
                                                                   |  SolveRequest -> WorkerEvent
                                                                   v
                                                           solver worker (a subprocess)
 ```
 
-The agent edits a project's files through the tools in `agent.py` only; it has no built-in Claude
-Code tools. Every solve freezes the files into a revision:
+The agent runs on Claude (the Agent SDK) or Codex (`codex app-server`), chosen per project. It
+edits a project's files through the tools in `agent.py` only; it has no built-in Claude Code or
+Codex tools. Every solve freezes the files into a revision:
 
 | File | Runs in | Says |
 |---|---|---|
@@ -55,7 +56,8 @@ replaces the Python worker without touching the GUI
 | `src/optopus_studio/protocol.py` | every contract: worker protocol, `ViewSpec`, WebSocket events |
 | `cli.py` | the `optopus-studio` command and its `app` and `image` subcommands |
 | `app.py` | the studio's FastAPI server and WebSocket |
-| `agent.py` | the Agent SDK session, the agent's tools and its system prompt |
+| `agent.py` | the agent's tools, its system prompt and the conversation, for either agent |
+| `agent_claude.py`, `agent_codex.py` | the agent's session on Claude (Agent SDK) or Codex (app-server JSON-RPC) |
 | `projects.py` | projects, revisions and uploads on disk |
 | `tables.py` | reading uploaded CSV, TSV, Excel and JSON |
 | `solving.py` | turns a model's files into a solve, for both the agent and apps |
@@ -75,9 +77,13 @@ replaces the Python worker without touching the GUI
 
 - Generated code (`model.py`, `view.py`) runs only in a subprocess with a timeout, never in the
   server process.
-- The agent signs in with the Claude Code login; do not add API-key handling
-  ([ADR 0003](../adr/0003-agent-on-claude-code-login.md)).
-- Nothing an app runs (`appserver.py`, `apps.py` and their imports) may import `agent.py` or
+- The agent signs in with the Claude Code or Codex login; do not add API-key handling
+  ([ADR 0003](../adr/0003-agent-on-claude-code-login.md),
+  [ADR 0012](../adr/0012-run-the-agent-on-claude-code-or-codex.md)).
+- Both agents get the same tools, from `Tools.specs()`; a tool added there reaches both. Codex's
+  own tools are turned off in `agent_codex.py`; after moving Codex's minimum version, check what
+  it still offers the model (ADR 0012 says how).
+- Nothing an app runs (`appserver.py`, `apps.py` and their imports) may import `agent*.py` or
   `app.py`: an app's image has no Agent SDK
   ([ADR 0010](../adr/0010-deliver-an-app-as-a-docker-image.md); `tests/test_image.py` checks it).
 - Uploaded data reaches a model only through `instance.json`; `model.py` never reads `uploads/`
@@ -147,7 +153,7 @@ Read the ADR before changing a boundary it describes:
 |---|---|
 | [0001](../adr/0001-solver-behind-a-process-boundary.md) | the solver runs behind a process boundary, Python first |
 | [0002](../adr/0002-build-optopus-from-the-sibling-checkout.md) | build optopus from the sibling optopus-py checkout (since replaced by 0008) |
-| [0003](../adr/0003-agent-on-claude-code-login.md) | the agent runs through the Agent SDK on the Claude Code login |
+| [0003](../adr/0003-agent-on-claude-code-login.md) | the agent runs through the Agent SDK on the Claude Code login (amended by 0012) |
 | [0004](../adr/0004-import-uploads-into-the-instance.md) | uploaded files are imported into `instance.json` |
 | [0005](../adr/0005-rust-worker-as-a-verified-port.md) | a Rust worker is a per-project port, verified before it runs |
 | [0006](../adr/0006-python-worker-progress-through-on-improvement.md) | the Python worker reports progress through `on_improvement` |
@@ -155,3 +161,4 @@ Read the ADR before changing a boundary it describes:
 | [0008](../adr/0008-depend-on-a-pinned-optopus-py-commit.md) | depend on a pinned optopus-py commit and fetch its docs |
 | [0009](../adr/0009-package-a-revision-as-an-app.md) | a revision is packaged as an app that runs without the agent |
 | [0010](../adr/0010-deliver-an-app-as-a-docker-image.md) | a packaged app is delivered as a Docker image |
+| [0012](../adr/0012-run-the-agent-on-claude-code-or-codex.md) | the agent runs on Claude Code or Codex, chosen per project |

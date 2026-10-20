@@ -1,7 +1,7 @@
 // The connection to one project's WebSocket, and the state the GUI draws from it.
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ClientEvent } from "./generated/client-event";
-import type { ChatEntry, RunSummary, ServerEvent, ViewSpec } from "./generated/server-event";
+import type { AgentChoice, ChatEntry, RunSummary, ServerEvent, ViewSpec } from "./generated/server-event";
 
 export interface StudioState {
   connected: boolean;
@@ -16,6 +16,9 @@ export interface StudioState {
   viewError: string | null;
   solving: { rev: number; runs: number } | null;
   error: string | null;
+  /** The agent the project's chat runs on, and the ones it can switch to (docs/adr/0012). */
+  agent: AgentChoice["name"] | null;
+  agents: AgentChoice[];
 }
 
 export const initialState: StudioState = {
@@ -31,6 +34,8 @@ export const initialState: StudioState = {
   viewError: null,
   solving: null,
   error: null,
+  agent: null,
+  agents: [],
 };
 
 type Action =
@@ -62,7 +67,11 @@ export function reduce(state: StudioState, action: Action): StudioState {
         summary: e.summary,
         view: e.view,
         viewError: e.view_error,
+        agent: e.agent,
+        agents: e.agents,
       };
+    case "agent_selected":
+      return { ...state, agent: e.agent, error: null };
     case "assistant_delta":
       return { ...state, streaming: state.streaming + e.text };
     case "assistant_text":

@@ -17,24 +17,28 @@ optopus のドキュメントを読むときに GitHub へのネットワーク�
 | Python 3.12 以上 | studio を動かす | `uv python find 3.12`(無ければ手順 3 で uv がダウンロードする) |
 | [Rust](https://rustup.rs/) 1.88 以上 | optopus をソースからコンパイルする。モデルの Rust 移植も同様 | `cargo --version` |
 | Node 24 | Web ページをビルドする | `node --version` |
-| [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) | エージェントはこのログインで動く | `claude --version` |
+| [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) と [Codex](https://developers.openai.com/codex/cli) 0.153 以上の一方または両方 | エージェントはどちらかのログインで動く | `claude --version`、`codex --version` |
 
 Node はリポジトリの `mise.toml` でバージョン 24 に固定されています。[mise](https://mise.jdx.dev/)
 を使うなら、チェックアウトしたディレクトリで `mise install` を実行すれば入ります。ほかの方法で入れた
 Node 24 でも構いません。
 
-## 2. Claude Code にサインインする
+## 2. Claude Code か Codex にサインインする
 
-チャットのエージェントは Claude で、あなたの Claude Code のログインを使います。一度サインインして
-ください。
+チャットのエージェントは、あなたの Claude Code のログインで Claude として、または Codex のログインで
+Codex として動きます。どちらか一方があれば十分です。両方あれば、プロジェクトごとにどちらでも使えます
+(チャットの **Agent** メニュー)。一度サインインしてください。
 
 ```bash
 claude        # 起動したら /login と入力してブラウザの指示に従い、終わったら /exit
+codex login   # Codex の場合: ブラウザの指示に従う
 ```
 
-確認: `claude` がログインを求めずに起動すること。環境変数の `ANTHROPIC_API_KEY` は使われません。
-studio は起動時にそれを取り除き、常にログインを使います
-([ADR 0003](../../adr/0003-agent-on-claude-code-login.md))。
+確認: `claude` がログインを求めずに起動すること、または `codex login status` がログイン済みと
+表示すること。環境変数の API キーは使われません。studio は起動時に `ANTHROPIC_API_KEY` を取り除き、
+Codex を `OPENAI_API_KEY` 無しで起動するので、常にログインが使われます
+([ADR 0003](../../adr/0003-agent-on-claude-code-login.md)、
+[ADR 0012](../../adr/0012-run-the-agent-on-claude-code-or-codex.md))。
 
 ## 3. studio をインストールする
 
@@ -88,12 +92,16 @@ studio はターミナルで `Ctrl+C` を押すと止まります。プロジェ
 uv run optopus-studio --port 9000              # 別のポートで起動
 uv run optopus-studio --host 0.0.0.0           # 他のマシンから接続可能にする(認証は無いので信頼できるネットワークでのみ)
 uv run optopus-studio --reload                 # Python のソースが変わったら再起動する(開発用)
+uv run optopus-studio --agent codex            # 新しいプロジェクトを Codex で始める(チャットで切り替え可)
 ```
 
 | 変数 | 既定値 | 意味 |
 |---|---|---|
 | `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | プロジェクトとリビジョンの保存先 |
-| `OPTOPUS_STUDIO_MODEL` | Claude Code の既定 | エージェントが使うモデル |
+| `OPTOPUS_STUDIO_AGENT` | 動くもののうち先のもの(Claude が先) | 新しいプロジェクトのエージェント: `claude` か `codex`(`--agent` と同じ) |
+| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code の既定 | Claude で動くときにエージェントが使うモデル(`OPTOPUS_STUDIO_MODEL` も可) |
+| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex の既定 | Codex で動くときにエージェントが使うモデル |
+| `OPTOPUS_STUDIO_CODEX` | `PATH` 上の `codex` | Codex の実行ファイル |
 | `OPTOPUS_STUDIO_DOCS` | GitHub から取得 | 代わりにエージェントに読ませる optopus-py の `docs/source` |
 | `OPTOPUS_STUDIO_WORKER` | Python ワーカー | ソルバーのコマンド(例: Rust ワーカー) |
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | 停止条件から計算 | 求解を打ち切るまでの秒数 |
