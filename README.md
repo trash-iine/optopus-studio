@@ -24,9 +24,11 @@ a Gantt chart, the convergence of every run).
 
 ## Quick start
 
-You need git, [uv](https://docs.astral.sh/uv/), a Rust toolchain (1.88+), Node 24 and
-[Claude Code](https://docs.claude.com/en/docs/claude-code/setup) signed in (`claude`, then
-`/login`). The agent runs on that login; `ANTHROPIC_API_KEY` is ignored (`docs/adr/0003`).
+You need git, [uv](https://docs.astral.sh/uv/), a Rust toolchain (1.88+), Node 24, and an agent
+signed in: [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) (`claude`, then
+`/login`) or [Codex](https://developers.openai.com/codex/cli) 0.153+ (`codex login`). The agent
+runs on that login, and each project chooses which one in the chat; API keys are ignored
+(`docs/adr/0003`, `docs/adr/0012`).
 
 ```bash
 uv sync                                   # builds optopus from optopus-py's pinned commit
@@ -64,7 +66,7 @@ session that reads the conversation first, since the original one stays on the m
 When a model is ready for others, ask the agent to make it an app. It writes `app.json`: the
 tables the app's user may replace and the settings they may change, each checked before a solve.
 **Package**, above the canvas, downloads the selected revision as a zip (Safari unpacks it into
-a folder, which works as well). From a checkout of this repository, without a Claude Code login,
+a folder, which works as well). From a checkout of this repository, without an agent or a login,
 it runs with:
 
 ```bash

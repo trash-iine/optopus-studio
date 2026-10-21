@@ -30,6 +30,28 @@ def test_a_new_project_starts_empty(client):
     assert snapshot["type"] == "snapshot"
     assert snapshot["revisions"] == []
     assert snapshot["busy"] is False
+    assert snapshot["agent"] == "claude"
+    assert [a["name"] for a in snapshot["agents"]] == ["claude", "codex"]
+
+
+def test_a_project_switches_to_an_agent_that_can_run(client, home, monkeypatch, tmp_path):
+    project_id = client.post("/api/projects").json()["id"]
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "select_agent", "agent": "codex"})
+        refused = ws.receive_json()
+        assert refused["type"] == "turn_end"
+        assert "codex cannot run here" in refused["error"]
+
+        codex = tmp_path / "codex"
+        codex.write_text("#!/bin/sh\necho codex-cli 0.153.4\n")
+        codex.chmod(0o755)
+        monkeypatch.setenv("OPTOPUS_STUDIO_CODEX", str(codex))
+        ws.send_json({"type": "select_agent", "agent": "codex"})
+        assert ws.receive_json() == {"type": "agent_selected", "agent": "codex"}
+    assert Project.open(project_id, home).meta()["agent"] == "codex"
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        assert ws.receive_json()["agent"] == "codex"
 
 
 def test_an_unknown_project_closes_the_socket(client):

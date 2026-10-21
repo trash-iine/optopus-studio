@@ -1,38 +1,29 @@
-"""The modeling agent: a Claude Agent SDK session per project, and the tools it works through.
+"""The modeling agent: one session per project, and the tools it works through.
 
 The agent has no built-in tools (no shell, no file access): it reads the optopus docs, writes the
 four project files and runs solves only through the tools defined here, so everything it does
 stays inside its project and shows up in the GUI.
 
-Authentication is Claude Code's: the SDK runs the bundled Claude Code CLI, which uses the login
-in ``~/.claude``. ``optopus_studio.cli`` removes ``ANTHROPIC_API_KEY`` from the environment
-before anything starts, so a key that happens to be exported is not used instead.
+It runs on Claude (``agent_claude.py``, the Claude Code login) or Codex (``agent_codex.py``, the
+Codex login), chosen per project (docs/adr/0012). Both get the same system prompt and tools;
+this module holds those and the conversation, and a ``Backend`` holds one agent's session.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib.util
 import inspect
 import json
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, get_args
 
 import optopus
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-    ResultMessage,
-    StreamEvent,
-    TextBlock,
-    ToolUseBlock,
-    create_sdk_mcp_server,
-    tool,
-)
 from pydantic import BaseModel
 
 from optopus_studio import docs, rust
@@ -47,6 +38,8 @@ from optopus_studio.apps import (
 )
 from optopus_studio.projects import ALL_FILES, Project, ProjectError
 from optopus_studio.protocol import (
+    AgentChoice,
+    AgentName,
     AssistantDelta,
     AssistantText,
     ChatEntry,
@@ -67,7 +60,7 @@ from optopus_studio.verify import verify
 
 log = logging.getLogger(__name__)
 
-SERVER = "studio"
+AGENTS: tuple[AgentName, ...] = get_args(AgentName)
 DOC_PAGES = (
     "problems",
     "formula",
@@ -344,6 +337,17 @@ def object_schema(properties: dict[str, Any], required: list[str]) -> dict[str, 
 
 
 Broadcast = Callable[[BaseModel], Awaitable[None]]
+ToolCall = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """One tool: what the agent is told about it, and the call that answers with text_result."""
+
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+    call: ToolCall
 
 
 class Tools:
@@ -568,8 +572,10 @@ class Tools:
             report += f"\n\nthe canvas shows: {', '.join(v.type for v in view.views)}"
         return text_result(report, is_error=bool(summary.error or error))
 
-    def server(self):
-        def guarded(fn):
+    def specs(self) -> list[ToolSpec]:
+        """The tools as each agent is given them (agent_claude.py, agent_codex.py)."""
+
+        def guarded(fn: ToolCall) -> ToolCall:
             async def call(args: dict[str, Any]) -> dict[str, Any]:
                 try:
                     return await fn(args)
@@ -580,60 +586,68 @@ class Tools:
 
         page = {"type": "string", "enum": list(DOC_PAGES)}
         file_name = {"type": "string", "enum": list(ALL_FILES)}
-        tools = [
-            tool(
+        return [
+            ToolSpec(
                 "read_docs",
                 "Read a page of the optopus-py user guide. 'problems' compares the built-in "
                 "problems and their solution shapes; 'formula' and 'python_problems' are the two "
                 "ways to write your own; 'heuristics*' say which heuristic to use and how to set "
                 "it; 'running' covers stop conditions and what a run reports.",
                 object_schema({"page": page}, ["page"]),
-            )(guarded(self.read_docs)),
-            tool(
+                guarded(self.read_docs),
+            ),
+            ToolSpec(
                 "api_help",
                 "The docstring and constructor signature of an optopus class (e.g. 'Tsp', "
                 "'Formula', 'SimulatedAnnealing') and of its methods.",
                 object_schema({"name": {"type": "string"}}, ["name"]),
-            )(guarded(self.api_help)),
-            tool(
+                guarded(self.api_help),
+            ),
+            ToolSpec(
                 "read_file",
                 "Read a project file as it is now.",
                 object_schema({"name": file_name}, ["name"]),
-            )(guarded(self.read_file)),
-            tool(
+                guarded(self.read_file),
+            ),
+            ToolSpec(
                 "write_file",
                 "Write a whole project file (instance.json, model.py, view.py or solve.json).",
                 object_schema(
                     {"name": file_name, "content": {"type": "string"}}, ["name", "content"]
                 ),
-            )(guarded(self.write_file)),
-            tool(
+                guarded(self.write_file),
+            ),
+            ToolSpec(
                 "check_model",
                 "Build the model and run each heuristic once for at most 2 seconds, then render "
                 "view.py. "
                 "Reports errors with tracebacks. Makes no revision and does not change the canvas.",
                 object_schema({}, []),
-            )(guarded(self.check_model)),
-            tool(
+                guarded(self.check_model),
+            ),
+            ToolSpec(
                 "check_app",
                 "Check app.json against instance.json and solve.json: the inputs' keys and "
                 "columns on the packaged data, and each parameter's target and value.",
                 object_schema({}, []),
-            )(guarded(self.check_app)),
-            tool(
+                guarded(self.check_app),
+            ),
+            ToolSpec(
                 "read_case",
                 "Read a case attached from a packaged app: where it came from, the problems or "
                 "the error, the parameters, and the first rows of each file. Without a case, "
                 "lists the attached cases.",
                 object_schema({"case": {"type": "string"}}, []),
-            )(guarded(self.read_case)),
-            tool(
+                guarded(self.read_case),
+            ),
+            ToolSpec(
                 "load_case",
                 "Replace instance.json with a case's data, as the app built it or, when the app "
                 "refused the inputs, as it would have, to reproduce the case.",
                 object_schema({"case": {"type": "string"}}, ["case"]),
-            )(guarded(self.load_case)),
-            tool(
+                guarded(self.load_case),
+            ),
+            ToolSpec(
                 "run_solver",
                 "Solve with solve.json, make a new revision, and show its result on the canvas. "
                 "Optional overrides: runs, seed, max_duration_secs (per run).",
@@ -645,37 +659,43 @@ class Tools:
                     },
                     [],
                 ),
-            )(guarded(self.run_solver)),
-            tool(
+                guarded(self.run_solver),
+            ),
+            ToolSpec(
                 "rust_guide",
                 "How to port model.py to Rust (rust/main.rs): the API, what each part of a "
                 "Python problem becomes, and two complete ports.",
                 object_schema({}, []),
-            )(guarded(self.rust_guide)),
-            tool(
+                guarded(self.rust_guide),
+            ),
+            ToolSpec(
                 "build_rust",
                 "Compile rust/main.rs and report the compiler's errors.",
                 object_schema({}, []),
-            )(guarded(self.build_rust)),
-            tool(
+                guarded(self.build_rust),
+            ),
+            ToolSpec(
                 "verify_rust",
                 "Run the Python and the Rust worker on solve.json with the same seeds and check "
                 "that the port scores solutions identically, searches as well, renders with "
                 "view.py, and how much faster it is. Makes no revision.",
                 object_schema({}, []),
-            )(guarded(self.verify_rust)),
-            tool(
+                guarded(self.verify_rust),
+            ),
+            ToolSpec(
                 "list_uploads",
                 "The files the user has attached to this project.",
                 object_schema({}, []),
-            )(guarded(self.list_uploads)),
-            tool(
+                guarded(self.list_uploads),
+            ),
+            ToolSpec(
                 "preview_upload",
                 "The shape, columns and first rows of an attached file. 'sheet' picks an Excel "
                 "sheet (the first by default).",
                 object_schema({"name": {"type": "string"}, "sheet": {"type": "string"}}, ["name"]),
-            )(guarded(self.preview_upload)),
-            tool(
+                guarded(self.preview_upload),
+            ),
+            ToolSpec(
                 "import_upload",
                 "Read an attached file and store it in instance.json under 'key': a table as a "
                 "list of records keyed by its header (numbers parsed, empty cells null), JSON as "
@@ -688,8 +708,9 @@ class Tools:
                     },
                     ["name", "key"],
                 ),
-            )(guarded(self.import_upload)),
-            tool(
+                guarded(self.import_upload),
+            ),
+            ToolSpec(
                 "import_solution",
                 "Store the best solution of revision 'rev' in instance.json under 'key', as "
                 'encode_solution wrote it, for solve.json\'s "initial_solution" to start from. '
@@ -701,15 +722,14 @@ class Tools:
                     },
                     ["rev", "key"],
                 ),
-            )(guarded(self.import_solution)),
+                guarded(self.import_solution),
+            ),
         ]
-        allowed = [f"mcp__{SERVER}__{t.name}" for t in tools]
-        return create_sdk_mcp_server(SERVER, tools=tools), allowed
 
 
 def with_history(chat: list[ChatEntry], text: str) -> str:
-    """The first message of a session that joins a conversation it was not part of, as in an
-    imported project: the agent session stayed with the studio that exported it."""
+    """The first message of a session that joins a conversation it was not part of: one an
+    imported project brought from another studio, or one held with the other agent."""
     lines = [
         f"[tool] {entry.text}" if entry.role == "tool" else f"[{entry.role}]\n{entry.text}"
         for entry in chat
@@ -718,21 +738,82 @@ def with_history(chat: list[ChatEntry], text: str) -> str:
     if len(history) > HISTORY_LIMIT:
         history = "[earlier messages left out]\n\n" + history[-HISTORY_LIMIT:]
     return (
-        "This project was shared from another studio, so you were not part of the conversation "
-        "so far. Here it is as the user saw it. The project files are as that conversation left "
-        "them; read them before changing anything.\n\n"
+        "You were not part of this project's conversation so far: it was held in another studio, "
+        "or with another agent. Here it is as the user saw it. The project files are as that "
+        "conversation left them; read them before changing anything.\n\n"
         f"<conversation>\n{history}\n</conversation>\n\nThe user now says:\n\n{text}"
     )
 
 
-def tool_summary(block: ToolUseBlock) -> ToolActivity:
-    name = block.name.removeprefix(f"mcp__{SERVER}__")
-    detail = block.input.get("name") or block.input.get("page") or ""
+def tool_activity(name: str, args: dict[str, Any]) -> ToolActivity:
+    detail = args.get("name") or args.get("page") or ""
     return ToolActivity(name=name, summary=str(detail))
 
 
+@dataclass
+class TurnResult:
+    """How a turn ended: the session to resume next time, and the error, if it failed."""
+
+    session_id: str | None
+    error: str | None = None
+
+
+AgentEvent = AssistantDelta | AssistantText | ToolActivity | TurnResult
+
+
+class AgentError(Exception):
+    """The agent cannot start or go on, in words the user can act on."""
+
+
+class SessionLost(AgentError):
+    """The agent's earlier session cannot be resumed; a new one reads the conversation instead."""
+
+
+class Backend(Protocol):
+    """One agent's session: opened and closed in the task that uses it."""
+
+    async def open(self) -> None: ...
+
+    async def close(self) -> None: ...
+
+    def turn(self, text: str) -> AsyncIterator[AgentEvent]: ...
+
+    async def interrupt(self) -> None: ...
+
+
+def default_agent() -> AgentName:
+    """The agent a new project starts on: OPTOPUS_STUDIO_AGENT, else the first available."""
+    named = os.environ.get("OPTOPUS_STUDIO_AGENT")
+    if named in AGENTS:
+        return named  # type: ignore[return-value]
+    return next((c.name for c in agent_choices() if c.available), AGENTS[0])
+
+
+def agent_choices() -> list[AgentChoice]:
+    from optopus_studio.agent_codex import codex_unavailable
+
+    claude = None
+    if importlib.util.find_spec("claude_agent_sdk") is None:
+        claude = "the Claude Agent SDK is not installed: run `uv sync`"
+    reasons = {"claude": claude, "codex": codex_unavailable()}
+    return [
+        AgentChoice(name=name, available=reasons[name] is None, reason=reasons[name])
+        for name in AGENTS
+    ]
+
+
+def open_backend(agent: AgentName, specs: list[ToolSpec], cwd: Path, resume: str | None) -> Backend:
+    if agent == "codex":
+        from optopus_studio.agent_codex import CodexBackend
+
+        return CodexBackend(specs, cwd, resume)
+    from optopus_studio.agent_claude import ClaudeBackend
+
+    return ClaudeBackend(specs, cwd, resume)
+
+
 class AgentSession:
-    """One project's conversation. A single task owns the SDK client, fed by a queue."""
+    """One project's conversation. A single task owns the agent's backend, fed by a queue."""
 
     def __init__(self, project: Project, broadcast: Broadcast):
         self.project = project
@@ -740,26 +821,28 @@ class AgentSession:
         self.tools = Tools(project, broadcast)
         self.inbox: asyncio.Queue[str] = asyncio.Queue()
         self.busy = False
-        self.client: ClaudeSDKClient | None = None
+        self.backend: Backend | None = None
         self.task: asyncio.Task[None] | None = None
 
-    def options(self) -> ClaudeAgentOptions:
-        server, allowed = self.tools.server()
-        return ClaudeAgentOptions(
-            system_prompt=SYSTEM_PROMPT,
-            tools=[],
-            mcp_servers={SERVER: server},
-            # Only the studio's tools: without this, the CLI also connects the MCP servers of
-            # the Claude account it signs in with (claude.ai connectors), and the agent mentions
-            # them to the user.
-            strict_mcp_config=True,
-            allowed_tools=allowed,
-            setting_sources=[],
-            cwd=str(self.project.work),
-            model=os.environ.get("OPTOPUS_STUDIO_MODEL") or None,
-            include_partial_messages=True,
-            resume=self.project.meta().get("session_id"),
-        )
+    @property
+    def agent(self) -> AgentName:
+        meta = self.project.meta()
+        # A project from before there was a choice has a Claude session, or none yet.
+        if meta.get("agent") in AGENTS:
+            return meta["agent"]
+        return "claude" if meta.get("session_id") else default_agent()
+
+    async def select(self, agent: AgentName) -> None:
+        """Run the chat on ``agent`` from the next message, which hands it the conversation."""
+        if self.busy:
+            raise ProjectError("the agent is still working")
+        if agent == self.agent:
+            return
+        choice = next(c for c in agent_choices() if c.name == agent)
+        if not choice.available:
+            raise ProjectError(f"{agent} cannot run here: {choice.reason}")
+        await self.close()
+        self.project.set_meta(agent=agent, session_id=None)
 
     def submit(self, text: str) -> bool:
         if self.busy:
@@ -771,61 +854,78 @@ class AgentSession:
         return True
 
     async def interrupt(self) -> None:
-        if self.client and self.busy:
-            await self.client.interrupt()
+        if self.backend and self.busy:
+            await self.backend.interrupt()
 
     async def close(self) -> None:
         if self.task:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
+            self.task = None
 
     async def _loop(self) -> None:
+        agent = self.agent
         try:
-            async with ClaudeSDKClient(self.options()) as client:
-                self.client = client
-                while True:
-                    text = await self.inbox.get()
-                    await self._turn(client, text)
+            self.backend = await self._open(agent)
+            while True:
+                text = await self.inbox.get()
+                await self._turn(self.backend, agent, text)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.exception("agent session failed")
+            if not isinstance(exc, AgentError):
+                log.exception("agent session failed")
+            # The message that was waiting is not sent; the user sends it again.
+            while not self.inbox.empty():
+                self.inbox.get_nowait()
             self.busy = False
-            await self.broadcast(TurnEnd(error=f"the agent stopped: {exc}"))
+            error = str(exc) if isinstance(exc, AgentError) else f"the agent stopped: {exc}"
+            await self.broadcast(TurnEnd(error=error))
         finally:
-            self.client = None
+            backend, self.backend = self.backend, None
+            if backend:
+                with contextlib.suppress(Exception):
+                    await backend.close()
 
-    async def _turn(self, client: ClaudeSDKClient, text: str) -> None:
+    async def _open(self, agent: AgentName) -> Backend:
+        resume = self.project.meta().get("session_id")
+        while True:
+            backend = open_backend(agent, self.tools.specs(), self.project.work, resume)
+            try:
+                await backend.open()
+                return backend
+            except BaseException as exc:
+                with contextlib.suppress(Exception):
+                    await backend.close()
+                if not (isinstance(exc, SessionLost) and resume):
+                    raise
+            # A new session, which reads the conversation before the message (_turn).
+            log.warning("starting a new %s session for project %s", agent, self.project.id)
+            self.project.set_meta(session_id=None)
+            resume = None
+
+    async def _turn(self, backend: Backend, agent: AgentName, text: str) -> None:
         history = self.project.chat()
         joining = bool(history) and not self.project.meta().get("session_id")
         self.project.append_chat(ChatEntry(role="user", text=text))
         error = None
         try:
-            await client.query(with_history(history, text) if joining else text)
-            async for message in client.receive_response():
-                await self._handle(message)
-                if isinstance(message, ResultMessage):
-                    self.project.set_meta(session_id=message.session_id)
-                    if message.is_error:
-                        error = message.result or message.subtype
+            async for event in backend.turn(with_history(history, text) if joining else text):
+                if isinstance(event, TurnResult):
+                    if event.session_id:
+                        self.project.set_meta(agent=agent, session_id=event.session_id)
+                    error = event.error
+                else:
+                    await self._show(event)
         finally:
             self.busy = False
             await self.broadcast(TurnEnd(error=error))
 
-    async def _handle(self, message: Any) -> None:
-        if isinstance(message, StreamEvent):
-            event = message.event
-            delta = event.get("delta") or {}
-            if event.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
-                await self.broadcast(AssistantDelta(text=delta["text"]))
-        elif isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock) and block.text.strip():
-                    self.project.append_chat(ChatEntry(role="assistant", text=block.text))
-                    await self.broadcast(AssistantText(text=block.text))
-                elif isinstance(block, ToolUseBlock):
-                    activity = tool_summary(block)
-                    label = f"{activity.name} {activity.summary}".strip()
-                    self.project.append_chat(ChatEntry(role="tool", text=label))
-                    await self.broadcast(activity)
+    async def _show(self, event: AssistantDelta | AssistantText | ToolActivity) -> None:
+        if isinstance(event, AssistantText):
+            self.project.append_chat(ChatEntry(role="assistant", text=event.text))
+        elif isinstance(event, ToolActivity):
+            label = f"{event.name} {event.summary}".strip()
+            self.project.append_chat(ChatEntry(role="tool", text=label))
+        await self.broadcast(event)

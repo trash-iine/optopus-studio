@@ -1,7 +1,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatEntry } from "../generated/server-event";
+import type { AgentChoice, ChatEntry } from "../generated/server-event";
 
 // A .zip is a case exported from a packaged app (docs/adr/0009).
 const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json,.zip";
@@ -24,6 +24,8 @@ export function sendsMessage(
   return e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229;
 }
 
+const AGENT_LABELS: Record<AgentChoice["name"], string> = { claude: "Claude", codex: "Codex" };
+
 const EXAMPLES = [
   "15 都市を回る最短の巡回路を求めて",
   "4 つのジョブを 3 台の機械で、全体が最短で終わるように並べて",
@@ -36,12 +38,17 @@ interface Props {
   busy: boolean;
   connected: boolean;
   error: string | null;
+  agent: AgentChoice["name"] | null;
+  agents: AgentChoice[];
   onSend: (text: string) => void;
   onStop: () => void;
   onUpload: (file: File) => Promise<string>;
+  onSelectAgent: (agent: AgentChoice["name"]) => void;
 }
 
-export function Chat({ chat, streaming, busy, connected, error, onSend, onStop, onUpload }: Props) {
+export function Chat(props: Props) {
+  const { chat, streaming, busy, connected, error, agent, agents } = props;
+  const { onSend, onStop, onUpload, onSelectAgent } = props;
   const [draft, setDraft] = useState("");
   const [attached, setAttached] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -131,6 +138,23 @@ export function Chat({ chat, streaming, busy, connected, error, onSend, onStop, 
           {uploading && <span className="muted">uploading…</span>}
           {uploadError && <span className="chat-error">{uploadError}</span>}
         </div>
+      )}
+      {agent && (
+        <label className="agent-picker" title="Switching hands the conversation so far to the other agent">
+          Agent
+          <select
+            value={agent}
+            disabled={busy || !connected}
+            onChange={(e) => onSelectAgent(e.target.value as AgentChoice["name"])}
+          >
+            {agents.map((choice) => (
+              <option key={choice.name} value={choice.name} disabled={!choice.available} title={choice.reason ?? undefined}>
+                {AGENT_LABELS[choice.name]}
+                {choice.available ? "" : " (unavailable)"}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <div className="composer">
         <input

@@ -15,22 +15,27 @@ connection to GitHub while it installs and while the agent reads optopus's docum
 | Python 3.12+ | runs the studio | `uv python find 3.12` (uv downloads it in step 3 if it is missing) |
 | [Rust](https://rustup.rs/) 1.88+ | optopus is compiled from source, and so are Rust ports of models | `cargo --version` |
 | Node 24 | builds the web page | `node --version` |
-| [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) | the agent runs on its login | `claude --version` |
+| [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) and/or [Codex](https://developers.openai.com/codex/cli) 0.153+ | the agent runs on one of their logins | `claude --version`, `codex --version` |
 
 For Node, the repository pins version 24 in `mise.toml`: with [mise](https://mise.jdx.dev/),
 `mise install` in the checkout provides it. Any other Node 24 works as well.
 
-## 2. Sign in to Claude Code
+## 2. Sign in to Claude Code or Codex
 
-The agent in the chat is Claude, and it uses your Claude Code login. Sign in once:
+The agent in the chat runs on Claude, with your Claude Code login, or on Codex, with your Codex
+login. You need one of them; with both, each project can use either (the **Agent** menu in the
+chat). Sign in once:
 
 ```bash
 claude        # then type /login and follow the browser prompt; /exit when done
+codex login   # Codex: follow the browser prompt
 ```
 
-Check: `claude` starts without asking you to log in. An `ANTHROPIC_API_KEY` in your environment is
-not used: the studio removes it at start so the login is always the one in use
-([ADR 0003](../adr/0003-agent-on-claude-code-login.md)).
+Check: `claude` starts without asking you to log in, or `codex login status` says you are logged
+in. API keys in your environment are not used: the studio removes `ANTHROPIC_API_KEY` at start,
+and starts Codex without `OPENAI_API_KEY`, so the login is always the one in use
+([ADR 0003](../adr/0003-agent-on-claude-code-login.md),
+[ADR 0012](../adr/0012-run-the-agent-on-claude-code-or-codex.md)).
 
 ## 3. Install the studio
 
@@ -83,12 +88,16 @@ Continue with [Your first session](first-session.md).
 uv run optopus-studio --port 9000              # another port
 uv run optopus-studio --host 0.0.0.0           # reachable from other machines (no login: trusted networks only)
 uv run optopus-studio --reload                 # restart when the Python sources change (development)
+uv run optopus-studio --agent codex            # new projects start on Codex (each can switch in the chat)
 ```
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | where projects and their revisions are stored |
-| `OPTOPUS_STUDIO_MODEL` | Claude Code's default | the model the agent runs on |
+| `OPTOPUS_STUDIO_AGENT` | the first that can run, Claude first | the agent a new project starts on: `claude` or `codex` (as `--agent`) |
+| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code's default | the model the agent runs on with Claude (`OPTOPUS_STUDIO_MODEL` also works) |
+| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex's default | the model the agent runs on with Codex |
+| `OPTOPUS_STUDIO_CODEX` | `codex` on `PATH` | the Codex executable |
 | `OPTOPUS_STUDIO_DOCS` | fetched from GitHub | a `docs/source` of optopus-py for the agent to read instead |
 | `OPTOPUS_STUDIO_WORKER` | the Python worker | the solver command, e.g. a Rust worker |
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | from the stop condition | seconds before a solve is killed |

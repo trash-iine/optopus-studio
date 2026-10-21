@@ -25,15 +25,16 @@ OPTOPUS_STUDIO_HOME=/tmp/studio-dev uv run optopus-studio --reload   # ターミ
 ## 全体の構成
 
 ```
-browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI, Agent SDK)
+browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI, the agent)
                                                                   |  stdin/stdout JSON Lines:
                                                                   |  SolveRequest -> WorkerEvent
                                                                   v
                                                           solver worker (a subprocess)
 ```
 
-エージェントがプロジェクトのファイルを編集する手段は `agent.py` のツールだけで、Claude Code の組み込み
-ツールは持ちません。求解のたびに、ファイルはリビジョンとして固定されます。
+エージェントは Claude(Agent SDK)か Codex(`codex app-server`)で動き、どちらかはプロジェクトごとに
+選びます。プロジェクトのファイルを編集する手段は `agent.py` のツールだけで、Claude Code や Codex の
+組み込みツールは持ちません。求解のたびに、ファイルはリビジョンとして固定されます。
 
 | ファイル | 動く場所 | 内容 |
 |---|---|---|
@@ -56,7 +57,8 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 | `src/optopus_studio/protocol.py` | すべての契約: ワーカーのプロトコル、`ViewSpec`、WebSocket のイベント |
 | `cli.py` | `optopus-studio` コマンドと、その `app`、`image` サブコマンド |
 | `app.py` | studio の FastAPI サーバーと WebSocket |
-| `agent.py` | Agent SDK のセッション、エージェントのツール、システムプロンプト |
+| `agent.py` | どちらのエージェントにも共通の、ツール、システムプロンプト、会話 |
+| `agent_claude.py`、`agent_codex.py` | Claude(Agent SDK)または Codex(app-server の JSON-RPC)でのエージェントのセッション |
 | `projects.py` | ディスク上のプロジェクト、リビジョン、アップロード |
 | `tables.py` | アップロードされた CSV、TSV、Excel、JSON の読み込み |
 | `solving.py` | モデルのファイルを求解に変える。エージェントとアプリの両方が使う |
@@ -76,9 +78,13 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 
 - 生成されたコード(`model.py`、`view.py`)は、タイムアウト付きのサブプロセスでだけ動かし、サーバーの
   プロセスでは決して動かさない。
-- エージェントは Claude Code のログインでサインインする。API キーの扱いを追加しない
-  ([ADR 0003](../../adr/0003-agent-on-claude-code-login.md))。
-- アプリが動かすもの(`appserver.py`、`apps.py` とそれらが import するもの)は `agent.py` や `app.py`
+- エージェントは Claude Code か Codex のログインでサインインする。API キーの扱いを追加しない
+  ([ADR 0003](../../adr/0003-agent-on-claude-code-login.md)、
+  [ADR 0012](../../adr/0012-run-the-agent-on-claude-code-or-codex.md))。
+- 両方のエージェントは同じツールを `Tools.specs()` から受け取る。そこに足したツールは両方に届く。Codex
+  自身のツールは `agent_codex.py` で無効にしている。Codex の最低バージョンを上げたら、モデルにまだ何が
+  見えているかを確かめる(方法は ADR 0012)。
+- アプリが動かすもの(`appserver.py`、`apps.py` とそれらが import するもの)は `agent*.py` や `app.py`
   を import しない。アプリのイメージには Agent SDK が無い
   ([ADR 0010](../../adr/0010-deliver-an-app-as-a-docker-image.md)。`tests/test_image.py` が確認する)。
 - アップロードされたデータがモデルに届くのは `instance.json` 経由だけ。`model.py` は `uploads/` を
@@ -148,7 +154,7 @@ ADR が述べている境界を変える前に、その ADR を読んでくだ�
 |---|---|
 | [0001](../../adr/0001-solver-behind-a-process-boundary.md) | ソルバーはプロセス境界の向こうで動かす。まず Python から |
 | [0002](../../adr/0002-build-optopus-from-the-sibling-checkout.md) | optopus を隣の optopus-py チェックアウトからビルドする(0008 で置き換え) |
-| [0003](../../adr/0003-agent-on-claude-code-login.md) | エージェントは Agent SDK を通じて Claude Code のログインで動かす |
+| [0003](../../adr/0003-agent-on-claude-code-login.md) | エージェントは Agent SDK を通じて Claude Code のログインで動かす(0012 で修正) |
 | [0004](../../adr/0004-import-uploads-into-the-instance.md) | アップロードされたファイルは `instance.json` に取り込む |
 | [0005](../../adr/0005-rust-worker-as-a-verified-port.md) | Rust ワーカーはプロジェクトごとの移植で、動かす前に照合する |
 | [0006](../../adr/0006-python-worker-progress-through-on-improvement.md) | Python ワーカーは `on_improvement` で進捗を報告する |
@@ -156,3 +162,4 @@ ADR が述べている境界を変える前に、その ADR を読んでくだ�
 | [0008](../../adr/0008-depend-on-a-pinned-optopus-py-commit.md) | 固定した optopus-py のコミットに依存し、そのドキュメントを取得する |
 | [0009](../../adr/0009-package-a-revision-as-an-app.md) | リビジョンをエージェント無しで動くアプリとしてパッケージ化する |
 | [0010](../../adr/0010-deliver-an-app-as-a-docker-image.md) | パッケージ化したアプリは Docker イメージで届ける |
+| [0012](../../adr/0012-run-the-agent-on-claude-code-or-codex.md) | エージェントは Claude Code か Codex で動かし、プロジェクトごとに選ぶ |

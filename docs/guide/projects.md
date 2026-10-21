@@ -101,7 +101,7 @@ starts a new session that reads the conversation first
 When a model is ready for people who will not talk to the agent, ask the agent to make it an app.
 It writes `app.json`, naming the tables the app's user may replace and the settings they may
 change. **Package** above the canvas then downloads the selected revision as a zip, which runs
-without the agent or a Claude login:
+without the agent or a login:
 
 ```bash
 uv run optopus-studio app optopus-app-<project>-r<rev>.zip   # http://127.0.0.1:8766

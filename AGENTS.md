@@ -12,7 +12,8 @@ coding agents.
   `npm run gen:types` in `frontend/`; `tests/test_schema.py` fails until both are done.
 - `worker.py` (solver process), `viewer.py` (runs a project's `view.py`), `runner.py` (starts
   both), `projects.py` (files, revisions and uploads on disk), `tables.py` (reading uploaded
-  CSV/TSV/Excel/JSON), `agent.py` (Agent SDK session, tools and system prompt), `app.py` (FastAPI +
+  CSV/TSV/Excel/JSON), `agent.py` (the agent's tools, system prompt and conversation),
+  `agent_claude.py` / `agent_codex.py` (its session on Claude or Codex, ADR 0012), `app.py` (FastAPI +
   WebSocket), `cli.py` (entry point). `solving.py` turns a model's files into a solve for both the
   agent and apps; `apps.py` and `appserver.py` package a revision with its `app.json` and run it
   without the agent (ADR 0009); the frontend shows `components/AppMode.tsx` when `/api/mode`
@@ -35,10 +36,12 @@ coding agents.
 
 - Generated code (a project's `model.py` / `view.py`) only ever runs in a subprocess with a
   timeout, never in the server process.
-- The agent has no built-in Claude Code tools; it acts only through the tools in `agent.py`.
-- The agent signs in with the Claude Code login; do not add API-key handling (ADR 0003).
+- The agent has no built-in Claude Code or Codex tools; it acts only through the tools in
+  `agent.py`, which both backends get from `Tools.specs()`.
+- The agent signs in with the Claude Code or Codex login; do not add API-key handling (ADR 0003,
+  ADR 0012).
 - The Agent SDK is in the `studio` dependency group, which an app's image leaves out: nothing an
-  app runs (`appserver.py`, `apps.py` and what they import) may import `agent.py` or `app.py`
+  app runs (`appserver.py`, `apps.py` and what they import) may import `agent*.py` or `app.py`
   (ADR 0010; `tests/test_image.py` checks it).
 - Uploaded data reaches a model only through `instance.json` (ADR 0004); never let `model.py`
   read `uploads/`, or a revision stops being reproducible on its own.

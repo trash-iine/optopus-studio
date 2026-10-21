@@ -23,14 +23,16 @@ from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSoc
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from optopus_studio import apps
-from optopus_studio.agent import AgentSession
+from optopus_studio.agent import AgentSession, agent_choices
 from optopus_studio.frontend import mount_frontend
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
+    AgentSelected,
     ClientEvent,
     Interrupt,
     ProjectInfo,
     RevisionDetail,
+    SelectAgent,
     SelectRevision,
     Snapshot,
     TurnEnd,
@@ -77,6 +79,8 @@ class Hub:
             view=view,
             view_error=view_error,
             busy=self.session.busy,
+            agent=self.session.agent,
+            agents=agent_choices(),
         )
 
 
@@ -211,6 +215,13 @@ async def project_socket(socket: WebSocket, project_id: str) -> None:
                         await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
                 case Interrupt():
                     await hub.session.interrupt()
+                case SelectAgent():
+                    try:
+                        await hub.session.select(event.agent)
+                    except ProjectError as exc:
+                        await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
+                    else:
+                        await hub.broadcast(AgentSelected(agent=event.agent))
     except WebSocketDisconnect:
         pass
     finally:

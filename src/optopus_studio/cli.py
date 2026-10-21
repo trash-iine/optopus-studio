@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import importlib.util
 import logging
 import os
 from pathlib import Path
 
-# The agent signs in with Claude Code's login. An exported key would take precedence in the
-# Claude Code CLI the SDK starts, so drop it before anything reads the environment.
+# The agent on Claude signs in with Claude Code's login. An exported key would take precedence in
+# the Claude Code CLI the SDK starts, so drop it before anything reads the environment. (The agent
+# on Codex starts its app-server without OpenAI's keys: agent_codex.py.)
 CREDENTIAL_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
 
@@ -24,6 +24,12 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--reload", action="store_true", help="restart on source changes")
+    parser.add_argument(
+        "--agent",
+        choices=("claude", "codex"),
+        help="the agent a new project starts on (each project can switch in the chat); the "
+        "first available by default",
+    )
     commands = parser.add_subparsers(dest="command")
     run_app = commands.add_parser(
         "app", help="run a packaged app, without the agent (docs/adr/0009)"
@@ -80,12 +86,24 @@ def main() -> None:
         uvicorn.run(server, host=args.host, port=args.port)
         return
 
-    if importlib.util.find_spec("claude_agent_sdk") is None:
-        parser.error("the studio needs its agent: install it with `uv sync` (the studio group)")
+    from optopus_studio.agent import agent_choices
+
+    if args.agent:
+        os.environ["OPTOPUS_STUDIO_AGENT"] = args.agent
+    choices = {c.name: c for c in agent_choices()}
+    named = os.environ.get("OPTOPUS_STUDIO_AGENT")
+    if named and named not in choices:
+        parser.error(f"OPTOPUS_STUDIO_AGENT={named}: expected one of {', '.join(choices)}")
+    if named and not choices[named].available:
+        parser.error(f"the agent cannot run on {named}: {choices[named].reason}")
+    if not any(c.available for c in choices.values()):
+        reasons = "; ".join(f"{c.name}: {c.reason}" for c in choices.values())
+        parser.error(f"the studio needs an agent, and none can run here ({reasons})")
 
     dropped = use_claude_code_login()
     if dropped:
-        logging.info("ignoring %s; the agent uses the Claude Code login", ", ".join(dropped))
+        names = ", ".join(dropped)
+        logging.info("ignoring %s; the agent on Claude uses the Claude Code login", names)
     uvicorn.run("optopus_studio.app:app", host=args.host, port=args.port, reload=args.reload)
 
 

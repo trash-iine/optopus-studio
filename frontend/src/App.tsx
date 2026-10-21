@@ -142,8 +142,11 @@ export function App() {
           busy={state.busy}
           connected={state.connected}
           error={state.error}
+          agent={state.agent}
+          agents={state.agents}
           onSend={say}
           onStop={() => send({ type: "interrupt" })}
+          onSelectAgent={(agent) => send({ type: "select_agent", agent })}
           onUpload={(file) => upload(projectId ?? "", file)}
         />
         <Canvas

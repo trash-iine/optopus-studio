@@ -25,10 +25,17 @@ run `npm install` again after switching versions.
 
 ## Starting
 
-### ``optopus-studio: error: the studio needs its agent: install it with `uv sync` (the studio group)``
+### `optopus-studio: error: the studio needs an agent, and none can run here (…)`
 
-The Claude Agent SDK is not installed: `uv sync` was run with `--no-default-groups` or
-`--only-group`. Run plain `uv sync` in the checkout.
+Neither agent can run. The parentheses say why for each: "the Claude Agent SDK is not installed"
+means `uv sync` was run with `--no-default-groups` or `--only-group` (run plain `uv sync` in the
+checkout); "Codex is not installed" or "is too old" means `codex` is missing from `PATH` or older
+than 0.153 (install or `codex update` it, or point `OPTOPUS_STUDIO_CODEX` at it).
+
+### `optopus-studio: error: the agent cannot run on codex: …`
+
+`--agent codex` or `OPTOPUS_STUDIO_AGENT=codex` asked for Codex, which cannot run for the reason
+given; see above. The same goes for `claude`.
 
 ### `[Errno 48] … address already in use` (`Errno 98` on Linux)
 
@@ -51,13 +58,26 @@ as the server is back.
 
 ### Red error in the chat about logging in, authentication or the API key
 
-The agent runs on your Claude Code login, not on an API key
-([ADR 0003](../adr/0003-agent-on-claude-code-login.md)). Run `claude`, then `/login`, and send the
-message again. `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the studio's
-environment on purpose (the terminal logs "ignoring ANTHROPIC_API_KEY; the agent uses the Claude
-Code login").
+The agent runs on your Claude Code or Codex login, not on an API key
+([ADR 0003](../adr/0003-agent-on-claude-code-login.md),
+[ADR 0012](../adr/0012-run-the-agent-on-claude-code-or-codex.md)). On Claude, run `claude`, then
+`/login`; on Codex ("Codex is not signed in"), run `codex login`. Then send the message again.
+`ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the studio's environment on
+purpose (the terminal logs "ignoring ANTHROPIC_API_KEY; the agent on Claude uses the Claude Code
+login"), and Codex starts without `OPENAI_API_KEY` and `CODEX_API_KEY`.
 
-If the error mentions a usage limit, your Claude plan's limit was reached; wait until it resets.
+If the error mentions a usage limit, your Claude or ChatGPT plan's limit was reached; wait until
+it resets, or switch the project to the other agent.
+
+### An agent in the **Agent** menu is marked "(unavailable)"
+
+It cannot run on this machine; hover over it for the reason (not installed, too old). Fix that
+and restart the studio: it checks the agents when it starts.
+
+### "Codex stopped: …"
+
+The Codex app-server exited; the rest of the message is the end of what it printed. Send the
+message again to start it again. If it keeps failing, run `codex doctor`.
 
 ### "the agent stopped: …"
 

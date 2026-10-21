@@ -22,6 +22,9 @@ def home(tmp_path, monkeypatch, rust_dir):
     path = tmp_path / "home"
     monkeypatch.setenv("OPTOPUS_STUDIO_HOME", str(path))
     monkeypatch.setenv("OPTOPUS_STUDIO_RUST_DIR", str(rust_dir))
+    # Not the Codex this machine may have: tests that need one start tests/fake_codex.py.
+    monkeypatch.setenv("OPTOPUS_STUDIO_CODEX", str(tmp_path / "no-codex"))
+    monkeypatch.delenv("OPTOPUS_STUDIO_AGENT", raising=False)
     return path
 
 

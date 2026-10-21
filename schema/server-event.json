@@ -1,5 +1,68 @@
 {
   "$defs": {
+    "AgentChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "name": {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "title": "Name",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why the agent cannot run here, if it cannot.",
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "name",
+        "available",
+        "reason"
+      ],
+      "title": "AgentChoice",
+      "type": "object"
+    },
+    "AgentSelected": {
+      "additionalProperties": false,
+      "description": "The project's chat now runs on another agent, which reads the conversation so far first.",
+      "properties": {
+        "agent": {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent_selected",
+          "default": "agent_selected",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "agent"
+      ],
+      "title": "AgentSelected",
+      "type": "object"
+    },
     "AssistantDelta": {
       "additionalProperties": false,
       "properties": {
@@ -1053,6 +1116,23 @@
       "additionalProperties": false,
       "description": "Everything the GUI shows, sent when a browser connects.",
       "properties": {
+        "agent": {
+          "description": "The agent this project's chat runs on.",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "agents": {
+          "description": "The agents to choose from, in order.",
+          "items": {
+            "$ref": "#/$defs/AgentChoice"
+          },
+          "title": "Agents",
+          "type": "array"
+        },
         "busy": {
           "title": "Busy",
           "type": "boolean"
@@ -1142,7 +1222,9 @@
         "summary",
         "view",
         "view_error",
-        "busy"
+        "busy",
+        "agent",
+        "agents"
       ],
       "title": "Snapshot",
       "type": "object"
@@ -1490,6 +1572,7 @@
   },
   "discriminator": {
     "mapping": {
+      "agent_selected": "#/$defs/AgentSelected",
       "assistant_delta": "#/$defs/AssistantDelta",
       "assistant_text": "#/$defs/AssistantText",
       "files": "#/$defs/FilesChanged",
@@ -1529,6 +1612,9 @@
     },
     {
       "$ref": "#/$defs/ViewUpdated"
+    },
+    {
+      "$ref": "#/$defs/AgentSelected"
     }
   ],
   "title": "ServerEvent"

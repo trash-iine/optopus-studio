@@ -308,12 +308,31 @@ def test_an_agent_joining_a_conversation_reads_it_first():
     assert len(long) < HISTORY_LIMIT + 1000
 
 
-def test_the_agent_sees_only_the_studios_tools(home):
-    from optopus_studio.agent import SERVER, AgentSession
+def test_the_agent_on_claude_sees_only_the_studios_tools(home):
+    from optopus_studio.agent_claude import SERVER, options
 
-    options = AgentSession(Project.create(home), lambda event: asyncio.sleep(0)).options()
-    assert options.tools == []
-    assert options.setting_sources == []
-    assert list(options.mcp_servers) == [SERVER]
+    project = Project.create(home)
+    specs = Tools(project, Recorder()).specs()
+    claude = options(specs, project.work, None)
+    assert claude.tools == []
+    assert claude.setting_sources == []
+    assert list(claude.mcp_servers) == [SERVER]
+    assert claude.allowed_tools == [f"mcp__{SERVER}__{spec.name}" for spec in specs]
     # Not the MCP servers of the Claude account it signs in with, such as claude.ai connectors.
-    assert options.strict_mcp_config
+    assert claude.strict_mcp_config
+
+
+def test_a_new_project_starts_on_the_agent_named_or_the_first_that_can_run(home, monkeypatch):
+    from optopus_studio.agent import AgentSession
+
+    def agent(**meta):
+        project = Project.create(home)
+        project.set_meta(**meta)
+        return AgentSession(project, Recorder()).agent
+
+    assert agent() == "claude"
+    monkeypatch.setenv("OPTOPUS_STUDIO_AGENT", "codex")
+    assert agent() == "codex"
+    # A project from before the choice has a Claude session.
+    assert agent(session_id="a-claude-session") == "claude"
+    assert agent(agent="claude") == "claude"
