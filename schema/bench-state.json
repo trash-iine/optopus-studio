@@ -318,6 +318,18 @@
           "description": "The best settings by parameter path; null when the revision's own stayed.",
           "title": "Best"
         },
+        "best_variant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The variant of the best settings when several were raced; null otherwise, or when the revision's own stayed.",
+          "title": "Best Variant"
+        },
         "budget": {
           "title": "Budget",
           "type": "integer"
@@ -343,6 +355,14 @@
           "title": "Settings",
           "type": "integer"
         },
+        "signs": {
+          "description": "What the race shows that settings cannot fix, as hints for the next change.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Signs",
+          "type": "array"
+        },
         "used": {
           "description": "The runs made.",
           "title": "Used",
@@ -360,22 +380,28 @@
           "description": "The evaluation that checked them on validation.",
           "title": "Validation"
         },
-        "variant": {
-          "title": "Variant",
-          "type": "string"
+        "variants": {
+          "description": "The variants raced: one, or several to choose among, the first the one the others were measured against.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Variants",
+          "type": "array"
         }
       },
       "required": [
         "id",
         "rev",
-        "variant",
+        "variants",
         "used",
         "budget",
         "settings",
         "eliminated",
         "failed",
         "best",
-        "validation"
+        "best_variant",
+        "validation",
+        "signs"
       ],
       "title": "BenchTuning",
       "type": "object"

@@ -229,6 +229,8 @@ tr.best td { font-weight: 600; }
 .attempt p { margin: 0 0 8px; font-size: 12px; }
 .attempt-why { white-space: pre-wrap; font-size: 12px; margin: 0 0 8px; color: var(--ink-2); }
 .status progress { vertical-align: middle; width: 160px; margin-left: 8px; }
+.tuning-signs td { border-top: none; padding-top: 0; }
+.tuning-signs ul { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ink-2); }
 .file-diff { margin-top: 8px; }
 .file-diff summary { cursor: pointer; color: var(--ink-2); margin-bottom: 6px; }
 .diff div { white-space: pre; }

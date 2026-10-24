@@ -393,7 +393,7 @@ def test_the_benchmark_is_built_and_a_change_evaluated_through_the_tools(home):
     result = call(tools.tune, rev=1, space=hot, budget=40)
     assert not result["is_error"], text(result)
     assert "solve.json is unchanged" in text(result)
-    assert "tunings:\n  1: variant SimulatedAnnealing of revision 1" in text(call(tools.bench_list))
+    assert "tunings:\n  1: SimulatedAnnealing of revision 1" in text(call(tools.bench_list))
     tools.broadcast.events.clear()
     space = [{"name": "initial_temperature", "low": 0.1, "high": 1e5, "log": True}]
     result = call(tools.tune, rev=1, space=space, budget=80)
@@ -403,6 +403,10 @@ def test_the_benchmark_is_built_and_a_change_evaluated_through_the_tools(home):
     assert any(isinstance(e, FilesChanged) for e in tools.broadcast.events)
     with pytest.raises(ProjectError, match="nothing at 'search'"):
         call(tools.tune, rev=1, space=[{"name": "search.x", "low": 0, "high": 1}], budget=40)
+    with pytest.raises(ProjectError, match="either 'space'"):
+        call(tools.tune, rev=1, budget=40)
+    result = call(tools.tune, rev=1, spaces={"SimulatedAnnealing": hot}, budget=40)
+    assert "variant SimulatedAnnealing of revision 1" in text(result), text(result)
 
 
 def test_bench_add_takes_a_revision_the_instance_or_an_upload(home):

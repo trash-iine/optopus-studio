@@ -654,7 +654,10 @@ class BenchTuning(Strict):
 
     id: int
     rev: int
-    variant: str
+    variants: list[str] = Field(
+        description="The variants raced: one, or several to choose among, the first the one the "
+        "others were measured against."
+    )
     used: int = Field(description="The runs made.")
     budget: int
     settings: int = Field(description="The settings raced.")
@@ -663,7 +666,14 @@ class BenchTuning(Strict):
     best: dict[str, Any] | None = Field(
         description="The best settings by parameter path; null when the revision's own stayed."
     )
+    best_variant: str | None = Field(
+        description="The variant of the best settings when several were raced; null otherwise, "
+        "or when the revision's own stayed."
+    )
     validation: int | None = Field(description="The evaluation that checked them on validation.")
+    signs: list[str] = Field(
+        description="What the race shows that settings cannot fix, as hints for the next change."
+    )
 
 
 class BenchState(Strict):

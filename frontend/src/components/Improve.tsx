@@ -4,12 +4,12 @@ import { Fragment, useEffect, useState } from "react";
 import type { BenchEvaluation, BenchState, BenchTuning } from "../generated/bench-state";
 import type { BenchProgress } from "../generated/server-event";
 import {
+  best,
   budget,
   fetchBench,
   outcomes,
   percent,
   progressText,
-  settings,
   side,
   verdictClass,
 } from "../improve";
@@ -206,28 +206,42 @@ function Detail({ evaluation: e }: { evaluation: BenchEvaluation }) {
 
 function TuningRow({ tuning: t, check }: { tuning: BenchTuning; check: BenchEvaluation | undefined }) {
   return (
-    <tr>
-      <td className="num">{t.id}</td>
-      <td>
-        {t.variant} of revision {t.rev}
-      </td>
-      <td className="num">
-        {t.used} / {t.budget}
-      </td>
-      <td className="num">
-        {t.settings} / {t.eliminated} / {t.failed}
-      </td>
-      <td>{t.best ? settings(t.best) : <span className="muted">the revision's own</span>}</td>
-      <td>
-        {check ? (
-          <>
-            <span className={verdictClass(check.verdict)}>{check.verdict}</span>{" "}
-            <span className="muted">(#{check.id})</span>
-          </>
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-    </tr>
+    <>
+      <tr>
+        <td className="num">{t.id}</td>
+        <td>
+          {t.variants.join(" or ")} of revision {t.rev}
+        </td>
+        <td className="num">
+          {t.used} / {t.budget}
+        </td>
+        <td className="num">
+          {t.settings} / {t.eliminated} / {t.failed}
+        </td>
+        <td>{t.best ? best(t) : <span className="muted">the revision's own</span>}</td>
+        <td>
+          {check ? (
+            <>
+              <span className={verdictClass(check.verdict)}>{check.verdict}</span>{" "}
+              <span className="muted">(#{check.id})</span>
+            </>
+          ) : (
+            <span className="muted">—</span>
+          )}
+        </td>
+      </tr>
+      {t.signs.length > 0 && (
+        <tr className="tuning-signs">
+          <td />
+          <td colSpan={5}>
+            <ul>
+              {t.signs.map((sign) => (
+                <li key={sign}>{sign}</li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

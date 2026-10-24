@@ -102,7 +102,13 @@ studio **races** sampled settings on the train instances, as irace does. Every s
 the race runs on the same instance and seed, and after a few of them a Friedman test drops the
 settings that are clearly worse, so the runs go to the ones still in doubt. The best is written
 into `solve.json` and evaluated against the revision on the validation instances, like any other
-change ([ADR 0014](../adr/0014-tune-settings-by-racing.md)).
+change ([ADR 0014](../adr/0014-tune-settings-by-racing.md)). When several heuristics could suit,
+the agent races them all, each with its own parameters, so the race chooses the heuristic too, and
+the winner becomes `solve.json`'s only one. The report ends with **signs** of what settings cannot
+fix: the best settings at the edge of a range, settings that barely matter, instances that prefer
+different settings, a search that stalls early or accepts almost no move or almost every one. The
+agent reads them to choose its next change, and tells you when the instances want different
+settings.
 
 Only a better change is solved into a new revision; the others are undone. The canvas's
 **Improve** tab follows along: the benchmark's instances, every change judged with its verdict,

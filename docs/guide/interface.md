@@ -124,6 +124,7 @@ runs.
   instances got better, stayed and got worse, and the revision the change was solved into ("—"
   when it was undone). Click a row for each instance's mean objectives, or for why a change was
   rejected or failed.
-- **Settings tuned**: every tuning: the heuristic and revision, the runs made of the budget, the
-  settings raced, dropped and failed, the best ("the revision's own" when none beat it), and
-  the verdict of its check on validation.
+- **Settings tuned**: every tuning: the heuristic and revision ("RW or SA" when it chose among
+  several), the runs made of the budget, the settings raced, dropped and failed, the best ("the
+  revision's own" when none beat it, prefixed by its heuristic when it chose), and the verdict of
+  its check on validation. The signs the race showed are listed under its row.

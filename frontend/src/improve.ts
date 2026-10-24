@@ -1,5 +1,5 @@
 // What the Improve tab shows of the benchmark (docs/adr/0013, 0014), as plain functions to test.
-import type { BenchEvaluation, BenchSpec, BenchState } from "./generated/bench-state";
+import type { BenchEvaluation, BenchSpec, BenchState, BenchTuning } from "./generated/bench-state";
 import type { BenchProgress } from "./generated/server-event";
 import { describeStop } from "./heuristic";
 
@@ -45,6 +45,12 @@ export function settings(values: Record<string, unknown>): string {
   return Object.entries(values)
     .map(([k, v]) => `${k} = ${typeof v === "number" ? Number(v.toPrecision(4)) : JSON.stringify(v)}`)
     .join(", ");
+}
+
+/** A tuning's best settings, with their variant when the race chose among several. */
+export function best(t: BenchTuning): string {
+  const values = settings(t.best ?? {}) || "its own settings";
+  return t.best_variant ? `${t.best_variant}: ${values}` : values;
 }
 
 export function progressText(p: BenchProgress): string {
