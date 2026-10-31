@@ -63,7 +63,7 @@ describe("the improve tab", () => {
     expect(percent(0.0321)).toBe("+3.21%");
     expect(percent(-0.005)).toBe("-0.50%");
     expect(percent(null)).toBe("—");
-    expect(budget({ ...STATE.spec, max_iteration: 3000 })).toBe("1 s or 3,000 iterations");
+    expect(budget({ ...STATE.spec, max_iteration: 3000 })).toBe("3,000 iterations or 1 s");
     expect(verdictClass("rejected")).toBe("verdict-worse");
     expect(verdictClass("mixed")).toBe("verdict-mixed");
     expect(outcomes(evaluation())).toBe("1 / 1 / 0");

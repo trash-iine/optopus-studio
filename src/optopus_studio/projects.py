@@ -33,6 +33,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from optopus_studio.protocol import (
+    BENCH_NAME,
     AppSpec,
     BenchSpec,
     ChatEntry,
@@ -62,7 +63,7 @@ _FILE = "|".join(re.escape(name) for name in ALL_FILES)
 ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
     r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+)"
-    r"|bench/(?:bench\.json|instances/[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.json"
+    rf"|bench/(?:bench\.json|instances/{BENCH_NAME[1:-1]}\.json"
     r"|results/[1-9][0-9]{0,5}\.json))\Z"
 )
 

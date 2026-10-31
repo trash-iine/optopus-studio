@@ -39,9 +39,12 @@ from optopus_studio.protocol import (
     BenchEvaluation,
     BenchInstance,
     BenchInstanceResult,
+    BenchProgress,
     BenchSide,
     BenchSpec,
+    BenchSplit,
     BenchState,
+    BenchTask,
     EvaluateRequest,
     RunFinished,
     RunSummary,
@@ -60,9 +63,11 @@ TIE = 1e-9
 # Up to this many pairs the signed-rank test is exact, beyond it a normal approximation.
 EXACT_PAIRS = 200
 
-Split = Literal["train", "validation", "all"]
-# Told how far an evaluation has got: the task, then done of total.
-Progress = Callable[[Literal["evaluation"], int, int], Awaitable[None]]
+Split = BenchSplit
+# Told how far a task on the benchmark has got.
+Progress = Callable[[BenchProgress], Awaitable[None]]
+# The files a side's record hashes: what makes a candidate the same as a revision.
+ALGORITHM_FILES = ("model.py", "solve.json", "rust/main.rs")
 
 
 # --- the benchmark on disk ---------------------------------------------------------------------
@@ -155,7 +160,6 @@ def _sha256(text: str) -> str:
 class Side:
     """What one side of an evaluation solves with."""
 
-    name: str
     root: Path
     solve: dict[str, Any]
     variant: Variant
@@ -179,7 +183,7 @@ def pick_variant(solve: dict[str, Any], label: str | None, where: str) -> Varian
     raise ProjectError(f"{where} has no variant {label!r}; it has {[v.label for v in variants]}")
 
 
-async def side(name: str, root: Path, label: str | None, where: str) -> Side:
+async def side(root: Path, label: str | None, where: str) -> Side:
     if not (root / "solve.json").is_file() or not (root / "model.py").is_file():
         raise ProjectError(f"{where} has no model.py and solve.json to evaluate")
     try:
@@ -188,20 +192,18 @@ async def side(name: str, root: Path, label: str | None, where: str) -> Side:
         raise ProjectError(f"the solve.json of {where} is not JSON: {exc}") from exc
     main_rs = root / "rust" / "main.rs"
     binary = await rust_binary(solve, main_rs.read_text() if main_rs.is_file() else None)
-    return Side(name, root, solve, pick_variant(solve, label, where), binary)
+    return Side(root, solve, pick_variant(solve, label, where), binary)
+
+
+def stop_of(spec: BenchSpec) -> dict[str, Any]:
+    """The benchmark's budget as a heuristic's stop."""
+    limits = (("max_duration_secs", spec.max_duration_secs), ("max_iteration", spec.max_iteration))
+    return {key: value for key, value in limits if value is not None}
 
 
 def budgeted(variant: Variant, spec: BenchSpec) -> Variant:
     """The variant with the benchmark's budget as its stop, whatever stop it had."""
-    stop = {
-        key: value
-        for key, value in (
-            ("max_duration_secs", spec.max_duration_secs),
-            ("max_iteration", spec.max_iteration),
-        )
-        if value is not None
-    }
-    return Variant(label=variant.label, heuristic={**variant.heuristic, "stop": stop})
+    return Variant(label=variant.label, heuristic={**variant.heuristic, "stop": stop_of(spec)})
 
 
 def request_for(s: Side, instance: dict[str, Any], spec: BenchSpec) -> SolveRequest:
@@ -221,6 +223,30 @@ def parallelism() -> int:
         return max(1, int(configured))
     # Runs on a time budget are compared by what they reach in that time, so leave cores free.
     return max(1, (os.cpu_count() or 2) // 2)
+
+
+async def solve_all(
+    jobs: list[tuple[Side, SolveRequest]], task: BenchTask, progress: Progress | None = None
+) -> list[RunSummary]:
+    """Solves each request with its side, ``parallelism()`` at a time, in the order given."""
+    gate = asyncio.Semaphore(parallelism())
+    done = 0
+
+    async def ignore(_: RunSummary) -> None:
+        pass
+
+    async def solve(s: Side, request: SolveRequest) -> RunSummary:
+        nonlocal done
+        async with gate:
+            summary = await run_solve(
+                request, 0, s.root, ignore, solve_timeout(request), rust_binary=s.binary
+            )
+        done += 1
+        if progress:
+            await progress(BenchProgress(task=task, done=done, total=len(jobs)))
+        return summary
+
+    return list(await asyncio.gather(*(solve(s, request) for s, request in jobs)))
 
 
 # --- statistics --------------------------------------------------------------------------------
@@ -355,16 +381,16 @@ class Evaluation:
                     "sha256": i.sha256,
                     "gain": i.gain,
                     "outcome": i.outcome,
-                    "baseline": [
-                        r.model_dump(mode="json", exclude={"solution"}) for r in i.baseline
-                    ],
-                    "candidate": [
-                        r.model_dump(mode="json", exclude={"solution"}) for r in i.candidate
-                    ],
+                    "baseline": [r.model_dump(mode="json", exclude=UNKEPT) for r in i.baseline],
+                    "candidate": [r.model_dump(mode="json", exclude=UNKEPT) for r in i.candidate],
                 }
                 for i in self.instances
             ],
         }
+
+
+# What a record leaves out of a run: the solution, and the trajectory nothing reads back.
+UNKEPT = {"solution", "trajectory"}
 
 
 def results_dir(project: Project) -> Path:
@@ -388,6 +414,12 @@ def next_id(path: Path) -> int:
     return max(ids, default=0) + 1
 
 
+def keep_record(path: Path, id: int, record: dict[str, Any]) -> None:
+    """Writes a record as ``<id>.json`` in ``path``, which ``_records`` reads back."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / f"{id}.json").write_text(json.dumps(record, indent=1))
+
+
 async def evaluate(
     project: Project,
     baseline_rev: int,
@@ -407,8 +439,8 @@ async def evaluate(
     base_where = f"revision {baseline_rev}"
     cand_where = "the work files" if candidate_rev is None else f"revision {candidate_rev}"
     cand_root = project.work if candidate_rev is None else project.rev_dir(candidate_rev)
-    base = await side("baseline", project.rev_dir(baseline_rev), baseline_variant, base_where)
-    cand = await side("candidate", cand_root, variant, cand_where)
+    base = await side(project.rev_dir(baseline_rev), baseline_variant, base_where)
+    cand = await side(cand_root, variant, cand_where)
     data = [(entry, read_instance(project, entry)) for entry in entries]
 
     evaluation = Evaluation(
@@ -419,38 +451,14 @@ async def evaluate(
         baseline=_describe_side(base, base_where, baseline_rev),
     )
     try:
-        requests = [
-            (s, entry, request_for(s, inst, spec)) for entry, inst in data for s in (base, cand)
-        ]
+        # Interleaved, so both sides run under the same load.
+        jobs = [(s, request_for(s, inst, spec)) for _, inst in data for s in (base, cand)]
     except ProjectError as exc:
         evaluation.error = str(exc)
         return _keep(project, evaluation)
 
-    gate = asyncio.Semaphore(parallelism())
-    done = 0
-
-    async def ignore(_: RunSummary) -> None:
-        pass
-
-    async def solve(s: Side, request: SolveRequest) -> RunSummary:
-        nonlocal done
-        async with gate:
-            summary = await run_solve(
-                request, 0, s.root, ignore, solve_timeout(request), rust_binary=s.binary
-            )
-        done += 1
-        if progress:
-            await progress("evaluation", done, len(requests))
-        return summary
-
-    # Interleaved, so both sides run under the same load.
-    summaries = await asyncio.gather(*(solve(s, request) for s, _, request in requests))
-    by_side: dict[tuple[str, str], RunSummary] = {
-        (s.name, entry.name): summary
-        for (s, entry, _), summary in zip(requests, summaries, strict=True)
-    }
-    for entry, _ in data:
-        b, c = by_side[("baseline", entry.name)], by_side[("candidate", entry.name)]
+    summaries = await solve_all(jobs, "evaluation", progress)
+    for (entry, _), b, c in zip(data, summaries[::2], summaries[1::2], strict=True):
         if b.error:
             raise ProjectError(
                 f"{base_where} fails on {entry.name!r} at {b.error.stage}: {b.error.message}"
@@ -490,19 +498,29 @@ async def _check_reference(
 ) -> str | None:
     """Why the baseline's model does not agree with the candidate's objectives, if it does not."""
     command = [str(base.binary)] if base.binary else worker_command()
-    for (entry, instance), result in zip(data, evaluation.instances, strict=True):
+    gate = asyncio.Semaphore(parallelism())
+
+    async def score(instance: dict[str, Any], result: InstanceResult) -> list[float] | Exception:
         request = EvaluateRequest(
             model_path=str(base.root / "model.py"),
             instance=instance,
             solutions=[r.solution for r in result.candidate],
             heuristic=base.variant.heuristic,
         )
-        try:
-            objectives = await evaluate_solutions(command, request, base.root)
-        except (RuntimeError, OSError) as exc:
+        async with gate:
+            try:
+                return await evaluate_solutions(command, request, base.root)
+            except (RuntimeError, OSError) as exc:
+                return exc
+
+    scored = await asyncio.gather(
+        *(score(inst, result) for (_, inst), result in zip(data, evaluation.instances, strict=True))
+    )
+    for (entry, _), result, objectives in zip(data, evaluation.instances, scored, strict=True):
+        if isinstance(objectives, Exception):
             return (
                 f"the baseline's model cannot score the candidate's solutions on "
-                f"{entry.name!r}: {exc}"
+                f"{entry.name!r}: {objectives}"
             )
         for run, got in zip(result.candidate, objectives, strict=True):
             if not math.isclose(run.best_objective, got, rel_tol=1e-9, abs_tol=1e-9):
@@ -514,25 +532,26 @@ async def _check_reference(
     return None
 
 
-def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
-    files = {
-        name: _sha256((s.root / name).read_text())
-        for name in ("model.py", "solve.json", "rust/main.rs")
-        if (s.root / name).is_file()
+def _file_hashes(root: Path) -> dict[str, str]:
+    return {
+        name: _sha256((root / name).read_text())
+        for name in ALGORITHM_FILES
+        if (root / name).is_file()
     }
+
+
+def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
     return {
         "where": where,
         "rev": rev,
         "variant": s.variant.label,
         "worker": s.worker,
-        "files": files,
+        "files": _file_hashes(s.root),
     }
 
 
 def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
-    path = results_dir(project)
-    path.mkdir(parents=True, exist_ok=True)
-    (path / f"{evaluation.id}.json").write_text(json.dumps(evaluation.to_json(), indent=1))
+    keep_record(results_dir(project), evaluation.id, evaluation.to_json())
     return evaluation
 
 
@@ -619,15 +638,7 @@ def report(evaluation: Evaluation) -> str:
 
 def describe_bench(project: Project) -> str:
     spec = load_spec(project)
-    budget = {
-        k: v
-        for k, v in (
-            ("max_duration_secs", spec.max_duration_secs),
-            ("max_iteration", spec.max_iteration),
-        )
-        if v is not None
-    }
-    lines = [f"runs {spec.runs} per instance, seed {spec.seed}, budget per run {budget}"]
+    lines = [f"runs {spec.runs} per instance, seed {spec.seed}, budget per run {stop_of(spec)}"]
     for split in ("train", "validation"):
         entries = instances_of(spec, split)
         names = ", ".join(f"{i.name} ({i.source})" for i in entries) or "none"
@@ -648,21 +659,10 @@ def describe_bench(project: Project) -> str:
     return "\n".join(lines)
 
 
-# The files a side's record hashes: what makes a candidate the same as a revision.
-ALGORITHM_FILES = ("model.py", "solve.json", "rust/main.rs")
-
-
 def kept_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int, int]:
     """For each evaluation of the work files, the first revision after its baseline whose files
     are the candidate's: the change was solved into it, as the agent does with a better one."""
-    hashes: dict[int, dict[str, str]] = {}
-    for rev in project.revisions():
-        root = project.rev_dir(rev)
-        hashes[rev] = {
-            name: _sha256((root / name).read_text())
-            for name in ALGORITHM_FILES
-            if (root / name).is_file()
-        }
+    hashes = {rev: _file_hashes(project.rev_dir(rev)) for rev in project.revisions()}
     kept = {}
     for r in records:
         if r["candidate"]["rev"] is not None or r["baseline"]["rev"] is None:

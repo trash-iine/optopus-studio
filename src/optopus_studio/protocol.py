@@ -378,11 +378,16 @@ class ViewUpdated(Strict):
     error: str | None = None
 
 
+# What the agent runs on the benchmark (bench.py), and the instances it runs on.
+BenchTask = Literal["evaluation"]
+BenchSplit = Literal["train", "validation", "all"]
+
+
 class BenchProgress(Strict):
     """How far the evaluation on the benchmark the agent is running has got."""
 
     type: Literal["bench_progress"] = "bench_progress"
-    task: Literal["evaluation"]
+    task: BenchTask
     done: int = Field(description="Solves finished.")
     total: int
 
@@ -628,7 +633,7 @@ class BenchEvaluation(Strict):
     """One evaluation of a change against a baseline revision (bench.py)."""
 
     id: int
-    split: Literal["train", "validation", "all"]
+    split: BenchSplit
     candidate: BenchSide
     baseline: BenchSide
     note: str = Field(description="What the candidate changes, as the agent said it.")

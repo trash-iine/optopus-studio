@@ -21,7 +21,7 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Protocol, get_args
+from typing import Any, Protocol, get_args
 
 import optopus
 from pydantic import BaseModel
@@ -46,6 +46,7 @@ from optopus_studio.protocol import (
     AssistantText,
     BenchChanged,
     BenchProgress,
+    BenchSplit,
     ChatEntry,
     FilesChanged,
     RunFinished,
@@ -675,8 +676,8 @@ class Tools:
         except json.JSONDecodeError as exc:
             raise ProjectError(f"the instance is not JSON: {exc}") from exc
 
-    async def bench_progress(self, task: Literal["evaluation"], done: int, total: int):
-        await self.broadcast(BenchProgress(task=task, done=done, total=total))
+    async def bench_progress(self, progress: BenchProgress) -> None:
+        await self.broadcast(progress)
 
     async def bench_add(self, args: dict[str, Any]) -> dict[str, Any]:
         instance, where = await self.bench_instance(args)
@@ -939,7 +940,7 @@ class Tools:
                 object_schema(
                     {
                         "baseline_rev": {"type": "integer", "minimum": 1},
-                        "split": {"type": "string", "enum": ["train", "validation", "all"]},
+                        "split": {"type": "string", "enum": list(get_args(BenchSplit))},
                         "candidate_rev": {"type": "integer", "minimum": 1},
                         "variant": {"type": "string"},
                         "baseline_variant": {"type": "string"},

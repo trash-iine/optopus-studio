@@ -147,19 +147,12 @@ async def render_view(
     view_path: Path, instance: dict[str, Any], summary: RunSummary, timeout: float = 30.0
 ) -> tuple[ViewSpec | None, str | None]:
     """Runs ``view.py`` on a solve's summary, returning the view or the error."""
-    process = await _spawn([sys.executable, "-m", "optopus_studio.viewer"], view_path.parent)
     request = {"view_path": str(view_path), "instance": instance, "result": view_input(summary)}
-    try:
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate((json.dumps(request) + "\n").encode()), timeout
-        )
-    except TimeoutError:
-        await _kill(process)
-        return None, f"view.py took longer than {timeout}s"
-    try:
-        answer = json.loads(stdout.decode().strip().splitlines()[-1])
-    except (IndexError, json.JSONDecodeError):
-        return None, f"view.py crashed:\n{stderr.decode(errors='replace')[-STDERR_TAIL:]}"
+    answer, error = await _ask(
+        [sys.executable, "-m", "optopus_studio.viewer"], view_path.parent, request, timeout
+    )
+    if error:
+        return None, f"view.py {error}"
     if "view" in answer:
         return ViewSpec.model_validate(answer["view"]), None
     return None, answer.get("error", "view.py failed")
