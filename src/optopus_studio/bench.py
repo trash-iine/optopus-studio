@@ -604,30 +604,26 @@ def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
 # --- what the agent reads ----------------------------------------------------------------------
 
 
-def speed(runs: Iterable[tuple[int, float]]) -> float:
-    """Iterations per second over runs given as (iterations, seconds)."""
-    counts = list(runs)
-    seconds = sum(s for _, s in counts)
-    return sum(i for i, _ in counts) / seconds if seconds > 0 else 0.0
+def speed(runs: Iterable[RunFinished]) -> float:
+    """Iterations per second over the runs."""
+    runs = list(runs)
+    seconds = sum(r.total_time_secs for r in runs)
+    return sum(r.iterations for r in runs) / seconds if seconds > 0 else 0.0
 
 
-def acceptance(runs: Iterable[tuple[int | None, int | None]]) -> float | None:
-    """The share of moves accepted over runs given as (accepted, rejected); None when a run did
-    not count them, or none was made."""
-    counts = list(runs)
-    if any(a is None or r is None for a, r in counts):
+def acceptance(runs: Iterable[RunFinished]) -> float | None:
+    """The share of moves accepted over the runs; None when a run did not count them, or none
+    was made."""
+    runs = list(runs)
+    if any(r.n_accepted is None or r.n_rejected is None for r in runs):
         return None
-    moves = sum(a + r for a, r in counts)  # type: ignore[operator]
-    return sum(a for a, _ in counts) / moves if moves else None  # type: ignore[misc]
+    accepted = sum(r.n_accepted or 0 for r in runs)
+    moves = accepted + sum(r.n_rejected or 0 for r in runs)
+    return accepted / moves if moves else None
 
 
-def _rate(runs: list[RunFinished]) -> float:
-    return speed((r.iterations, r.total_time_secs) for r in runs)
-
-
-def _accepted(runs: list[RunFinished]) -> str:
-    rate = acceptance((r.n_accepted, r.n_rejected) for r in runs)
-    return "?" if rate is None else f"{rate:.0%}"
+def share(value: float | None) -> str:
+    return "?" if value is None else f"{value:.0%}"
 
 
 # What each side's runs on an instance show, baseline -> candidate.
@@ -638,9 +634,9 @@ def _side_line(runs: list[RunFinished]) -> tuple[str, ...]:
     values = [r.best_objective for r in runs]
     return (
         f"{statistics.fmean(values):g}",
-        f"{_rate(runs):,.0f}",
+        f"{speed(runs):,.0f}",
         f"{statistics.fmean(r.time_to_best_secs for r in runs):.3g}s",
-        _accepted(runs),
+        share(acceptance(runs)),
     )
 
 
@@ -782,8 +778,8 @@ def _tuning(record: dict[str, Any]) -> BenchTuning:
         settings=len(settings),
         eliminated=sum(1 for s in settings if s["eliminated"]),
         failed=sum(1 for s in settings if s["error"]),
-        best=best["values"] if best and changed else None,
-        best_variant=best["variant"] if best and changed and len(record["variants"]) > 1 else None,
+        best=best["values"] if changed else None,
+        best_variant=best["variant"] if changed and len(record["variants"]) > 1 else None,
         validation=record["validation"],
         signs=record["signs"],
     )

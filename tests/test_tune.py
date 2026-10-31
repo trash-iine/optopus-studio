@@ -8,6 +8,7 @@ import pytest
 
 from optopus_studio import bench, tune
 from optopus_studio.projects import Project, ProjectError
+from optopus_studio.protocol import RunFinished
 from tests.test_bench import SA, tsp_bench
 
 TEMPERATURE = [{"name": "initial_temperature", "low": 0.1, "high": 1e5, "log": True}]
@@ -244,7 +245,8 @@ def test_a_space_by_variant_is_checked(home):
 
 def raced(settings, instances=1):
     """A finished tuning of SA's initial temperature, made by hand: each setting is (its
-    temperature, its objective on each task, what its runs did), the first the best."""
+    temperature, its objective on each task, what its runs did: moves accepted and rejected, the
+    iteration of the best, iterations and seconds), the first the best."""
     tuning = tune.Tuning(
         id=1,
         rev=1,
@@ -262,7 +264,23 @@ def raced(settings, instances=1):
     for i, (temperature, results, stats) in enumerate(settings):
         s = tune.Setting(i, "SA", {"initial_temperature": temperature}, 1)
         s.results = dict(enumerate(results))
-        s.stats = dict.fromkeys(s.results, stats)
+        accepted, rejected, best, iterations, secs = stats
+        run = RunFinished(
+            run=0,
+            variant=0,
+            seed=0,
+            best_objective=0.0,
+            initial_objective=0.0,
+            solution=None,
+            trajectory=[],
+            iterations=iterations,
+            best_iteration=best,
+            time_to_best_secs=0.0,
+            total_time_secs=secs,
+            n_accepted=accepted,
+            n_rejected=rejected,
+        )
+        s.runs = dict.fromkeys(s.results, run)
         tuning.settings.append(s)
     tuning.elites = list(tuning.settings)
     tasks = len(settings[0][1])

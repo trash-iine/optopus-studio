@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from optopus_studio import bench
 from optopus_studio.bench import ALPHA, ranks
 from optopus_studio.projects import Project, ProjectError, variants_of
-from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunSummary, Variant
+from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunFinished, RunSummary, Variant
 from optopus_studio.runner import run_solve
 from optopus_studio.solving import solve_timeout
 
@@ -226,11 +226,6 @@ def friedman(blocks: list[list[float]]) -> tuple[float, list[float], list[float]
 # --- a tuning ----------------------------------------------------------------------------------
 
 
-# What a run did besides its best: moves accepted and rejected (None from a heuristic that does
-# not count them), the iteration of its best, its iterations and its seconds.
-Stats = tuple[int | None, int | None, int, int, float]
-
-
 @dataclass
 class Setting:
     """One point of the space: a variant and its parameters' values, None where the heuristic
@@ -241,9 +236,10 @@ class Setting:
     values: dict[str, Any]
     iteration: int
     parent: int | None = None
-    # The best objective of its run on each task, and what the run did.
+    # The best objective of its run on each task, and the run, without its solution and
+    # trajectory.
     results: dict[int, float] = field(default_factory=dict)
-    stats: dict[int, Stats] = field(default_factory=dict)
+    runs: dict[int, RunFinished] = field(default_factory=dict)
     error: str | None = None
     # (iteration, tasks raced) when a race eliminated it.
     eliminated: tuple[int, int] | None = None
@@ -414,7 +410,16 @@ class Tuning:
                     "iteration": s.iteration,
                     "parent": s.parent,
                     "results": {str(t): v for t, v in sorted(s.results.items())},
-                    "stats": {str(t): list(v) for t, v in sorted(s.stats.items())},
+                    "stats": {
+                        str(t): [
+                            r.n_accepted,
+                            r.n_rejected,
+                            r.best_iteration,
+                            r.iterations,
+                            r.total_time_secs,
+                        ]
+                        for t, r in sorted(s.runs.items())
+                    },
                     "error": s.error,
                     "eliminated": s.eliminated,
                 }
@@ -664,13 +669,7 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
         for run in summary.runs:
             s = group[run.variant]
             s.results[t] = run.best_objective
-            s.stats[t] = (
-                run.n_accepted,
-                run.n_rejected,
-                run.best_iteration,
-                run.iterations,
-                run.total_time_secs,
-            )
+            s.runs[t] = run.model_copy(update={"solution": None, "trajectory": []})
         tuning.done += len(group)
         if tuning.progress:
             await tuning.progress(
@@ -758,13 +757,9 @@ def _last_race(t: Tuning) -> tuple[list[Setting], float, list[float]]:
     return alive, p, [total / last["tasks"] for total in sums]
 
 
-def _rate(stats: list[Stats]) -> float | None:
-    return bench.acceptance((a, r) for a, r, *_ in stats)
-
-
-def _early(stats: list[Stats]) -> float | None:
+def _early(runs: list[RunFinished]) -> float | None:
     """The mean share of a run's iterations gone when it found its best."""
-    shares = [best / iterations for _, _, best, iterations, _ in stats if iterations > 0]
+    shares = [r.best_iteration / r.iterations for r in runs if r.iterations > 0]
     return statistics.fmean(shares) if shares else None
 
 
@@ -826,14 +821,14 @@ def signs(t: Tuning) -> list[str]:
                 "so tell the user: a setting per kind of instance, chosen by its features, may"
             )
 
-    stats = list(best.stats.values())
-    early = _early(stats)
+    runs = list(best.runs.values())
+    early = _early(runs)
     if early is not None and early < EARLY:
         found.append(
             f"#{best.id} finds its best {early:.0%} of the way through a run on average; the "
             "search stalls after that: diversify (a perturbation, restarts)"
         )
-    rate = _rate(stats)
+    rate = bench.acceptance(runs)
     if rate is not None and rate < ACCEPTED[0]:
         found.append(
             f"#{best.id} accepts {rate:.1%} of its moves: almost none, the search barely moves; "
@@ -875,14 +870,12 @@ def report(tuning: Tuning, evaluation: bench.Evaluation | None) -> str:
         shown = "; ".join(f"#{s.id} ({t.describe(s)}): {s.error}" for s in failed[:3])
         more = f" and {len(failed) - 3} more" if len(failed) > 3 else ""
         lines.append(f"failed: {shown}{more}")
-    stats = list(t.best.stats.values())
-    if stats:
-        rate, early = _rate(stats), _early(stats)
-        speed = bench.speed((iterations, secs) for *_, iterations, secs in stats)
+    runs = list(t.best.runs.values())
+    if runs:
         lines.append(
-            f"#{t.best.id}'s runs: {speed:,.0f} iterations/s, best found "
-            f"{'?' if early is None else f'{early:.0%}'} of the way through, "
-            f"{'?' if rate is None else f'{rate:.0%}'} of moves accepted"
+            f"#{t.best.id}'s runs: {bench.speed(runs):,.0f} iterations/s, best found "
+            f"{bench.share(_early(runs))} of the way through, "
+            f"{bench.share(bench.acceptance(runs))} of moves accepted"
         )
     if t.signs:
         lines.append("signs, hints for the next change rather than verdicts:")
