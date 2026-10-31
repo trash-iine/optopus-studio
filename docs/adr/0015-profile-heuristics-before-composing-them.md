@@ -39,7 +39,9 @@ Option 2: `profiling.py` and the `profile` tool. The agent still writes the comp
   - the instances it wins;
   - its *anytime profile*: the mean gap of its best so far to the best any candidate found on the
     instance, at 10%, 25%, 50% and 100% of the budget. The profile reads this from the run's
-    trajectory, by time on a time budget and by iterations on an iteration budget;
+    trajectory, against the limit that stopped the run: its iterations when it spent them (or the
+    budget has no time), its time otherwise, so a run that stops on its own is measured against
+    the time it had;
   - how far into the budget its best was found;
   - its iterations per second and its share of moves accepted.
 - **Readings**, the hints it gives for the next variants:

@@ -164,6 +164,19 @@ def test_the_best_so_far_is_read_by_time_on_a_time_budget():
     assert profile.best_so_far(timed, 1.0) == 10.0
 
 
+def test_runs_that_spend_their_iterations_are_read_by_iterations():
+    # The benchmark's time limit is left at its default while the runs spend their iterations
+    # long before it: the iterations, not the clock, are their budget.
+    profile = made({"fast": {"a": FAST, "b": FAST}, "slow": {"a": SLOW, "b": SLOW}})
+    profile.spec = BenchSpec(runs=3, max_duration_secs=1.0, max_iteration=1000)
+    assert profile.best_so_far(FAST, 0.1) == 20.0
+    assert profile.found_at(profile.profiled[1]) == pytest.approx(0.95)
+    # A descent that stops on its own is measured against the time it had.
+    descent = finished(10.0, [(0.01, 100, 10.0)], best_iteration=100)
+    descent = descent.model_copy(update={"iterations": 100, "time_to_best_secs": 0.01})
+    assert profile.budget_of(descent) == (0, 1.0)
+
+
 def test_one_that_stalls_wants_a_perturbation():
     stalled = finished(10.0, [(0.0, 100, 10.0)], best_iteration=100)
     profile = made({"stalled": {"a": stalled, "b": stalled}, "slow": {"a": SLOW, "b": SLOW}})

@@ -76,14 +76,21 @@ class Profile:
         """The best score any heuristic reached on ``instance``."""
         return min(self.score(r.best_objective) for p in self.alive for r in p.runs[instance])
 
+    def budget_of(self, run: RunFinished) -> tuple[int, float]:
+        """The budget a run is measured against, as the trajectory's coordinate (0 time, 1
+        iterations) and its limit: the iterations when the run spent them or the budget has no
+        time, the time otherwise. A run that stopped on its own, as a descent does, is measured
+        against the time it had."""
+        iterations, seconds = self.spec.max_iteration, self.spec.max_duration_secs
+        if iterations is not None and (seconds is None or run.iterations >= iterations):
+            return 1, iterations
+        assert seconds is not None
+        return 0, seconds
+
     def best_so_far(self, run: RunFinished, fraction: float) -> float:
-        """The run's best score once ``fraction`` of the budget was spent: by time when the
-        budget has one, by iterations otherwise."""
-        if self.spec.max_duration_secs is not None:
-            limit, at = fraction * self.spec.max_duration_secs, 0
-        else:
-            assert self.spec.max_iteration is not None
-            limit, at = fraction * self.spec.max_iteration, 1
+        """The run's best score once ``fraction`` of its budget was spent."""
+        at, budget = self.budget_of(run)
+        limit = fraction * budget
         best = self.score(run.initial_objective)
         for point in run.trajectory:
             if point[at] <= limit * (1 + bench.TIE):
@@ -123,20 +130,12 @@ class Profile:
         )
 
     def found_at(self, p: Profiled) -> float | None:
-        """The mean share of the budget spent when a run of ``p`` found its best: by time when
-        the budget has one, by iterations otherwise."""
-        if self.spec.max_duration_secs is not None:
-            budget, shares = (
-                self.spec.max_duration_secs,
-                [r.time_to_best_secs for i in self.instances for r in p.runs[i]],
-            )
-        else:
-            assert self.spec.max_iteration is not None
-            budget, shares = (
-                self.spec.max_iteration,
-                [r.best_iteration for i in self.instances for r in p.runs[i]],
-            )
-        return min(1.0, statistics.fmean(shares) / budget) if shares else None
+        """The mean share of its budget a run of ``p`` had spent when it found its best."""
+        shares = []
+        for r in (r for i in self.instances for r in p.runs[i]):
+            at, budget = self.budget_of(r)
+            shares.append(min(1.0, (r.best_iteration if at else r.time_to_best_secs) / budget))
+        return statistics.fmean(shares) if shares else None
 
     def mean(self, p: Profiled, instance: str) -> float:
         return statistics.fmean(self.score(r.best_objective) for r in p.runs[instance])
@@ -222,7 +221,7 @@ async def profile(
         )
     data = [(entry, bench.read_instance(project, entry)) for entry in entries]
     result = Profile(
-        id=bench.next_id(bench.profiles_dir(project)),
+        id=0,
         rev=rev,
         split=split,
         spec=spec,
@@ -248,6 +247,8 @@ async def profile(
     if not result.alive:
         raise ProjectError(f"every heuristic failed; the first: {result.profiled[0].error}")
     result.readings = readings(result)
+    # The id is taken when the record is written, so profiles that overlap get their own.
+    result.id = bench.next_id(bench.profiles_dir(project))
     bench.keep_record(bench.profiles_dir(project), result.id, result.to_json())
     return result
 
