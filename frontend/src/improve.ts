@@ -1,5 +1,13 @@
-// What the Improve tab shows of the benchmark (docs/adr/0013, 0014), as plain functions to test.
-import type { BenchEvaluation, BenchSpec, BenchState, BenchTuning } from "./generated/bench-state";
+// What the Improve tab shows of the benchmark (docs/adr/0013, 0014, 0015), as plain functions to
+// test.
+import type {
+  BenchEvaluation,
+  BenchProfile,
+  BenchProfileVariant,
+  BenchSpec,
+  BenchState,
+  BenchTuning,
+} from "./generated/bench-state";
 import type { BenchProgress } from "./generated/server-event";
 import { describeStop } from "./heuristic";
 
@@ -54,7 +62,36 @@ export function best(t: BenchTuning): string {
 }
 
 export function progressText(p: BenchProgress): string {
-  return p.task === "evaluation"
-    ? `Evaluating on the benchmark: ${p.done} / ${p.total} solves`
-    : `Tuning settings by racing: ${p.done} / ${p.total} runs`;
+  if (p.task === "evaluation") return `Evaluating on the benchmark: ${p.done} / ${p.total} solves`;
+  if (p.task === "profile") return `Profiling heuristics: ${p.done} / ${p.total} solves`;
+  return `Tuning settings by racing: ${p.done} / ${p.total} runs`;
+}
+
+/** A profile's heuristics, the best ranked first and the ones that failed last. */
+export function ranked(p: BenchProfile): BenchProfileVariant[] {
+  const rank = (v: BenchProfileVariant) => v.mean_rank ?? Number.POSITIVE_INFINITY;
+  return [...p.variants].sort((a, b) => rank(a) - rank(b));
+}
+
+/** For each share of the budget, the heuristic closest to the best found then: who leads early
+ * and who ends best. */
+export function leaders(p: BenchProfile): (string | null)[] {
+  return p.fractions.map((_, k) => {
+    let lead: BenchProfileVariant | null = null;
+    for (const v of p.variants) {
+      if (v.error == null && (lead == null || v.anytime[k] < lead.anytime[k])) lead = v;
+    }
+    return lead?.label ?? null;
+  });
+}
+
+/** A gap to the best, as a percentage to three significant digits: the gaps that matter can be
+ * tiny. */
+export function gap(value: number): string {
+  return `${Number((value * 100).toPrecision(3))}%`;
+}
+
+/** A share, such as the moves accepted, as a percentage; "—" when there is none. */
+export function share(value: number | null | undefined, digits = 2): string {
+  return value == null ? "—" : `${(value * 100).toFixed(digits)}%`;
 }

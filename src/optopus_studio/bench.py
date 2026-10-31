@@ -40,6 +40,8 @@ from optopus_studio.protocol import (
     BenchEvaluation,
     BenchInstance,
     BenchInstanceResult,
+    BenchProfile,
+    BenchProfileVariant,
     BenchProgress,
     BenchSide,
     BenchSpec,
@@ -436,9 +438,18 @@ def tunings_dir(project: Project) -> Path:
     return project.bench / "tunings"
 
 
+def profiles_dir(project: Project) -> Path:
+    return project.bench / "profiles"
+
+
 def history(project: Project) -> list[dict[str, Any]]:
     """Every evaluation's result, oldest first."""
     return _records(results_dir(project))
+
+
+def profiles(project: Project) -> list[dict[str, Any]]:
+    """Every profile's record (profiling.py), oldest first."""
+    return _records(profiles_dir(project))
 
 
 def tunings(project: Project) -> list[dict[str, Any]]:
@@ -762,7 +773,10 @@ def state(project: Project) -> BenchState:
         for r in past
     ]
     raced = [_tuning(t) for t in tunings(project)]
-    return BenchState(spec=load_spec(project), evaluations=evaluations, tunings=raced)
+    profiled = [_profile(p) for p in profiles(project)]
+    return BenchState(
+        spec=load_spec(project), evaluations=evaluations, tunings=raced, profiles=profiled
+    )
 
 
 def _tuning(record: dict[str, Any]) -> BenchTuning:
@@ -782,6 +796,32 @@ def _tuning(record: dict[str, Any]) -> BenchTuning:
         best_variant=best["variant"] if changed and len(record["variants"]) > 1 else None,
         validation=record["validation"],
         signs=record["signs"],
+    )
+
+
+def _profile(record: dict[str, Any]) -> BenchProfile:
+    return BenchProfile(
+        id=record["id"],
+        rev=record["rev"],
+        split=record["split"],
+        instances=record["instances"],
+        fractions=record["fractions"],
+        p=record["p"],
+        variants=[
+            BenchProfileVariant(
+                label=v["label"],
+                error=v["error"],
+                mean_rank=v.get("mean_rank"),
+                p_vs_best=v.get("p_vs_best"),
+                wins=v.get("wins", 0),
+                anytime=v.get("anytime", []),
+                best_found_at=v.get("best_found_at"),
+                iterations_per_sec=v.get("iterations_per_sec"),
+                accepted=v.get("accepted"),
+            )
+            for v in record["variants"]
+        ],
+        readings=record["readings"],
     )
 
 

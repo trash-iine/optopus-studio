@@ -194,6 +194,198 @@
       "title": "BenchInstanceResult",
       "type": "object"
     },
+    "BenchProfile": {
+      "additionalProperties": false,
+      "description": "One profile of several heuristics on the benchmark (profiling.py, docs/adr/0015).",
+      "properties": {
+        "fractions": {
+          "description": "The shares of the budget 'anytime' is read at.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Fractions",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "instances": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Instances",
+          "type": "array"
+        },
+        "p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Friedman test's p-value over all runs.",
+          "title": "P"
+        },
+        "readings": {
+          "description": "Compositions the profile suggests, as hints for the next variants.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Readings",
+          "type": "array"
+        },
+        "rev": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The revision profiled; null for the work files.",
+          "title": "Rev"
+        },
+        "split": {
+          "enum": [
+            "train",
+            "validation",
+            "all"
+          ],
+          "title": "Split",
+          "type": "string"
+        },
+        "variants": {
+          "items": {
+            "$ref": "#/$defs/BenchProfileVariant"
+          },
+          "title": "Variants",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "rev",
+        "split",
+        "instances",
+        "fractions",
+        "p",
+        "variants",
+        "readings"
+      ],
+      "title": "BenchProfile",
+      "type": "object"
+    },
+    "BenchProfileVariant": {
+      "additionalProperties": false,
+      "description": "How one heuristic behaved in a profile.",
+      "properties": {
+        "accepted": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The share of moves accepted.",
+          "title": "Accepted"
+        },
+        "anytime": {
+          "description": "The mean gap of its best so far to the best any heuristic found on the instance, relative to that best, at each of the profile's fractions of the budget.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Anytime",
+          "type": "array"
+        },
+        "best_found_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The mean share of the budget spent when a run found its best.",
+          "title": "Best Found At"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why its runs failed; the rest is null then.",
+          "title": "Error"
+        },
+        "iterations_per_sec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Iterations Per Sec"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "mean_rank": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Over the runs, 1 the best.",
+          "title": "Mean Rank"
+        },
+        "p_vs_best": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Conover's p-value against the best; under 0.05 it is clearly worse.",
+          "title": "P Vs Best"
+        },
+        "wins": {
+          "description": "Instances on which its mean objective is the best.",
+          "title": "Wins",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "label",
+        "error",
+        "mean_rank",
+        "p_vs_best",
+        "wins",
+        "anytime",
+        "best_found_at",
+        "iterations_per_sec",
+        "accepted"
+      ],
+      "title": "BenchProfileVariant",
+      "type": "object"
+    },
     "BenchSide": {
       "additionalProperties": false,
       "properties": {
@@ -408,13 +600,21 @@
     }
   },
   "additionalProperties": false,
-  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation and tuning on it.",
+  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation, tuning and profile on\nit.",
   "properties": {
     "evaluations": {
       "items": {
         "$ref": "#/$defs/BenchEvaluation"
       },
       "title": "Evaluations",
+      "type": "array"
+    },
+    "profiles": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BenchProfile"
+      },
+      "title": "Profiles",
       "type": "array"
     },
     "spec": {
@@ -431,7 +631,8 @@
   "required": [
     "spec",
     "evaluations",
-    "tunings"
+    "tunings",
+    "profiles"
   ],
   "title": "BenchState",
   "type": "object"
