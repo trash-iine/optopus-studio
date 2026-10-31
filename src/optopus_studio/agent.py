@@ -730,18 +730,22 @@ class Tools:
 
     async def tune(self, args: dict[str, Any]) -> dict[str, Any]:
         seed = args.get("seed")
-        tuning, evaluation = await tune.tune_and_check(
-            self.project,
-            int(args["rev"]),
-            args.get("space"),
-            int(args["budget"]),
-            variant=args.get("variant"),
-            seed=int(seed) if seed is not None else None,
-            progress=self.bench_progress,
-        )
-        await self.broadcast(BenchChanged())
-        if tuning.written:
-            await self.broadcast(FilesChanged(files=self.project.files()))
+        before = self.project.files()
+        try:
+            tuning, evaluation = await tune.tune_and_check(
+                self.project,
+                int(args["rev"]),
+                args.get("space"),
+                int(args["budget"]),
+                variant=args.get("variant"),
+                seed=int(seed) if seed is not None else None,
+                progress=self.bench_progress,
+            )
+        finally:
+            # Also when the check on validation failed after the best settings were written.
+            await self.broadcast(BenchChanged())
+            if self.project.files() != before:
+                await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(tune.report(tuning, evaluation))
 
     def specs(self) -> list[ToolSpec]:

@@ -359,6 +359,9 @@ class Tuning:
 
 
 def _keep(project: Project, tuning: Tuning) -> None:
+    # The id is taken when the record is first written, so tunings that overlap get their own.
+    if not tuning.id:
+        tuning.id = bench.next_id(bench.tunings_dir(project))
     bench.keep_record(bench.tunings_dir(project), tuning.id, tuning.to_json())
 
 
@@ -403,7 +406,7 @@ async def tune(
             f"least {smallest}, better ten times that"
         )
     tuning = Tuning(
-        id=bench.next_id(bench.tunings_dir(project)),
+        id=0,
         rev=rev,
         spec=spec,
         side=side,
@@ -548,7 +551,7 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
                 )
             if len(group) > 1:
                 # Which setting failed: each on its own.
-                await asyncio.gather(*(solve(t, [s]) for s in group))
+                await bench.all_of([solve(t, [s]) for s in group])
             else:
                 group[0].error = f"{error.stage}: {error.message}"
             return
@@ -563,7 +566,7 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
                 )
             )
 
-    await asyncio.gather(*(solve(t, group) for t, group in jobs))
+    await bench.all_of([solve(t, group) for t, group in jobs])
 
 
 def write_best(project: Project, tuning: Tuning) -> None:
@@ -599,19 +602,26 @@ async def tune_and_check(
         return tuning, None
     write_best(project, tuning)
     evaluation = None
-    if bench.instances_of(tuning.spec, "validation"):
-        label = tuning.side.variant.label
-        evaluation = await bench.evaluate(
-            project,
-            rev,
-            "validation",
-            variant=label,
-            baseline_variant=label,
-            note=f"tuning {tuning.id}: {tuning.best.describe()}",
-            progress=progress,
-        )
-        tuning.validation = evaluation.id
-    _keep(project, tuning)
+    try:
+        if bench.instances_of(tuning.spec, "validation"):
+            label = tuning.side.variant.label
+            evaluation = await bench.evaluate(
+                project,
+                rev,
+                "validation",
+                variant=label,
+                baseline_variant=label,
+                note=f"tuning {tuning.id}: {tuning.best.describe()}",
+                progress=progress,
+            )
+            tuning.validation = evaluation.id
+    except ProjectError as exc:
+        raise ProjectError(
+            f"{exc}; the project files are now revision {rev}'s with the tuned settings in "
+            "solve.json"
+        ) from exc
+    finally:
+        _keep(project, tuning)
     return tuning, evaluation
 
 

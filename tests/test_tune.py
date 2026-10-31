@@ -113,6 +113,20 @@ def test_a_race_drops_bad_temperatures_and_checks_the_best_on_validation(home):
     assert bench.history(project)[0]["candidate"]["note"].startswith("tuning 1: ")
 
 
+def test_a_check_on_validation_that_fails_says_the_files_changed(home, monkeypatch):
+    project, rev = tsp_bench(home, train=3, validation=1)
+
+    async def broken(*args, **kwargs):
+        raise ProjectError("revision 1 fails on 'tsp3' at build: boom")
+
+    monkeypatch.setattr(bench, "evaluate", broken)
+    with pytest.raises(ProjectError, match="now revision 1's with the tuned settings"):
+        run(project, rev, TEMPERATURE, 80)
+    (record,) = bench.tunings(project)
+    assert record["written"]
+    assert record["validation"] is None
+
+
 def test_the_revisions_settings_stay_when_nothing_beats_them(home):
     project, rev = tsp_bench(home)
     before = project.read_file("solve.json")

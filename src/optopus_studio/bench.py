@@ -28,7 +28,7 @@ import math
 import os
 import statistics
 from collections import Counter
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -262,10 +262,15 @@ async def solve_all(
             await progress(BenchProgress(task=task, done=done, total=len(jobs)))
         return summary
 
-    # A task group, so that a solve that raises stops the others and their workers.
+    return await all_of([solve(s, request) for s, request in jobs])
+
+
+async def all_of[T](coroutines: list[Coroutine[Any, Any, T]]) -> list[T]:
+    """Their results in order. One that raises cancels the others, solves and their workers
+    with them, and its exception is raised as it is."""
     try:
         async with asyncio.TaskGroup() as group:
-            tasks = [group.create_task(solve(s, request)) for s, request in jobs]
+            tasks = [group.create_task(c) for c in coroutines]
     except ExceptionGroup as failed:
         raise failed.exceptions[0] from None
     return [t.result() for t in tasks]
