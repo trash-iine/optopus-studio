@@ -31,14 +31,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from optopus_studio import bench
+from optopus_studio.bench import ALPHA, ranks
 from optopus_studio.projects import Project, ProjectError
-from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunSummary, SolveRequest, Variant
+from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunSummary, Variant
 from optopus_studio.runner import run_solve
-from optopus_studio.solving import initial_solution, solve_timeout
+from optopus_studio.solving import solve_timeout
 
 # Tasks every setting of a race runs before the first test, and the tests' level.
 FIRST_TEST = 5
-ALPHA = 0.05
 # Values this close rank as a tie.
 TIE = 1e-12
 
@@ -172,23 +172,6 @@ def t_sf(t: float, df: int) -> float:
             term *= cos * cos * (2 * j) / (2 * j + 1)
         inside = 2 / math.pi * (theta + sin * total)
     return max(0.0, (1 - inside) / 2)
-
-
-def ranks(values: list[float]) -> list[float]:
-    """Ranks from 1 for the lowest, ties sharing the mean of their ranks."""
-    order = sorted(range(len(values)), key=values.__getitem__)
-    result = [0.0] * len(values)
-    i = 0
-    while i < len(order):
-        j = i
-        while j + 1 < len(order) and math.isclose(
-            values[order[j + 1]], values[order[i]], rel_tol=TIE, abs_tol=TIE
-        ):
-            j += 1
-        for k in range(i, j + 1):
-            result[order[k]] = (i + j) / 2 + 1
-        i = j + 1
-    return result
 
 
 def friedman(blocks: list[list[float]]) -> tuple[float, list[float], list[float]]:
@@ -376,9 +359,7 @@ class Tuning:
 
 
 def _keep(project: Project, tuning: Tuning) -> None:
-    path = bench.tunings_dir(project)
-    path.mkdir(parents=True, exist_ok=True)
-    (path / f"{tuning.id}.json").write_text(json.dumps(tuning.to_json(), indent=1))
+    bench.keep_record(bench.tunings_dir(project), tuning.id, tuning.to_json())
 
 
 def parse_space(space: Any, heuristic: dict[str, Any]) -> list[Parameter]:
@@ -440,7 +421,8 @@ async def tune(
 async def _search(tuning: Tuning, rounds: int) -> None:
     rng = random.Random(tuning.seed)
     start = {p.name: _get(tuning.side.variant.heuristic, p.name) for p in tuning.space}
-    survive = 2 + int(math.log2(len(tuning.space)))
+    # As many elites survive a round as there are rounds.
+    survive = rounds
     seen: set[str] = set()
 
     def add(values: dict[str, Any], iteration: int, parent: int | None) -> Setting | None:
@@ -548,22 +530,11 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
     async def solve(t: int, group: list[Setting]) -> None:
         entry, instance, seed = tuning.task(t)
         side = tuning.side
-        request = SolveRequest(
-            model_path=str(side.root / "model.py"),
-            instance=instance,
-            variants=[
-                bench.budgeted(
-                    Variant(
-                        label=f"#{s.id}", heuristic=with_values(side.variant.heuristic, s.values)
-                    ),
-                    tuning.spec,
-                )
-                for s in group
-            ],
-            runs=1,
-            seed=seed,
-            initial_solution=initial_solution(side.solve, instance),
-        )
+        variants = [
+            Variant(label=f"#{s.id}", heuristic=with_values(side.variant.heuristic, s.values))
+            for s in group
+        ]
+        request = bench.request_for(side, instance, tuning.spec, variants, runs=1, seed=seed)
         async with gate:
             summary = await run_solve(
                 request, tuning.rev, side.root, ignore, solve_timeout(request), side.binary

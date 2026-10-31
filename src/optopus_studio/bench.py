@@ -27,6 +27,7 @@ import json
 import math
 import os
 import statistics
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -61,6 +62,8 @@ ALPHA = 0.05
 WORSENING_LIMIT = 0.01
 # A relative difference this small is a tie.
 TIE = 1e-9
+# Values this close share a rank.
+RANK_TIE = 1e-12
 # How closely the baseline's model must score a candidate's solution as the candidate does: a
 # model that updates its objective by deltas drifts by rounding over a long run.
 AGREE = 1e-6
@@ -210,13 +213,22 @@ def budgeted(variant: Variant, spec: BenchSpec) -> Variant:
     return Variant(label=variant.label, heuristic={**variant.heuristic, "stop": stop_of(spec)})
 
 
-def request_for(s: Side, instance: dict[str, Any], spec: BenchSpec) -> SolveRequest:
+def request_for(
+    s: Side,
+    instance: dict[str, Any],
+    spec: BenchSpec,
+    variants: list[Variant] | None = None,
+    runs: int | None = None,
+    seed: int | None = None,
+) -> SolveRequest:
+    """A solve of ``instance`` with the side's variant, or ``variants``, on the benchmark's
+    budget, runs and seed unless given others."""
     return SolveRequest(
         model_path=str(s.root / "model.py"),
         instance=instance,
-        variants=[budgeted(s.variant, spec)],
-        runs=spec.runs,
-        seed=spec.seed,
+        variants=[budgeted(v, spec) for v in variants or [s.variant]],
+        runs=spec.runs if runs is None else runs,
+        seed=spec.seed if seed is None else seed,
         initial_solution=initial_solution(s.solve, instance),
     )
 
@@ -262,6 +274,23 @@ async def solve_all(
 # --- statistics --------------------------------------------------------------------------------
 
 
+def ranks(values: list[float]) -> list[float]:
+    """Ranks from 1 for the lowest, ties sharing the mean of their ranks."""
+    order = sorted(range(len(values)), key=values.__getitem__)
+    result = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and math.isclose(
+            values[order[j + 1]], values[order[i]], rel_tol=RANK_TIE, abs_tol=RANK_TIE
+        ):
+            j += 1
+        for k in range(i, j + 1):
+            result[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    return result
+
+
 def wilcoxon(diffs: list[float]) -> tuple[float, float]:
     """One-sided p-values of the Wilcoxon signed-rank test that the differences center on 0,
     against "greater" and against "less". Zeros are dropped; tied magnitudes share a rank."""
@@ -269,22 +298,13 @@ def wilcoxon(diffs: list[float]) -> tuple[float, float]:
     n = len(d)
     if n == 0:
         return 1.0, 1.0
-    order = sorted(range(n), key=lambda i: abs(d[i]))
-    ranks = [0.0] * n
-    ties: list[int] = []
-    i = 0
-    while i < n:
-        j = i
-        while j + 1 < n and math.isclose(abs(d[order[j + 1]]), abs(d[order[i]]), rel_tol=1e-12):
-            j += 1
-        for k in range(i, j + 1):
-            ranks[order[k]] = (i + j) / 2 + 1
-        ties.append(j - i + 1)
-        i = j + 1
-    w_plus = sum(r for r, x in zip(ranks, d, strict=True) if x > 0)
+    ranked = ranks([abs(x) for x in d])
+    # Tied magnitudes share a rank, so each rank's count is the size of a group of ties.
+    ties = Counter(ranked).values()
+    w_plus = sum(r for r, x in zip(ranked, d, strict=True) if x > 0)
     if n <= EXACT_PAIRS:
         # Doubled ranks are integers; count how many sign patterns reach each rank sum.
-        doubled = [round(2 * r) for r in ranks]
+        doubled = [round(2 * r) for r in ranked]
         dist = [1.0]
         for r in doubled:
             grown = dist + [0.0] * r
