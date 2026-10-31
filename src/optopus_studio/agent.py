@@ -21,14 +21,15 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, get_args
+from typing import Any, Literal, Protocol, get_args
 
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import docs, rust
+from optopus_studio import bench, docs, rust
 from optopus_studio.apps import (
     APP_FILE,
+    case_dir,
     check_spec,
     defaults,
     describe_case,
@@ -38,10 +39,13 @@ from optopus_studio.apps import (
 )
 from optopus_studio.projects import ALL_FILES, Project, ProjectError
 from optopus_studio.protocol import (
+    BENCH_NAME,
     AgentChoice,
     AgentName,
     AssistantDelta,
     AssistantText,
+    BenchChanged,
+    BenchProgress,
     ChatEntry,
     FilesChanged,
     RunFinished,
@@ -53,7 +57,7 @@ from optopus_studio.protocol import (
     TurnEnd,
     ViewUpdated,
 )
-from optopus_studio.runner import render_view, run_solve
+from optopus_studio.runner import render_view, run_generator, run_solve
 from optopus_studio.solving import rust_binary, solve_request, solve_timeout, with_stop
 from optopus_studio.tables import TableError, preview, read_records
 from optopus_studio.verify import verify
@@ -111,7 +115,8 @@ proven_optimal / dual_bound, which only a BranchAndBound run sets), "best_run", 
 shows the objective per run, per-heuristic statistics and the convergence curves; view.py shows \
 what the solution means in the user's terms.
 
-model.py and view.py may import optopus and the standard library only.
+model.py and view.py may import optopus and the standard library only. generate.py, written \
+only to make benchmark instances (see "Improving the algorithm"), may too.
 
 ## Views
 
@@ -180,6 +185,49 @@ instance.json for the same purpose.
 - When the user needs to know a solution is optimal, and the model is one BranchAndBound \
 applies to (see heuristics_exact), solve with it: run_solver then says whether the optimum was \
 proven, or how far from it the run may have stopped, and the canvas shows the same.
+
+## Improving the algorithm
+
+When the user wants the search to do better (better solutions in the time they accept, or the \
+same in less), or asks you to improve it on your own, judge every change on a benchmark of \
+instances, never on one solve: one instance and a few seeds reward luck and overfitting.
+
+1. Build the benchmark once (bench_list shows it). Add three to six train instances and two or \
+three validation instances with bench_add, from the user's data (instance.json, revisions, app \
+cases, uploads) and, when that is too little, from generate.py: `generate(seed, **params)` \
+returns an instance shaped like instance.json, of the sizes and structure the user has \
+(standard library and optopus only). Set the runs (5 or more) and each run's budget with \
+bench_settings: the time the user would wait per solve, or max_iteration when only settings \
+that run at the same speed are compared. An evaluation takes about instances x runs x 2 x \
+budget / the cores in use; keep it within a minute or two.
+2. The incumbent is a revision: run_solver once if the current files are not one.
+3. Change one thing at a time, as a hypothesis: a heuristic or its parameters in solve.json, \
+or in model.py a neighborhood, a delta computed from the move, a representation, or a port to \
+Rust. check_model, then evaluate it against the incumbent on train, with a note saying what \
+changed. On BETTER, run_solver: that revision is the new incumbent. On anything else, \
+restore_revision the incumbent and try another hypothesis.
+4. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
+long before the budget ends wants diversification (a perturbation, restarts, another \
+heuristic); a low rate of iterations a cheaper delta or Rust; almost no accepted moves a \
+higher temperature or a larger neighborhood; almost all accepted a cooler search.
+5. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
+nothing. bench_list recalls every change judged so far, with its note and verdict and the \
+revision it was solved into, so do not try one twice; the user follows the same in the \
+canvas's Improve tab. Then evaluate the incumbent against the revision you started from on \
+validation. Present the improvement only if it holds there; if not, it fit the train \
+instances, so say so and restore the revision you started from.
+
+- Keep what a solution means: encode_solution's form and the objective, penalty weights \
+included, stay the baseline's. evaluate re-scores the candidate's solutions with the \
+baseline's model and REJECTs a candidate that scores them otherwise. Changing the objective \
+changes the model: agree it with the user, and it becomes a new baseline.
+- Never make the algorithm depend on the benchmark's instances (their names, sizes or data).
+- The budget replaces the evaluated heuristic's stop, so a candidate cannot win by running \
+longer. run_solver still uses solve.json's own stop; keep it within what the user accepts.
+- A solve.json comparing several heuristics is evaluated one variant at a time: give variant \
+and baseline_variant.
+- MIXED means better overall but clearly worse on some instances: do not take it; find out \
+which instances suffer, and why.
 
 ## Speeding up with Rust
 
@@ -572,6 +620,104 @@ class Tools:
             report += f"\n\nthe canvas shows: {', '.join(v.type for v in view.views)}"
         return text_result(report, is_error=bool(summary.error or error))
 
+    async def restore_revision(self, args: dict[str, Any]) -> dict[str, Any]:
+        rev = int(args["rev"])
+        self.project.restore(rev)
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        return text_result(f"the files are revision {rev}'s again: {sorted(self.project.files())}")
+
+    async def bench_instance(self, args: dict[str, Any]) -> tuple[Any, str]:
+        """The instance bench_add's "source" names, and where it came from in words."""
+        source = str(args["source"])
+        if source == "instance":
+            return self.instance_json(self.project.read_file("instance.json")), "instance.json"
+        if source.startswith("rev:") and source[4:].isdigit():
+            rev = int(source[4:])
+            files, _, _, _ = self.project.load_revision(rev)
+            return self.instance_json(files["instance.json"]), f"revision {rev}"
+        if source.startswith("case:"):
+            path = case_dir(self.project, source[5:]) / "instance.json"
+            if not path.is_file():
+                raise ProjectError(
+                    "the app refused this case's files, so it built no instance; load_case it, "
+                    'make it solvable, and add it from "instance"'
+                )
+            return self.instance_json(path.read_text()), source
+        if source.startswith("upload:"):
+            name, key = source[7:], args.get("key")
+            if not key:
+                raise ProjectError('"key" names the key of instance.json the upload replaces')
+            try:
+                data = read_records(self.project.upload_path(name), args.get("sheet"))
+            except (TableError, ValueError, OSError) as exc:
+                raise ProjectError(f"cannot read {name}: {exc}") from exc
+            instance = self.instance_json(self.project.read_file("instance.json"))
+            return {**instance, key: data}, f'{name} as instance["{key}"]'
+        if source == "generate":
+            path = self.project.work / "generate.py"
+            if not path.is_file():
+                raise ProjectError("write generate.py first")
+            seed, params = int(args.get("seed", 0)), args.get("params") or {}
+            instance, error = await run_generator(path, seed, params)
+            if error:
+                raise ProjectError(error)
+            label = ", ".join(f"{k}={v}" for k, v in params.items())
+            return instance, f"generate.py seed {seed}" + (f", {label}" if label else "")
+        raise ProjectError(
+            f"unknown source {source!r}; expected instance, rev:<n>, case:<id>, upload:<name> or "
+            "generate"
+        )
+
+    @staticmethod
+    def instance_json(text: str) -> Any:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ProjectError(f"the instance is not JSON: {exc}") from exc
+
+    async def bench_progress(self, task: Literal["evaluation"], done: int, total: int):
+        await self.broadcast(BenchProgress(task=task, done=done, total=total))
+
+    async def bench_add(self, args: dict[str, Any]) -> dict[str, Any]:
+        instance, where = await self.bench_instance(args)
+        entry = bench.add_instance(self.project, args["name"], args["split"], where, instance)
+        await self.broadcast(BenchChanged())
+        shape = ", ".join(
+            f"{k}: {len(v)}" if isinstance(v, list | dict) else f"{k}: {type(v).__name__}"
+            for k, v in instance.items()
+        )
+        return text_result(f"{entry.split} instance {entry.name!r} from {where} ({shape})")
+
+    async def bench_remove(self, args: dict[str, Any]) -> dict[str, Any]:
+        bench.remove_instance(self.project, args["name"])
+        await self.broadcast(BenchChanged())
+        return text_result(f"removed {args['name']!r}\n{bench.describe_bench(self.project)}")
+
+    async def bench_settings(self, args: dict[str, Any]) -> dict[str, Any]:
+        # 0 takes a limit away, which a tool schema says more portably than null.
+        settings = {k: (None if v == 0 and k.startswith("max_") else v) for k, v in args.items()}
+        bench.configure(self.project, **settings)
+        await self.broadcast(BenchChanged())
+        return text_result(bench.describe_bench(self.project))
+
+    async def bench_list(self, args: dict[str, Any]) -> dict[str, Any]:
+        return text_result(bench.describe_bench(self.project))
+
+    async def evaluate(self, args: dict[str, Any]) -> dict[str, Any]:
+        candidate = args.get("candidate_rev")
+        evaluation = await bench.evaluate(
+            self.project,
+            int(args["baseline_rev"]),
+            args.get("split", "train"),
+            candidate_rev=int(candidate) if candidate is not None else None,
+            variant=args.get("variant"),
+            baseline_variant=args.get("baseline_variant"),
+            note=str(args.get("note", "")),
+            progress=self.bench_progress,
+        )
+        await self.broadcast(BenchChanged())
+        return text_result(bench.report(evaluation), is_error=evaluation.verdict == "failed")
+
     def specs(self) -> list[ToolSpec]:
         """The tools as each agent is given them (agent_claude.py, agent_codex.py)."""
 
@@ -723,6 +869,85 @@ class Tools:
                     ["rev", "key"],
                 ),
                 guarded(self.import_solution),
+            ),
+            ToolSpec(
+                "restore_revision",
+                "Make the project files those of revision 'rev' again, such as the incumbent "
+                "after a candidate that did not evaluate better.",
+                object_schema({"rev": {"type": "integer", "minimum": 1}}, ["rev"]),
+                guarded(self.restore_revision),
+            ),
+            ToolSpec(
+                "bench_add",
+                "Add an instance to the benchmark that evaluate judges changes of the algorithm "
+                "on, under 'name' (replacing one of that name), in the train or validation "
+                "split. 'source': 'instance' (instance.json now), 'rev:<n>' (a revision's "
+                "instance.json), 'case:<id>' (an app case's instance), 'upload:<name>' "
+                "(instance.json with an attached table as instance[key]; give 'key', and "
+                "'sheet' for Excel), or 'generate' (generate.py's generate(seed, **params)).",
+                object_schema(
+                    {
+                        "name": {"type": "string", "pattern": BENCH_NAME},
+                        "split": {"type": "string", "enum": ["train", "validation"]},
+                        "source": {"type": "string"},
+                        "key": {"type": "string"},
+                        "sheet": {"type": "string"},
+                        "seed": {"type": "integer", "minimum": 0},
+                        "params": {"type": "object"},
+                    },
+                    ["name", "split", "source"],
+                ),
+                guarded(self.bench_add),
+            ),
+            ToolSpec(
+                "bench_remove",
+                "Remove an instance from the benchmark.",
+                object_schema({"name": {"type": "string"}}, ["name"]),
+                guarded(self.bench_remove),
+            ),
+            ToolSpec(
+                "bench_settings",
+                "Set how evaluate runs: runs per instance (paired by seed), the seed, and each "
+                "run's budget, max_duration_secs and/or max_iteration (0 removes one), which "
+                "replaces the stop of the heuristic evaluated.",
+                object_schema(
+                    {
+                        "runs": {"type": "integer", "minimum": 1, "maximum": 50},
+                        "seed": {"type": "integer", "minimum": 0},
+                        "max_duration_secs": {"type": "number", "minimum": 0},
+                        "max_iteration": {"type": "integer", "minimum": 0},
+                    },
+                    [],
+                ),
+                guarded(self.bench_settings),
+            ),
+            ToolSpec(
+                "bench_list",
+                "The benchmark's settings and instances, and the evaluations so far.",
+                object_schema({}, []),
+                guarded(self.bench_list),
+            ),
+            ToolSpec(
+                "evaluate",
+                "Judge a candidate against revision 'baseline_rev' on a split of the "
+                "benchmark: both solve every instance with the same seeds and budget, the "
+                "baseline's model re-scores the candidate's solutions, and a paired test gives "
+                "the verdict (BETTER, MIXED, SAME, WORSE, REJECTED, or FAILED). The candidate is "
+                "the project files, or revision 'candidate_rev'. With several heuristics in a "
+                "solve.json, 'variant' and 'baseline_variant' pick one by label. 'note' says "
+                "in a line what the candidate changes. Makes no revision.",
+                object_schema(
+                    {
+                        "baseline_rev": {"type": "integer", "minimum": 1},
+                        "split": {"type": "string", "enum": ["train", "validation", "all"]},
+                        "candidate_rev": {"type": "integer", "minimum": 1},
+                        "variant": {"type": "string"},
+                        "baseline_variant": {"type": "string"},
+                        "note": {"type": "string"},
+                    },
+                    ["baseline_rev"],
+                ),
+                guarded(self.evaluate),
             ),
         ]
 

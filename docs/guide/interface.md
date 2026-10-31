@@ -4,7 +4,7 @@
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
 │ optopus studio  [project ▾] ●            Import  Export  New project  [System ▾]     │  header
 ├───────────────────────────┬──────────────────────────────────────────────────────────┤
-│                           │ Result  Model  Runs  Compare     Revision [3 (latest)▾]  │
+│                           │ Result  Model  Runs  Compare  Improve  Revision [3 ▾]    │
 │  you: ...                 │                                               Package    │
 │  agent: ...               │ ┌──────────────────────────────────────────────────────┐ │
 │  ▸ write_file model.py    │ │ views: map, Gantt chart, table, headline numbers ... │ │
@@ -109,3 +109,18 @@ revision and the one before it at first).
 - **Convergence of the best runs**: one curve per revision.
 - **Changed files**: a line diff of every file that differs. "The files are the same; only the
   runs differ" means the same model was solved again.
+
+### Improve
+
+What the agent did to improve the search
+([Improving the algorithm](projects.md#improving-the-algorithm)); empty until it builds a
+benchmark. It updates as the agent works, with a progress bar while an evaluation
+runs.
+
+- **Benchmark**: the runs per instance and each run's budget, and the train and validation
+  instances; hover one for where it came from.
+- **Changes judged**: every evaluation, newest first: the agent's note of what changed, the
+  revision it was compared with, the split, the verdict, the mean gain (+ is better), how many
+  instances got better, stayed and got worse, and the revision the change was solved into ("—"
+  when it was undone). Click a row for each instance's mean objectives, or for why a change was
+  rejected or failed.

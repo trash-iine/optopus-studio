@@ -6,6 +6,8 @@
         work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json
         cases/<id>/     cases attached from a packaged app (docs/adr/0009)
+        bench/          the instances a change of the algorithm is judged on, and every
+                        evaluation's result (bench.py, docs/adr/0013)
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
@@ -30,12 +32,21 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from optopus_studio.protocol import AppSpec, ChatEntry, ProjectInfo, RunSummary, Variant, ViewSpec
+from optopus_studio.protocol import (
+    AppSpec,
+    BenchSpec,
+    ChatEntry,
+    ProjectInfo,
+    RunSummary,
+    Variant,
+    ViewSpec,
+)
 
 PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
-# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005), and
-# what a packaged app lets its user change (docs/adr/0009).
-OPTIONAL_FILES = ("rust/main.rs", "app.json")
+# The model ported to Rust, which a solve.json with "worker": "rust" runs (docs/adr/0005), what
+# a packaged app lets its user change (docs/adr/0009), and the generator of benchmark instances
+# (docs/adr/0013).
+OPTIONAL_FILES = ("rust/main.rs", "app.json", "generate.py")
 ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
@@ -50,7 +61,9 @@ _FILE = "|".join(re.escape(name) for name in ALL_FILES)
 # or Codex.
 ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
-    r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+))\Z"
+    r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+)"
+    r"|bench/(?:bench\.json|instances/[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.json"
+    r"|results/[1-9][0-9]{0,5}\.json))\Z"
 )
 
 
@@ -82,6 +95,7 @@ class Project:
         self.work = root / "work"
         self.revs = root / "revs"
         self.uploads_dir = root / "uploads"
+        self.bench = root / "bench"
 
     # --- creation ------------------------------------------------------------------------------
 
@@ -189,6 +203,16 @@ class Project:
                 (target / name).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(self.work / name, target / name)
         return rev
+
+    def restore(self, rev: int) -> None:
+        """Makes work/ the files of revision ``rev`` again, without the ones it did not have."""
+        source = self.rev_dir(rev)
+        for name in ALL_FILES:
+            if (source / name).is_file():
+                (self.work / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source / name, self.work / name)
+            else:
+                (self.work / name).unlink(missing_ok=True)
 
     def rev_dir(self, rev: int) -> Path:
         path = self.revs / str(rev)
@@ -344,6 +368,8 @@ def _check_member(name: str, content: bytes) -> None:
                 ChatEntry.model_validate_json(line)
         elif name.endswith("/result.json"):
             RunSummary.model_validate_json(text)
+        elif name == "bench/bench.json":
+            BenchSpec.model_validate_json(text)
         elif name.endswith(".json"):
             json.loads(text)
     except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:

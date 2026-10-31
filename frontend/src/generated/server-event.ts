@@ -10,7 +10,9 @@ export type ServerEvent =
   | SolveStarted
   | SolveProgress
   | ViewUpdated
-  | AgentSelected;
+  | AgentSelected
+  | BenchProgress
+  | BenchChanged;
 /**
  * The agent this project's chat runs on.
  */
@@ -207,6 +209,14 @@ export type Rev4 = number;
 export type Type18 = "view";
 export type Agent1 = "claude" | "codex";
 export type Type19 = "agent_selected";
+/**
+ * Solves finished.
+ */
+export type Done = number;
+export type Task = "evaluation";
+export type Total = number;
+export type Type20 = "bench_progress";
+export type Type21 = "bench_changed";
 
 /**
  * Everything the GUI shows, sent when a browser connects.
@@ -443,4 +453,19 @@ export interface ViewUpdated {
 export interface AgentSelected {
   agent: Agent1;
   type: Type19;
+}
+/**
+ * How far the evaluation on the benchmark the agent is running has got.
+ */
+export interface BenchProgress {
+  done: Done;
+  task: Task;
+  total: Total;
+  type: Type20;
+}
+/**
+ * The benchmark or its evaluations changed: GET /api/projects/{id}/bench.
+ */
+export interface BenchChanged {
+  type: Type21;
 }

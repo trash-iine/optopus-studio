@@ -19,6 +19,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from optopus_studio.protocol import (
     Done,
+    EvaluateRequest,
     LiveRun,
     Progress,
     RunFinished,
@@ -162,3 +163,48 @@ async def render_view(
     if "view" in answer:
         return ViewSpec.model_validate(answer["view"]), None
     return None, answer.get("error", "view.py failed")
+
+
+async def run_generator(
+    path: Path, seed: int, params: dict[str, Any], timeout: float = 60.0
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Runs ``generate.py``, returning the instance it made or the error."""
+    request = {"path": str(path), "seed": seed, "params": params}
+    answer, error = await _ask(
+        [sys.executable, "-m", "optopus_studio.generator"], path, request, timeout
+    )
+    if error:
+        return None, f"generate.py {error}"
+    if "instance" in answer:
+        return answer["instance"], None
+    return None, answer.get("error", "generate.py failed")
+
+
+async def evaluate_solutions(
+    command: list[str], request: EvaluateRequest, cwd: Path, timeout: float = 60.0
+) -> list[float]:
+    """Scores solutions with a worker started with ``--evaluate`` (see ``EvaluateRequest``)."""
+    answer, error = await _ask([*command, "--evaluate"], cwd, request.model_dump(), timeout)
+    if error:
+        raise RuntimeError(f"the worker {error}")
+    if "error" in answer:
+        raise RuntimeError(answer["error"])
+    return answer["objectives"]
+
+
+async def _ask(
+    command: list[str], cwd: Path, request: dict[str, Any], timeout: float
+) -> tuple[dict[str, Any], str | None]:
+    """Sends one JSON line to a fresh process and reads its one-line answer."""
+    process = await _spawn(command, cwd if cwd.is_dir() else cwd.parent)
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate((json.dumps(request) + "\n").encode()), timeout
+        )
+    except TimeoutError:
+        await _kill(process)
+        return {}, f"took longer than {timeout}s"
+    try:
+        return json.loads(stdout.decode().strip().splitlines()[-1]), None
+    except (IndexError, json.JSONDecodeError):
+        return {}, f"crashed:\n{stderr.decode(errors='replace')[-STDERR_TAIL:]}"

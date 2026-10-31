@@ -16,6 +16,7 @@ from pydantic import TypeAdapter
 from optopus_studio.protocol import (
     AppInfo,
     AppSpec,
+    BenchState,
     CaseState,
     ClientEvent,
     EvaluateRequest,
@@ -43,6 +44,7 @@ SCHEMAS = {
     "app-spec.json": (TypeAdapter(AppSpec), "validation"),
     "app-info.json": (TypeAdapter(AppInfo), "serialization"),
     "case.json": (TypeAdapter(CaseState), "serialization"),
+    "bench-state.json": (TypeAdapter(BenchState), "serialization"),
 }
 
 
@@ -59,6 +61,7 @@ def render() -> dict[str, str]:
         "app-spec.json": "AppSpec",
         "app-info.json": "AppInfo",
         "case.json": "CaseState",
+        "bench-state.json": "BenchState",
     }
     out = {}
     for name, (adapter, mode) in SCHEMAS.items():

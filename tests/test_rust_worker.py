@@ -7,7 +7,7 @@ import subprocess
 import pytest
 from pydantic import TypeAdapter
 
-from optopus_studio import rust
+from optopus_studio import bench, rust
 from optopus_studio.agent import Tools
 from optopus_studio.projects import ProjectError
 from optopus_studio.protocol import InitialSolution, RunSummary, SolveRequest, WorkerEvent
@@ -249,3 +249,22 @@ def test_the_improvement_held_at_the_end_of_a_run_is_sent():
             if e.type == "progress" and (e.run, e.variant) == (finished.run, finished.variant)
         ]
         assert mine[-1] == finished.best_objective, (finished.run, finished.variant)
+
+
+def test_a_port_as_the_baseline_scores_the_candidate_with_its_evaluate(home):
+    project = example_project("tsp", home)
+    solve = json.loads(project.read_file("solve.json"))
+    project.write_file("solve.json", json.dumps({**solve, "worker": "rust"}))
+    rev = project.snapshot()
+    instance = json.loads(project.read_file("instance.json"))
+    bench.add_instance(project, "given", "train", "instance.json", instance)
+    bench.configure(project, runs=3, max_duration_secs=None, max_iteration=5000)
+    project.write_file("solve.json", json.dumps(solve))
+    evaluation = asyncio.run(bench.evaluate(project, rev))
+    # A built-in port runs the same core code: the two sides search alike, run for run.
+    assert evaluation.verdict == "same", bench.report(evaluation)
+    assert evaluation.baseline["worker"] == "rust"
+    assert evaluation.candidate["worker"] == "python"
+    assert all(g == 0 for g in evaluation.gains)
+    result = evaluation.instances[0]
+    assert [r.n_accepted for r in result.baseline] == [r.n_accepted for r in result.candidate]

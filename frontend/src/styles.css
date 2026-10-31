@@ -216,6 +216,19 @@ tr.best td { font-weight: 600; }
 .verdict-better { color: var(--good-ink); font-weight: 600; }
 .verdict-worse { color: var(--critical); font-weight: 600; }
 .verdict-same { color: var(--ink-2); }
+.verdict-mixed { color: var(--ink); font-weight: 600; font-style: italic; }
+
+/* --- improve: the benchmark, and the changes judged on it --- */
+.bench-split { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.bench-split + .bench-split { margin-top: 6px; }
+.bench-split > .muted:first-child { min-width: 80px; }
+.bench-split .chip { padding: 2px 8px; }
+.attempts tbody tr:not(.attempt-detail) { cursor: pointer; }
+.attempts tr.on td { background: var(--plane); }
+.attempt-detail > td { background: var(--plane); padding: 8px 12px 12px; }
+.attempt p { margin: 0 0 8px; font-size: 12px; }
+.attempt-why { white-space: pre-wrap; font-size: 12px; margin: 0 0 8px; color: var(--ink-2); }
+.status progress { vertical-align: middle; width: 160px; margin-left: 8px; }
 .file-diff { margin-top: 8px; }
 .file-diff summary { cursor: pointer; color: var(--ink-2); margin-bottom: 6px; }
 .diff div { white-space: pre; }

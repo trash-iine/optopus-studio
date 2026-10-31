@@ -5,15 +5,22 @@ import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
 import { runLabel, variantStats } from "../views/Convergence";
 import { Compare } from "./Compare";
+import { Improve } from "./Improve";
 import { Search } from "./Search";
 import { SolveResult } from "./SolveResult";
 
-type Tab = "result" | "model" | "runs" | "compare";
+type Tab = "result" | "model" | "runs" | "compare" | "improve";
 
 /** What the "Port to Rust" button asks the agent. */
 export const PORT_REQUEST =
   "Port this model to Rust, verify it against the Python model, and switch to the Rust worker if it passes.";
-const TABS: Record<Tab, string> = { result: "Result", model: "Model", runs: "Runs", compare: "Compare" };
+const TABS: Record<Tab, string> = {
+  result: "Result",
+  model: "Model",
+  runs: "Runs",
+  compare: "Compare",
+  improve: "Improve",
+};
 const FILE_ORDER = ["model.py", "view.py", "instance.json", "solve.json", "app.json", "rust/main.rs"];
 
 interface Props {
@@ -87,6 +94,13 @@ export function Canvas({ project, state, mode, onSelect, onAsk }: Props) {
             revisions={state.revisions}
             current={state.rev}
             mode={mode}
+          />
+        )}
+        {tab === "improve" && project && (
+          <Improve
+            project={project}
+            version={`${state.benchVersion}-${state.revisions.length}`}
+            progress={state.benchProgress}
           />
         )}
       </div>

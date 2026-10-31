@@ -378,6 +378,21 @@ class ViewUpdated(Strict):
     error: str | None = None
 
 
+class BenchProgress(Strict):
+    """How far the evaluation on the benchmark the agent is running has got."""
+
+    type: Literal["bench_progress"] = "bench_progress"
+    task: Literal["evaluation"]
+    done: int = Field(description="Solves finished.")
+    total: int
+
+
+class BenchChanged(Strict):
+    """The benchmark or its evaluations changed: GET /api/projects/{id}/bench."""
+
+    type: Literal["bench_changed"] = "bench_changed"
+
+
 class Snapshot(Strict):
     """Everything the GUI shows, sent when a browser connects."""
 
@@ -412,7 +427,9 @@ ServerEvent = Annotated[
     | SolveStarted
     | SolveProgress
     | ViewUpdated
-    | AgentSelected,
+    | AgentSelected
+    | BenchProgress
+    | BenchChanged,
     Field(discriminator="type"),
 ]
 
@@ -553,3 +570,82 @@ class CaseState(Strict):
     summary: RunSummary | None
     view: ViewSpec | None
     view_error: str | None
+
+
+# --- Benchmark: the instances a change of the algorithm is judged on (docs/adr/0013) ----------
+
+# Also a file name under bench/instances, so no dots or slashes.
+BENCH_NAME = r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$"
+
+
+class BenchInstance(Strict):
+    name: str = Field(pattern=BENCH_NAME)
+    split: Literal["train", "validation"] = Field(
+        description="Candidates are chosen on train; the final choice is checked on validation."
+    )
+    source: str = Field(description="Where the instance came from, such as 'revision 3'.")
+    sha256: str = Field(description="Of the instance file, so a result says what it ran on.")
+
+
+class BenchSpec(Strict):
+    """bench/bench.json: the instances and the budget every evaluation runs with."""
+
+    instances: list[BenchInstance] = []
+    runs: int = Field(5, ge=1, le=50, description="Runs per instance and side, paired by seed.")
+    seed: int = Field(0, ge=0, lt=2**64)
+    max_duration_secs: float | None = Field(
+        1.0,
+        gt=0,
+        description="Each run's time limit, which replaces the stop of every evaluated heuristic.",
+    )
+    max_iteration: int | None = Field(
+        None, ge=1, description="Each run's iteration limit, instead of or as well as the time."
+    )
+
+
+Verdict = Literal["better", "mixed", "same", "worse", "rejected", "failed"]
+
+
+class BenchSide(Strict):
+    where: str = Field(description="'the work files' or 'revision <n>'.")
+    rev: int | None
+    variant: str
+    worker: Literal["python", "rust"]
+
+
+class BenchInstanceResult(Strict):
+    name: str
+    gain: float = Field(
+        description="The mean gain over the paired runs, relative to the "
+        "baseline's mean objective; + is better."
+    )
+    outcome: Literal["better", "same", "worse"]
+    baseline: float = Field(description="The baseline's mean best objective.")
+    candidate: float = Field(description="The candidate's mean best objective.")
+
+
+class BenchEvaluation(Strict):
+    """One evaluation of a change against a baseline revision (bench.py)."""
+
+    id: int
+    split: Literal["train", "validation", "all"]
+    candidate: BenchSide
+    baseline: BenchSide
+    note: str = Field(description="What the candidate changes, as the agent said it.")
+    verdict: Verdict
+    gain: float | None = Field(description="The mean gain over all pairs; null unless judged.")
+    worsening: float = Field(description="The mean worsening over the instances, one way.")
+    p_better: float
+    p_worse: float
+    detail: str | None = Field(description="Why a candidate was rejected or failed.")
+    instances: list[BenchInstanceResult]
+    kept: int | None = Field(
+        description="The later revision whose files are the candidate's, if it was solved into one."
+    )
+
+
+class BenchState(Strict):
+    """GET /api/projects/{id}/bench: the benchmark, and every evaluation on it."""
+
+    spec: BenchSpec
+    evaluations: list[BenchEvaluation]
