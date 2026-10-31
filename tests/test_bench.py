@@ -144,6 +144,40 @@ def test_a_candidate_that_fails_is_reported_and_kept(home):
     assert bench.history(project)[0]["verdict"] == "failed"
 
 
+def test_evaluations_that_overlap_keep_a_record_each(home):
+    project, rev = tsp_bench(home, train=1)
+
+    async def both():
+        return await asyncio.gather(bench.evaluate(project, rev), bench.evaluate(project, rev))
+
+    first, second = asyncio.run(both())
+    assert {first.id, second.id} == {1, 2}
+    assert [r["id"] for r in bench.history(project)] == [1, 2]
+
+
+def test_a_solve_that_raises_stops_the_others(home, monkeypatch):
+    project, rev = tsp_bench(home, train=1)
+    side = asyncio.run(bench.side(project.rev_dir(rev), None, "revision 1"))
+    request = bench.request_for(
+        side,
+        bench.read_instance(project, bench.load_spec(project).instances[0]),
+        bench.load_spec(project),
+    )
+    finished = []
+
+    async def fake(request, rev, cwd, on_update, timeout, rust_binary=None):
+        if request.seed == 0:
+            raise RuntimeError("boom")
+        await asyncio.sleep(5)
+        finished.append(request.seed)
+
+    monkeypatch.setattr(bench, "run_solve", fake)
+    jobs = [(side, request.model_copy(update={"seed": seed})) for seed in range(3)]
+    with pytest.raises(RuntimeError, match="boom"):
+        asyncio.run(bench.solve_all(jobs, "evaluation"))
+    assert finished == []
+
+
 def test_a_split_without_instances_cannot_be_evaluated(home):
     project, rev = tsp_bench(home, validation=0)
     with pytest.raises(ProjectError, match="no validation instances"):

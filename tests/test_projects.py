@@ -186,8 +186,11 @@ def test_restore_makes_the_work_files_a_revision_again(home):
     rev = project.snapshot()
     files = project.files()
     project.write_file("solve.json", "{}")
-    project.write_file("generate.py", "def generate(seed):\n    return {}\n")
+    project.write_file("rust/main.rs", "fn main() {}\n")
+    generator = "def generate(seed):\n    return {}\n"
+    project.write_file("generate.py", generator)
     project.restore(rev)
-    assert project.files() == files
+    # The benchmark's generator is not the algorithm: restoring a revision keeps it.
+    assert project.files() == {**files, "generate.py": generator}
     with pytest.raises(ProjectError, match="no revision 9"):
         project.restore(9)

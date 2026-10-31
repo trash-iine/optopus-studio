@@ -60,6 +60,9 @@ ALPHA = 0.05
 WORSENING_LIMIT = 0.01
 # A relative difference this small is a tie.
 TIE = 1e-9
+# How closely the baseline's model must score a candidate's solution as the candidate does: a
+# model that updates its objective by deltas drifts by rounding over a long run.
+AGREE = 1e-6
 # Up to this many pairs the signed-rank test is exact, beyond it a normal approximation.
 EXACT_PAIRS = 200
 
@@ -246,7 +249,13 @@ async def solve_all(
             await progress(BenchProgress(task=task, done=done, total=len(jobs)))
         return summary
 
-    return list(await asyncio.gather(*(solve(s, request) for s, request in jobs)))
+    # A task group, so that a solve that raises stops the others and their workers.
+    try:
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(solve(s, request)) for s, request in jobs]
+    except ExceptionGroup as failed:
+        raise failed.exceptions[0] from None
+    return [t.result() for t in tasks]
 
 
 # --- statistics --------------------------------------------------------------------------------
@@ -444,7 +453,7 @@ async def evaluate(
     data = [(entry, read_instance(project, entry)) for entry in entries]
 
     evaluation = Evaluation(
-        id=next_id(results_dir(project)),
+        id=0,
         split=split,
         spec=spec,
         candidate={**_describe_side(cand, cand_where, candidate_rev), "note": note},
@@ -523,7 +532,7 @@ async def _check_reference(
                 f"{entry.name!r}: {objectives}"
             )
         for run, got in zip(result.candidate, objectives, strict=True):
-            if not math.isclose(run.best_objective, got, rel_tol=1e-9, abs_tol=1e-9):
+            if not math.isclose(run.best_objective, got, rel_tol=AGREE, abs_tol=AGREE):
                 return (
                     f"on {entry.name!r} the candidate reports {run.best_objective!r} for the best "
                     f"solution of its run {run.run}, which the baseline's model scores {got!r}: "
@@ -551,6 +560,8 @@ def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
 
 
 def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
+    # The id is taken when the record is written, so evaluations that overlap get their own.
+    evaluation.id = next_id(results_dir(project))
     keep_record(results_dir(project), evaluation.id, evaluation.to_json())
     return evaluation
 

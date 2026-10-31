@@ -49,6 +49,8 @@ PROJECT_FILES = ("instance.json", "model.py", "view.py", "solve.json")
 # (docs/adr/0013).
 OPTIONAL_FILES = ("rust/main.rs", "app.json", "generate.py")
 ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
+# What builds the benchmark rather than the algorithm, which restoring a revision leaves alone.
+BENCH_FILES = ("generate.py",)
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -206,9 +208,12 @@ class Project:
         return rev
 
     def restore(self, rev: int) -> None:
-        """Makes work/ the files of revision ``rev`` again, without the ones it did not have."""
+        """Makes work/ the files of revision ``rev`` again, without the ones it did not have. The
+        benchmark's generator stays as it is: it makes instances, it is not the algorithm."""
         source = self.rev_dir(rev)
         for name in ALL_FILES:
+            if name in BENCH_FILES:
+                continue
             if (source / name).is_file():
                 (self.work / name).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source / name, self.work / name)
