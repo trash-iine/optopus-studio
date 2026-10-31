@@ -349,12 +349,11 @@ def report(t: Profile) -> str:
     )
     for v in ranked:
         anytime = "/".join(gap_text(g) for g in v["anytime"])
-        found = "?" if v["best_found_at"] is None else f"{v['best_found_at']:.0%}"
-        accepted = "?" if v["accepted"] is None else f"{v['accepted']:.0%}"
         lines.append(
             f"  {v['label']}: rank {v['mean_rank']:.2f} (p {v['p_vs_best']:.2g}), won "
-            f"{v['wins']}/{len(t.instances)}, gap {anytime}, best at {found}, "
-            f"{v['iterations_per_sec']:,.0f} it/s, {accepted} accepted"
+            f"{v['wins']}/{len(t.instances)}, gap {anytime}, best at "
+            f"{bench.share(v['best_found_at'])}, {v['iterations_per_sec']:,.0f} it/s, "
+            f"{bench.share(v['accepted'])} accepted"
         )
     for v in record["variants"]:
         if v["error"] is not None:

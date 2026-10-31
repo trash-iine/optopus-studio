@@ -186,7 +186,7 @@ function Profile({ profile: p }: { profile: BenchProfile }) {
   return (
     <div className="profile">
       <div className="profile-head">
-        #{p.id}: {p.rev == null ? "work files" : `revision ${p.rev}`} on {p.split} (
+        #{p.id}: {side(p)} on {p.split} (
         {p.instances.length} instances)
         {p.p != null && <span className="muted">; Friedman p = {p.p.toPrecision(2)}</span>}
       </div>
@@ -259,7 +259,7 @@ function Detail({ evaluation: e }: { evaluation: BenchEvaluation }) {
         {e.verdict !== "rejected" && e.verdict !== "failed" && (
           <>
             ; p = {e.p_better.toPrecision(3)} against better, {e.p_worse.toPrecision(3)} against
-            worse; mean worsening {(e.worsening * 100).toFixed(2)}%
+            worse; mean worsening {share(e.worsening)}
           </>
         )}
       </p>

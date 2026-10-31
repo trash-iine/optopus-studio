@@ -45,7 +45,7 @@ export function outcomes(e: BenchEvaluation): string {
 }
 
 /** A side of an evaluation: where its files are. */
-export function side(s: BenchEvaluation["candidate"]): string {
+export function side(s: { rev: number | null }): string {
   return s.rev == null ? "work files" : `revision ${s.rev}`;
 }
 
@@ -61,10 +61,16 @@ export function best(t: BenchTuning): string {
   return t.best_variant ? `${t.best_variant}: ${values}` : values;
 }
 
+// What each task on the benchmark is doing, and what it counts.
+const TASKS: Record<BenchProgress["task"], [string, string]> = {
+  evaluation: ["Evaluating on the benchmark", "solves"],
+  tuning: ["Tuning settings by racing", "runs"],
+  profile: ["Profiling heuristics", "solves"],
+};
+
 export function progressText(p: BenchProgress): string {
-  if (p.task === "evaluation") return `Evaluating on the benchmark: ${p.done} / ${p.total} solves`;
-  if (p.task === "profile") return `Profiling heuristics: ${p.done} / ${p.total} solves`;
-  return `Tuning settings by racing: ${p.done} / ${p.total} runs`;
+  const [doing, unit] = TASKS[p.task];
+  return `${doing}: ${p.done} / ${p.total} ${unit}`;
 }
 
 /** A profile's heuristics, the best ranked first and the ones that failed last. */
