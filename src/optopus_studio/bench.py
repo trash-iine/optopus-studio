@@ -45,6 +45,7 @@ from optopus_studio.protocol import (
     BenchSplit,
     BenchState,
     BenchTask,
+    BenchTuning,
     EvaluateRequest,
     RunFinished,
     RunSummary,
@@ -406,9 +407,18 @@ def results_dir(project: Project) -> Path:
     return project.bench / "results"
 
 
+def tunings_dir(project: Project) -> Path:
+    return project.bench / "tunings"
+
+
 def history(project: Project) -> list[dict[str, Any]]:
     """Every evaluation's result, oldest first."""
     return _records(results_dir(project))
+
+
+def tunings(project: Project) -> list[dict[str, Any]]:
+    """Every tuning's record (tune.py), oldest first."""
+    return _records(tunings_dir(project))
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
@@ -717,7 +727,25 @@ def state(project: Project) -> BenchState:
         )
         for r in past
     ]
-    return BenchState(spec=load_spec(project), evaluations=evaluations)
+    raced = [
+        BenchTuning(
+            id=t["id"],
+            rev=t["rev"],
+            variant=t["variant"],
+            used=t["used"],
+            budget=t["budget"],
+            settings=len(t["settings"]),
+            eliminated=sum(1 for s in t["settings"] if s["eliminated"]),
+            failed=sum(1 for s in t["settings"] if s["error"]),
+            best=next(
+                (s["values"] for s in t["settings"] if s["id"] == t["best"] and s["id"] != 0),
+                None,
+            ),
+            validation=t["validation"],
+        )
+        for t in tunings(project)
+    ]
+    return BenchState(spec=load_spec(project), evaluations=evaluations, tunings=raced)
 
 
 def _side_of(record: dict[str, Any]) -> BenchSide:

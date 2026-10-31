@@ -300,10 +300,89 @@
       ],
       "title": "BenchSpec",
       "type": "object"
+    },
+    "BenchTuning": {
+      "additionalProperties": false,
+      "description": "One tuning of a heuristic's settings by racing (tune.py).",
+      "properties": {
+        "best": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The best settings by parameter path; null when the revision's own stayed.",
+          "title": "Best"
+        },
+        "budget": {
+          "title": "Budget",
+          "type": "integer"
+        },
+        "eliminated": {
+          "title": "Eliminated",
+          "type": "integer"
+        },
+        "failed": {
+          "title": "Failed",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "rev": {
+          "title": "Rev",
+          "type": "integer"
+        },
+        "settings": {
+          "description": "The settings raced.",
+          "title": "Settings",
+          "type": "integer"
+        },
+        "used": {
+          "description": "The runs made.",
+          "title": "Used",
+          "type": "integer"
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The evaluation that checked them on validation.",
+          "title": "Validation"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "rev",
+        "variant",
+        "used",
+        "budget",
+        "settings",
+        "eliminated",
+        "failed",
+        "best",
+        "validation"
+      ],
+      "title": "BenchTuning",
+      "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation on it.",
+  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation and tuning on it.",
   "properties": {
     "evaluations": {
       "items": {
@@ -314,11 +393,19 @@
     },
     "spec": {
       "$ref": "#/$defs/BenchSpec"
+    },
+    "tunings": {
+      "items": {
+        "$ref": "#/$defs/BenchTuning"
+      },
+      "title": "Tunings",
+      "type": "array"
     }
   },
   "required": [
     "spec",
-    "evaluations"
+    "evaluations",
+    "tunings"
   ],
   "title": "BenchState",
   "type": "object"

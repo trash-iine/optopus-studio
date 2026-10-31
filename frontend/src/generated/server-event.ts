@@ -210,10 +210,10 @@ export type Type18 = "view";
 export type Agent1 = "claude" | "codex";
 export type Type19 = "agent_selected";
 /**
- * Solves finished.
+ * Solves finished in an evaluation, runs in a tuning.
  */
 export type Done = number;
-export type Task = "evaluation";
+export type Task = "evaluation" | "tuning";
 export type Total = number;
 export type Type20 = "bench_progress";
 export type Type21 = "bench_changed";
@@ -455,7 +455,7 @@ export interface AgentSelected {
   type: Type19;
 }
 /**
- * How far the evaluation on the benchmark the agent is running has got.
+ * How far the evaluation or tuning on the benchmark the agent is running has got.
  */
 export interface BenchProgress {
   done: Done;
@@ -464,7 +464,7 @@ export interface BenchProgress {
   type: Type20;
 }
 /**
- * The benchmark or its evaluations changed: GET /api/projects/{id}/bench.
+ * The benchmark, its evaluations or its tunings changed: GET /api/projects/{id}/bench.
  */
 export interface BenchChanged {
   type: Type21;

@@ -26,7 +26,7 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, docs, rust
+from optopus_studio import bench, docs, rust, tune
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -207,11 +207,18 @@ or in model.py a neighborhood, a delta computed from the move, a representation,
 Rust. check_model, then evaluate it against the incumbent on train, with a note saying what \
 changed. On BETTER, run_solver: that revision is the new incumbent. On anything else, \
 restore_revision the incumbent and try another hypothesis.
-4. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
+4. To tune a heuristic's numbers or choices (temperatures, rates, tenures, sizes, which \
+neighbor), call tune instead of trying settings one at a time: give the parameters that matter, \
+each with the range worth searching ('log' when it spans orders of magnitude), and a budget of \
+runs, about 30 per parameter or more; it takes about budget x the run's budget / the cores in \
+use. It races sampled settings on train without you, writes the best into solve.json and \
+evaluates it on validation: on BETTER there, run_solver; otherwise restore_revision. Tune again \
+after a change to model.py or another heuristic, since the best settings move with them.
+5. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
 long before the budget ends wants diversification (a perturbation, restarts, another \
 heuristic); a low rate of iterations a cheaper delta or Rust; almost no accepted moves a \
 higher temperature or a larger neighborhood; almost all accepted a cooler search.
-5. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
+6. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
 nothing. bench_list recalls every change judged so far, with its note and verdict and the \
 revision it was solved into, so do not try one twice; the user follows the same in the \
 canvas's Improve tab. Then evaluate the incumbent against the revision you started from on \
@@ -702,7 +709,9 @@ class Tools:
         return text_result(bench.describe_bench(self.project))
 
     async def bench_list(self, args: dict[str, Any]) -> dict[str, Any]:
-        return text_result(bench.describe_bench(self.project))
+        tunings = tune.describe(self.project)
+        listed = "\n".join([bench.describe_bench(self.project), *(["tunings:"] if tunings else [])])
+        return text_result("\n".join([listed, *tunings]))
 
     async def evaluate(self, args: dict[str, Any]) -> dict[str, Any]:
         candidate = args.get("candidate_rev")
@@ -718,6 +727,22 @@ class Tools:
         )
         await self.broadcast(BenchChanged())
         return text_result(bench.report(evaluation), is_error=evaluation.verdict == "failed")
+
+    async def tune(self, args: dict[str, Any]) -> dict[str, Any]:
+        seed = args.get("seed")
+        tuning, evaluation = await tune.tune_and_check(
+            self.project,
+            int(args["rev"]),
+            args.get("space"),
+            int(args["budget"]),
+            variant=args.get("variant"),
+            seed=int(seed) if seed is not None else None,
+            progress=self.bench_progress,
+        )
+        await self.broadcast(BenchChanged())
+        if tuning.written:
+            await self.broadcast(FilesChanged(files=self.project.files()))
+        return text_result(tune.report(tuning, evaluation))
 
     def specs(self) -> list[ToolSpec]:
         """The tools as each agent is given them (agent_claude.py, agent_codex.py)."""
@@ -949,6 +974,48 @@ class Tools:
                     ["baseline_rev"],
                 ),
                 guarded(self.evaluate),
+            ),
+            ToolSpec(
+                "tune",
+                "Tune the settings of a heuristic of revision 'rev' by racing, without you: "
+                "settings sampled from 'space' run on the train instances, task by task with the "
+                "benchmark's budget, and a Friedman test drops the worse ones, until 'budget' "
+                "runs are spent. When the best settings are not the revision's own, the project "
+                "files become revision 'rev's with them in solve.json (its stop unchanged), and "
+                "they are evaluated against the revision on validation. Each parameter: 'name' "
+                "is its path in the heuristic ('cooling_rate', 'search.tabu_tenure', "
+                "'steps.0.cooling_rate'); a float or int has 'low' and 'high' ('log' to sample "
+                "a range over orders of magnitude evenly), a categorical has 'choices'. With "
+                "several heuristics in solve.json, 'variant' picks one by label.",
+                object_schema(
+                    {
+                        "rev": {"type": "integer", "minimum": 1},
+                        "space": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["float", "int", "categorical"],
+                                    },
+                                    "low": {"type": "number"},
+                                    "high": {"type": "number"},
+                                    "log": {"type": "boolean"},
+                                    "choices": {"type": "array", "minItems": 2},
+                                },
+                                "required": ["name"],
+                            },
+                        },
+                        "budget": {"type": "integer", "minimum": 1},
+                        "variant": {"type": "string"},
+                        "seed": {"type": "integer", "minimum": 0},
+                    },
+                    ["rev", "space", "budget"],
+                ),
+                guarded(self.tune),
             ),
         ]
 

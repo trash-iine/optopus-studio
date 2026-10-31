@@ -96,17 +96,25 @@ seeds and the same budget per run, and a paired test gives the verdict.
 | rejected | the change scores solutions otherwise: it changed the problem, not the search |
 | failed | the candidate could not solve an instance |
 
+To tune a heuristic's settings (a temperature, a rate, a tenure, which neighborhood), the agent
+does not try them one evaluation at a time: it names the parameters and their ranges, and the
+studio **races** sampled settings on the train instances, as irace does. Every setting still in
+the race runs on the same instance and seed, and after a few of them a Friedman test drops the
+settings that are clearly worse, so the runs go to the ones still in doubt. The best is written
+into `solve.json` and evaluated against the revision on the validation instances, like any other
+change ([ADR 0014](../adr/0014-tune-settings-by-racing.md)).
+
 Only a better change is solved into a new revision; the others are undone. The canvas's
 **Improve** tab follows along: the benchmark's instances, every change judged with its verdict,
-gain and the revision it was solved into (click one for each instance). At the end the agent
+gain and the revision it was solved into (click one for each instance), and every tuning. At the end the agent
 evaluates the final revision against the one it started from on the validation instances, which
 none of the choices were made on, and presents the improvement only if it holds there.
 
 The budget of the evaluation replaces each heuristic's own stop, so a change cannot win by
 running longer. The objective is fixed by the revision the change is compared with: its model
 scores the candidate's solutions again, so a change of a penalty weight is caught. Changing what
-is optimized is a change of the model, which the agent agrees with you first. The benchmark and
-every evaluation are kept in the project's `bench/` folder and exported with it
+is optimized is a change of the model, which the agent agrees with you first. The benchmark,
+every evaluation and every tuning are kept in the project's `bench/` folder and exported with it
 ([ADR 0013](../adr/0013-improve-against-a-benchmark-of-instances.md)).
 
 ## The examples

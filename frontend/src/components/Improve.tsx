@@ -1,7 +1,7 @@
-// The benchmark the agent improves the search on: its instances and every change it judged there
-// (docs/adr/0013).
+// The benchmark the agent improves the search on: its instances, every change it judged there,
+// and every tuning of a heuristic's settings (docs/adr/0013, 0014).
 import { Fragment, useEffect, useState } from "react";
-import type { BenchEvaluation, BenchState } from "../generated/bench-state";
+import type { BenchEvaluation, BenchState, BenchTuning } from "../generated/bench-state";
 import type { BenchProgress } from "../generated/server-event";
 import {
   budget,
@@ -9,6 +9,7 @@ import {
   outcomes,
   percent,
   progressText,
+  settings,
   side,
   verdictClass,
 } from "../improve";
@@ -42,7 +43,7 @@ export function Improve({ project, version, progress }: Props) {
   );
   if (error) return <div className="banner critical">{error}</div>;
   if (!bench) return <div className="placeholder">Loading the benchmark…</div>;
-  const { spec, evaluations } = bench;
+  const { spec, evaluations, tunings } = bench;
   if (spec.instances.length === 0 && evaluations.length === 0) {
     return (
       <div className="result">
@@ -54,6 +55,7 @@ export function Improve({ project, version, progress }: Props) {
       </div>
     );
   }
+  const byId = new Map(evaluations.map((e) => [e.id, e]));
   return (
     <div className="result improve">
       {status}
@@ -128,6 +130,34 @@ export function Improve({ project, version, progress }: Props) {
           </table>
         </section>
       )}
+      {tunings.length > 0 && (
+        <section className="card table-wrap">
+          <h3>
+            Settings tuned <span className="sub">by racing them on the train instances</span>
+          </h3>
+          <table>
+            <thead>
+              <tr>
+                <th className="num">#</th>
+                <th>heuristic</th>
+                <th className="num">runs</th>
+                <th className="num">settings raced / dropped / failed</th>
+                <th>best</th>
+                <th>on validation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...tunings].reverse().map((t) => (
+                <TuningRow
+                  key={t.id}
+                  tuning={t}
+                  check={t.validation != null ? byId.get(t.validation) : undefined}
+                />
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </div>
   );
 }
@@ -171,5 +201,33 @@ function Detail({ evaluation: e }: { evaluation: BenchEvaluation }) {
         </table>
       )}
     </div>
+  );
+}
+
+function TuningRow({ tuning: t, check }: { tuning: BenchTuning; check: BenchEvaluation | undefined }) {
+  return (
+    <tr>
+      <td className="num">{t.id}</td>
+      <td>
+        {t.variant} of revision {t.rev}
+      </td>
+      <td className="num">
+        {t.used} / {t.budget}
+      </td>
+      <td className="num">
+        {t.settings} / {t.eliminated} / {t.failed}
+      </td>
+      <td>{t.best ? settings(t.best) : <span className="muted">the revision's own</span>}</td>
+      <td>
+        {check ? (
+          <>
+            <span className={verdictClass(check.verdict)}>{check.verdict}</span>{" "}
+            <span className="muted">(#{check.id})</span>
+          </>
+        ) : (
+          <span className="muted">—</span>
+        )}
+      </td>
+    </tr>
   );
 }

@@ -379,21 +379,21 @@ class ViewUpdated(Strict):
 
 
 # What the agent runs on the benchmark (bench.py), and the instances it runs on.
-BenchTask = Literal["evaluation"]
+BenchTask = Literal["evaluation", "tuning"]
 BenchSplit = Literal["train", "validation", "all"]
 
 
 class BenchProgress(Strict):
-    """How far the evaluation on the benchmark the agent is running has got."""
+    """How far the evaluation or tuning on the benchmark the agent is running has got."""
 
     type: Literal["bench_progress"] = "bench_progress"
     task: BenchTask
-    done: int = Field(description="Solves finished.")
+    done: int = Field(description="Solves finished in an evaluation, runs in a tuning.")
     total: int
 
 
 class BenchChanged(Strict):
-    """The benchmark or its evaluations changed: GET /api/projects/{id}/bench."""
+    """The benchmark, its evaluations or its tunings changed: GET /api/projects/{id}/bench."""
 
     type: Literal["bench_changed"] = "bench_changed"
 
@@ -649,8 +649,26 @@ class BenchEvaluation(Strict):
     )
 
 
+class BenchTuning(Strict):
+    """One tuning of a heuristic's settings by racing (tune.py)."""
+
+    id: int
+    rev: int
+    variant: str
+    used: int = Field(description="The runs made.")
+    budget: int
+    settings: int = Field(description="The settings raced.")
+    eliminated: int
+    failed: int
+    best: dict[str, Any] | None = Field(
+        description="The best settings by parameter path; null when the revision's own stayed."
+    )
+    validation: int | None = Field(description="The evaluation that checked them on validation.")
+
+
 class BenchState(Strict):
-    """GET /api/projects/{id}/bench: the benchmark, and every evaluation on it."""
+    """GET /api/projects/{id}/bench: the benchmark, and every evaluation and tuning on it."""
 
     spec: BenchSpec
     evaluations: list[BenchEvaluation]
+    tunings: list[BenchTuning]

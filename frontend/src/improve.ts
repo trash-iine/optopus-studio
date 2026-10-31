@@ -1,4 +1,4 @@
-// What the Improve tab shows of the benchmark (docs/adr/0013), as plain functions to test.
+// What the Improve tab shows of the benchmark (docs/adr/0013, 0014), as plain functions to test.
 import type { BenchEvaluation, BenchSpec, BenchState } from "./generated/bench-state";
 import type { BenchProgress } from "./generated/server-event";
 import { describeStop } from "./heuristic";
@@ -41,6 +41,14 @@ export function side(s: BenchEvaluation["candidate"]): string {
   return s.rev == null ? "work files" : `revision ${s.rev}`;
 }
 
+export function settings(values: Record<string, unknown>): string {
+  return Object.entries(values)
+    .map(([k, v]) => `${k} = ${typeof v === "number" ? Number(v.toPrecision(4)) : JSON.stringify(v)}`)
+    .join(", ");
+}
+
 export function progressText(p: BenchProgress): string {
-  return `Evaluating on the benchmark: ${p.done} / ${p.total} solves`;
+  return p.task === "evaluation"
+    ? `Evaluating on the benchmark: ${p.done} / ${p.total} solves`
+    : `Tuning settings by racing: ${p.done} / ${p.total} runs`;
 }

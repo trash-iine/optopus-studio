@@ -7,7 +7,8 @@
         uploads/        files the user attached in the chat, imported into instance.json
         cases/<id>/     cases attached from a packaged app (docs/adr/0009)
         bench/          the instances a change of the algorithm is judged on, and every
-                        evaluation's result (bench.py, docs/adr/0013)
+                        evaluation's result and tuning's record (bench.py, tune.py,
+                        docs/adr/0013, 0014)
         revs/<n>/       a copy of work/ as solved, with result.json and view.json
 
 A revision freezes the files next to what they produced, so the GUI can go back to any earlier
@@ -66,7 +67,7 @@ ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
     r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+)"
     rf"|bench/(?:bench\.json|instances/{BENCH_NAME[1:-1]}\.json"
-    r"|results/[1-9][0-9]{0,5}\.json))\Z"
+    r"|(?:results|tunings)/[1-9][0-9]{0,5}\.json))\Z"
 )
 
 
