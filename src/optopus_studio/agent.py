@@ -77,6 +77,7 @@ DOC_PAGES = (
     "heuristics_exact",
     "running",
     "graphs_and_instances",
+    *docs.STUDIO_PAGES,
 )
 SOLUTION_PREVIEW = 3000
 CHECK_SECONDS = 2.0
@@ -205,10 +206,11 @@ budget / the cores in use; keep it within a minute or two.
 3. Choose the structure from evidence before refining it, when the user wants the search \
 improved on your own or a better heuristic than the one you started with:
    - Name the problem in the literature's terms ("a generalized assignment problem balancing \
-the load"), and the methods reported to work on that kind of problem.
-   - Put four to six candidates as variants of solve.json: the incumbent's heuristic, and those \
-methods, one optopus lacks composed from its heuristics (a move it depends on is a \
-neighborhood to write in model.py). check_model, run_solver, then \
+the load"), and read_docs "recipes": the methods reported to work on that kind of problem, and \
+how to compose one optopus has no class of.
+   - Put four to six candidates as variants of solve.json: the incumbent's heuristic, and the \
+methods the recipes suggest, one optopus lacks composed as the recipes show (a \
+move it depends on is a neighborhood to write in model.py). check_model, run_solver, then \
 profile them: who leads early and who ends best, who stalls, which instances prefer which.
    - Write the compositions its readings suggest, two to four (a Sequential of the one that \
 leads early and the one that ends best, one that stalls inside Iterated), as variants with the \
@@ -821,7 +823,9 @@ class Tools:
                 "Read a page of the optopus-py user guide. 'problems' compares the built-in "
                 "problems and their solution shapes; 'formula' and 'python_problems' are the two "
                 "ways to write your own; 'heuristics*' say which heuristic to use and how to set "
-                "it; 'running' covers stop conditions and what a run reports.",
+                "it; 'running' covers stop conditions and what a run reports. 'recipes' is the "
+                "studio's own: which methods the literature finds work on a kind of problem, and "
+                "how to compose the ones optopus has no class of.",
                 object_schema({"page": page}, ["page"]),
                 guarded(self.read_docs),
             ),
