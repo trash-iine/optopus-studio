@@ -18,6 +18,7 @@ from optopus_studio.protocol import (
     AppSpec,
     CaseState,
     ClientEvent,
+    EvaluateRequest,
     ProjectInfo,
     RevisionDetail,
     ServerEvent,
@@ -32,6 +33,7 @@ SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema"
 # as it is serialized (every field present).
 SCHEMAS = {
     "solve-request.json": (TypeAdapter(SolveRequest), "validation"),
+    "evaluate-request.json": (TypeAdapter(EvaluateRequest), "validation"),
     "worker-event.json": (TypeAdapter(WorkerEvent), "serialization"),
     "view-spec.json": (TypeAdapter(ViewSpec), "serialization"),
     "server-event.json": (TypeAdapter(ServerEvent), "serialization"),
@@ -47,6 +49,7 @@ SCHEMAS = {
 def render() -> dict[str, str]:
     titles = {
         "solve-request.json": "SolveRequest",
+        "evaluate-request.json": "EvaluateRequest",
         "worker-event.json": "WorkerEvent",
         "view-spec.json": "ViewSpec",
         "server-event.json": "ServerEvent",

@@ -113,6 +113,14 @@ class RunFinished(Strict):
         "the optimum the run may have stopped otherwise. Null for every other heuristic, and "
         "when the run stopped before it had a finite bound.",
     )
+    n_accepted: int | None = Field(
+        None, description="Moves the run applied; null in a result.json older than the field."
+    )
+    n_rejected: int | None = Field(
+        None,
+        description="Iterations the run advanced without applying a move; null in a result.json "
+        "older than the field.",
+    )
 
 
 class Done(Strict):
@@ -131,6 +139,25 @@ class WorkerError(Strict):
 WorkerEvent = Annotated[
     Started | Progress | RunFinished | Done | WorkerError, Field(discriminator="type")
 ]
+
+
+class EvaluateRequest(Strict):
+    """A worker started with ``--evaluate``: score solutions with a model, without searching.
+
+    The answer is one JSON line, ``{"objectives": [...]}`` in the order of ``solutions`` on the
+    scale ``best_objective`` reports, or ``{"error": ...}`` when the model cannot build or a
+    solution cannot be decoded. A Rust worker is the model, so it reads only ``instance`` and
+    ``solutions``.
+    """
+
+    model_path: str = Field(description="Path of the model.py that scores the solutions.")
+    instance: dict[str, Any]
+    solutions: list[Any] = Field(description="Solutions in the form encode_solution writes.")
+    heuristic: dict[str, Any] = Field(
+        description="A heuristic of the model's solve.json. The Python worker starts a run of it "
+        "from each solution and stops it before its first iteration, so a built-in problem "
+        "scores the solution as a run would report it."
+    )
 
 
 # --- ViewSpec ----------------------------------------------------------------------------------

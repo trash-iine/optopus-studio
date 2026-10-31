@@ -982,6 +982,32 @@
           "title": "Iterations",
           "type": "integer"
         },
+        "n_accepted": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Moves the run applied; null in a result.json older than the field.",
+          "title": "N Accepted"
+        },
+        "n_rejected": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Iterations the run advanced without applying a move; null in a result.json older than the field.",
+          "title": "N Rejected"
+        },
         "proven_optimal": {
           "anyOf": [
             {
@@ -1070,7 +1096,9 @@
         "time_to_best_secs",
         "total_time_secs",
         "proven_optimal",
-        "dual_bound"
+        "dual_bound",
+        "n_accepted",
+        "n_rejected"
       ],
       "title": "RunFinished",
       "type": "object"

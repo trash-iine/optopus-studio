@@ -3,7 +3,7 @@
 Reads one ``SolveRequest`` as a JSON line on stdin, builds the problem with the project's
 ``model.py``, runs every variant's heuristic ``runs`` times, and writes ``WorkerEvent`` JSON lines
 on stdout: ``started``, one ``run_finished`` per run, then ``done``, or an ``error`` at the stage
-that failed.
+that failed. With ``--evaluate`` it reads an ``EvaluateRequest`` instead and scores its solutions.
 
 A model's own ``print`` goes to stderr, so it cannot break the protocol.
 """
@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from optopus_studio.protocol import (
     Done,
+    EvaluateRequest,
     Progress,
     RunFinished,
     SolveRequest,
@@ -232,6 +233,8 @@ def solve(request: SolveRequest, emit) -> None:
                     total_time_secs=run.total_time_secs,
                     proven_optimal=run.proven_optimal,
                     dual_bound=finite(run.dual_bound),
+                    n_accepted=run.n_accepted,
+                    n_rejected=run.n_rejected,
                 )
             )
             better = best is None or (
@@ -244,9 +247,43 @@ def solve(request: SolveRequest, emit) -> None:
     emit(Done(best_run=best[0], best_objective=best[1]))
 
 
-def main(stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> int:
+def evaluate(request: EvaluateRequest) -> list[float]:
+    """Each solution's objective, as a run starting from it reports it before its first move."""
+    model = load_model(request.model_path)
+    problem = model.build(request.instance)
+    heuristic = build_heuristic({**request.heuristic, "stop": {"max_iteration": 0}})
+    objectives = []
+    for value in request.solutions:
+        start = decode(model, request.instance, value)
+        report = heuristic.run(problem, 1, 0, initial_solution=start)
+        objectives.append(report.runs[0].initial_objective)
+    return objectives
+
+
+def main_evaluate(stdin: TextIO, out: TextIO) -> int:
+    try:
+        request = EvaluateRequest.model_validate_json(stdin.readline())
+        answer: dict[str, Any] = {"objectives": evaluate(request)}
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    # As in solve: a panic in optopus is a BaseException.
+    except BaseException as exc:
+        answer = {"error": f"{type(exc).__name__}: {exc}"}
+    out.write(json.dumps(answer) + "\n")
+    out.flush()
+    return 0 if "objectives" in answer else 1
+
+
+def main(
+    stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout, args: list[str] | None = None
+) -> int:
     out = stdout
     sys.stdout = sys.stderr
+    if "--evaluate" in (sys.argv[1:] if args is None else args):
+        try:
+            return main_evaluate(stdin, out)
+        finally:
+            sys.stdout = out
     # Progress can arrive from optopus's ticker thread while the main thread writes.
     lock = threading.Lock()
 
