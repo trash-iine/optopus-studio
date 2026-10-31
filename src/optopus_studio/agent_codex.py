@@ -63,10 +63,7 @@ FEATURES_OFF = (
     "tool_suggest",
     "skill_search",
 )
-WEB_SEARCH_OFF = 'web_search="disabled"'
-WEB_SEARCH_ON = 'web_search="live"'
 SETTINGS = (
-    WEB_SEARCH_OFF,
     "skills.include_instructions=false",
     "skills.bundled.enabled=false",
     "project_doc_max_bytes=0",
@@ -130,8 +127,7 @@ def config_overrides(home: Path, web: bool = False) -> list[str]:
     """The ``-c`` overrides: Codex's own tools off, and the MCP servers of its config too; its
     web search on when the project lets the agent search the web (docs/adr/0016)."""
     overrides = [f"features.{name}=false" for name in FEATURES_OFF] + list(SETTINGS)
-    if web:
-        overrides = [WEB_SEARCH_ON if o == WEB_SEARCH_OFF else o for o in overrides]
+    overrides.append(f'web_search="{"live" if web else "disabled"}"')
     overrides += [
         f"mcp_servers.{json.dumps(n)}.enabled=false" for n in configured_mcp_servers(home)
     ]
