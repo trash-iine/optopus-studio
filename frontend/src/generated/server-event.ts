@@ -11,6 +11,7 @@ export type ServerEvent =
   | SolveProgress
   | ViewUpdated
   | AgentSelected
+  | WebSearchChanged
   | BenchProgress
   | BenchChanged;
 /**
@@ -189,6 +190,10 @@ export type Views = (
   | CustomHtmlView
 )[];
 export type ViewError = string | null;
+/**
+ * Whether the agent may search and read the web (docs/adr/0016).
+ */
+export type WebSearch = boolean;
 export type Text2 = string;
 export type Type11 = "assistant_delta";
 export type Text3 = string;
@@ -209,14 +214,16 @@ export type Rev4 = number;
 export type Type18 = "view";
 export type Agent1 = "claude" | "codex";
 export type Type19 = "agent_selected";
+export type Enabled = boolean;
+export type Type20 = "web_search_changed";
 /**
  * Solves finished in an evaluation or a profile, runs in a tuning.
  */
 export type Done = number;
 export type Task = "evaluation" | "tuning" | "profile";
 export type Total = number;
-export type Type20 = "bench_progress";
-export type Type21 = "bench_changed";
+export type Type21 = "bench_progress";
+export type Type22 = "bench_changed";
 
 /**
  * Everything the GUI shows, sent when a browser connects.
@@ -234,6 +241,7 @@ export interface Snapshot {
   type: Type2;
   view: ViewSpec | null;
   view_error: ViewError;
+  web_search: WebSearch;
 }
 export interface AgentChoice {
   available: Available;
@@ -455,18 +463,25 @@ export interface AgentSelected {
   type: Type19;
 }
 /**
+ * The agent may now search the web, or no longer, from the next message.
+ */
+export interface WebSearchChanged {
+  enabled: Enabled;
+  type: Type20;
+}
+/**
  * How far the evaluation or tuning on the benchmark the agent is running has got.
  */
 export interface BenchProgress {
   done: Done;
   task: Task;
   total: Total;
-  type: Type20;
+  type: Type21;
 }
 /**
  * The benchmark, its evaluations, tunings or profiles changed: GET
  * /api/projects/{id}/bench.
  */
 export interface BenchChanged {
-  type: Type21;
+  type: Type22;
 }

@@ -44,11 +44,14 @@ interface Props {
   onStop: () => void;
   onUpload: (file: File) => Promise<string>;
   onSelectAgent: (agent: AgentChoice["name"]) => void;
+  /** Whether the agent may search the web, and the switch for it (docs/adr/0016). */
+  webSearch: boolean;
+  onSetWebSearch: (enabled: boolean) => void;
 }
 
 export function Chat(props: Props) {
-  const { chat, streaming, busy, connected, error, agent, agents } = props;
-  const { onSend, onStop, onUpload, onSelectAgent } = props;
+  const { chat, streaming, busy, connected, error, agent, agents, webSearch } = props;
+  const { onSend, onStop, onUpload, onSelectAgent, onSetWebSearch } = props;
   const [draft, setDraft] = useState("");
   const [attached, setAttached] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -140,21 +143,32 @@ export function Chat(props: Props) {
         </div>
       )}
       {agent && (
-        <label className="agent-picker" title="Switching hands the conversation so far to the other agent">
-          Agent
-          <select
-            value={agent}
-            disabled={busy || !connected}
-            onChange={(e) => onSelectAgent(e.target.value as AgentChoice["name"])}
-          >
-            {agents.map((choice) => (
-              <option key={choice.name} value={choice.name} disabled={!choice.available} title={choice.reason ?? undefined}>
-                {AGENT_LABELS[choice.name]}
-                {choice.available ? "" : " (unavailable)"}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="agent-picker">
+          <label title="Switching hands the conversation so far to the other agent">
+            Agent{" "}
+            <select
+              value={agent}
+              disabled={busy || !connected}
+              onChange={(e) => onSelectAgent(e.target.value as AgentChoice["name"])}
+            >
+              {agents.map((choice) => (
+                <option key={choice.name} value={choice.name} disabled={!choice.available} title={choice.reason ?? undefined}>
+                  {AGENT_LABELS[choice.name]}
+                  {choice.available ? "" : " (unavailable)"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label title="Lets the agent search the web for methods that work on similar problems. What the pages say becomes the agent's input; the benchmark still judges every change.">
+            <input
+              type="checkbox"
+              checked={webSearch}
+              disabled={busy || !connected}
+              onChange={(e) => onSetWebSearch(e.target.checked)}
+            />{" "}
+            Web search
+          </label>
+        </div>
       )}
       <div className="composer">
         <input

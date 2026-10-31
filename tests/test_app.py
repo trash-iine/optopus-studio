@@ -56,6 +56,17 @@ def test_a_project_switches_to_an_agent_that_can_run(client, home, monkeypatch, 
         assert ws.receive_json()["agent"] == "codex"
 
 
+def test_the_agent_is_let_search_the_web_per_project(client, home):
+    project_id = client.post("/api/projects").json()["id"]
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        assert ws.receive_json()["web_search"] is False
+        ws.send_json({"type": "set_web_search", "enabled": True})
+        assert ws.receive_json() == {"type": "web_search_changed", "enabled": True}
+    assert Project.open(project_id, home).meta()["web_search"] is True
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        assert ws.receive_json()["web_search"] is True
+
+
 def test_an_unknown_project_closes_the_socket(client):
     with (
         pytest.raises(WebSocketDisconnect) as closed,

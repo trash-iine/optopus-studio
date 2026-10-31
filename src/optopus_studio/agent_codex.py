@@ -63,8 +63,10 @@ FEATURES_OFF = (
     "tool_suggest",
     "skill_search",
 )
+WEB_SEARCH_OFF = 'web_search="disabled"'
+WEB_SEARCH_ON = 'web_search="live"'
 SETTINGS = (
-    'web_search="disabled"',
+    WEB_SEARCH_OFF,
     "skills.include_instructions=false",
     "skills.bundled.enabled=false",
     "project_doc_max_bytes=0",
@@ -124,9 +126,12 @@ def configured_mcp_servers(home: Path) -> list[str]:
     return list(servers) if isinstance(servers, dict) else []
 
 
-def config_overrides(home: Path) -> list[str]:
-    """The ``-c`` overrides: Codex's own tools off, and the MCP servers of its config too."""
+def config_overrides(home: Path, web: bool = False) -> list[str]:
+    """The ``-c`` overrides: Codex's own tools off, and the MCP servers of its config too; its
+    web search on when the project lets the agent search the web (docs/adr/0016)."""
     overrides = [f"features.{name}=false" for name in FEATURES_OFF] + list(SETTINGS)
+    if web:
+        overrides = [WEB_SEARCH_ON if o == WEB_SEARCH_OFF else o for o in overrides]
     overrides += [
         f"mcp_servers.{json.dumps(n)}.enabled=false" for n in configured_mcp_servers(home)
     ]
@@ -166,9 +171,10 @@ class RpcError(Exception):
 
 
 class CodexBackend:
-    def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None):
+    def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False):
         self.specs = {spec.name: spec for spec in specs}
         self.cwd = cwd
+        self.web = web
         self.thread_id = resume
         self.process: asyncio.subprocess.Process | None = None
         self.pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
@@ -185,7 +191,7 @@ class CodexBackend:
         if reason or binary is None:
             raise AgentError(reason or "Codex is not installed")
         env = {k: v for k, v in os.environ.items() if k not in CREDENTIAL_VARIABLES}
-        overrides = [arg for o in config_overrides(codex_home()) for arg in ("-c", o)]
+        overrides = [arg for o in config_overrides(codex_home(), self.web) for arg in ("-c", o)]
         self.process = await asyncio.create_subprocess_exec(
             binary,
             "app-server",
@@ -344,6 +350,8 @@ class CodexBackend:
             item = params.get("item") or {}
             if item.get("type") == "agentMessage" and (item.get("text") or "").strip():
                 self.events.put_nowait(AssistantText(text=item["text"]))
+            elif item.get("type") == "webSearch":
+                self.events.put_nowait(tool_activity("web_search", {"query": item.get("query")}))
         elif method == "error" and not params.get("willRetry"):
             self.turn_error = (params.get("error") or {}).get("message")
         elif method == "turn/completed":

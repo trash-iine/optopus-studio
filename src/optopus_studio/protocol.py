@@ -416,6 +416,9 @@ class Snapshot(Strict):
     busy: bool
     agent: AgentName = Field(description="The agent this project's chat runs on.")
     agents: list[AgentChoice] = Field(description="The agents to choose from, in order.")
+    web_search: bool = Field(
+        False, description="Whether the agent may search and read the web (docs/adr/0016)."
+    )
 
 
 class AgentSelected(Strict):
@@ -423,6 +426,13 @@ class AgentSelected(Strict):
 
     type: Literal["agent_selected"] = "agent_selected"
     agent: AgentName
+
+
+class WebSearchChanged(Strict):
+    """The agent may now search the web, or no longer, from the next message."""
+
+    type: Literal["web_search_changed"] = "web_search_changed"
+    enabled: bool
 
 
 ServerEvent = Annotated[
@@ -436,6 +446,7 @@ ServerEvent = Annotated[
     | SolveProgress
     | ViewUpdated
     | AgentSelected
+    | WebSearchChanged
     | BenchProgress
     | BenchChanged,
     Field(discriminator="type"),
@@ -481,8 +492,14 @@ class SelectAgent(Strict):
     agent: AgentName
 
 
+class SetWebSearch(Strict):
+    type: Literal["set_web_search"] = "set_web_search"
+    enabled: bool
+
+
 ClientEvent = Annotated[
-    UserMessage | SelectRevision | Interrupt | SelectAgent, Field(discriminator="type")
+    UserMessage | SelectRevision | Interrupt | SelectAgent | SetWebSearch,
+    Field(discriminator="type"),
 ]
 
 

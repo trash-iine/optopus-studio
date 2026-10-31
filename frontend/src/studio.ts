@@ -26,6 +26,8 @@ export interface StudioState {
   /** The agent the project's chat runs on, and the ones it can switch to (docs/adr/0012). */
   agent: AgentChoice["name"] | null;
   agents: AgentChoice[];
+  /** Whether the agent may search and read the web (docs/adr/0016). */
+  webSearch: boolean;
   /** Counts the changes to the benchmark, its evaluations, tunings and profiles, to fetch it
    * again. */
   benchVersion: number;
@@ -48,6 +50,7 @@ export const initialState: StudioState = {
   error: null,
   agent: null,
   agents: [],
+  webSearch: false,
   benchVersion: 0,
   benchProgress: null,
 };
@@ -83,9 +86,12 @@ export function reduce(state: StudioState, action: Action): StudioState {
         viewError: e.view_error,
         agent: e.agent,
         agents: e.agents,
+        webSearch: e.web_search,
       };
     case "agent_selected":
       return { ...state, agent: e.agent, error: null };
+    case "web_search_changed":
+      return { ...state, webSearch: e.enabled, error: null };
     case "assistant_delta":
       return { ...state, streaming: state.streaming + e.text };
     case "assistant_text":

@@ -1293,6 +1293,12 @@
           ],
           "default": null,
           "title": "View Error"
+        },
+        "web_search": {
+          "default": false,
+          "description": "Whether the agent may search and read the web (docs/adr/0016).",
+          "title": "Web Search",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1307,7 +1313,8 @@
         "view_error",
         "busy",
         "agent",
-        "agents"
+        "agents",
+        "web_search"
       ],
       "title": "Snapshot",
       "type": "object"
@@ -1605,6 +1612,28 @@
       "title": "ViewUpdated",
       "type": "object"
     },
+    "WebSearchChanged": {
+      "additionalProperties": false,
+      "description": "The agent may now search the web, or no longer, from the next message.",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "web_search_changed",
+          "default": "web_search_changed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "enabled"
+      ],
+      "title": "WebSearchChanged",
+      "type": "object"
+    },
     "WorkerError": {
       "additionalProperties": false,
       "properties": {
@@ -1666,7 +1695,8 @@
       "solve_started": "#/$defs/SolveStarted",
       "tool": "#/$defs/ToolActivity",
       "turn_end": "#/$defs/TurnEnd",
-      "view": "#/$defs/ViewUpdated"
+      "view": "#/$defs/ViewUpdated",
+      "web_search_changed": "#/$defs/WebSearchChanged"
     },
     "propertyName": "type"
   },
@@ -1700,6 +1730,9 @@
     },
     {
       "$ref": "#/$defs/AgentSelected"
+    },
+    {
+      "$ref": "#/$defs/WebSearchChanged"
     },
     {
       "$ref": "#/$defs/BenchProgress"

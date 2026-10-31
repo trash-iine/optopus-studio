@@ -16,7 +16,9 @@ sized for the whole run (see the `heuristics_composed` page).
 ## 1. Which methods to try, by kind of problem
 
 Name the problem in the literature's terms first ("a generalized assignment problem with a
-balance objective", "a capacitated VRP with time windows"), then start from its row.
+balance objective", "a capacitated VRP with time windows"), then start from its row. With web
+search allowed, look up that name with "metaheuristic", "state of the art" or "benchmark" for
+methods newer than this page.
 
 | Kind of problem | Methods reported to work | In optopus |
 |---|---|---|

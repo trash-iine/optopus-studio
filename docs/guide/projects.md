@@ -132,6 +132,12 @@ From this the profile reads the compositions worth trying:
 The agent writes those as variants and races them with the best single heuristics, so the race
 chooses the composition and sets the settings inside it.
 
+With **Web search** on in the chat panel, the agent also searches the web for methods reported on
+problems like yours ([ADR 0016](../adr/0016-let-the-agent-search-the-web-when-allowed.md)). It
+is off by default. Each search shows as a tool line. What the agent reads only suggests
+candidates; the benchmark still judges every change, and the agent names its source in the
+change's note.
+
 Only a better change is solved into a new revision; the others are undone. The canvas's
 **Improve** tab follows along: the benchmark's instances, every change judged with its verdict,
 gain and the revision it was solved into (click one for each instance), every tuning and every

@@ -1,6 +1,6 @@
 # 0012. Run the agent on Claude Code or Codex, chosen per project
 
-- Status: Accepted
+- Status: Accepted; amended by 0016 (Codex's web search, when a project allows it)
 - Date: 2026-10-20
 
 ## Context

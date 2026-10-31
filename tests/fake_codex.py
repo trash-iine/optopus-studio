@@ -2,8 +2,8 @@
 
 Every message it reads, its arguments and whether an OpenAI key reached it go to FAKE_CODEX_LOG
 as JSON Lines, for the test to check. A turn streams a delta, asks for a command approval (which
-the studio must refuse), calls the studio's write_file tool, and ends with the agent's message
-once the tool has answered.
+the studio must refuse), searches the web when started with its web search on, calls the
+studio's write_file tool, and ends with the agent's message once the tool has answered.
 """
 
 import json
@@ -85,6 +85,16 @@ def main():
                     "params": {"threadId": "other", "delta": "elsewhere"},
                 }
             )
+            if 'web_search="live"' in sys.argv:
+                send(
+                    {
+                        "method": "item/completed",
+                        "params": {
+                            "threadId": thread,
+                            "item": {"type": "webSearch", "id": "ws-1", "query": "gap tabu"},
+                        },
+                    }
+                )
             send(
                 {
                     "id": "approval",

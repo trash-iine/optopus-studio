@@ -36,9 +36,11 @@ from optopus_studio.protocol import (
     RevisionDetail,
     SelectAgent,
     SelectRevision,
+    SetWebSearch,
     Snapshot,
     TurnEnd,
     UserMessage,
+    WebSearchChanged,
 )
 
 log = logging.getLogger(__name__)
@@ -83,6 +85,7 @@ class Hub:
             busy=self.session.busy,
             agent=self.session.agent,
             agents=agent_choices(),
+            web_search=self.session.web_search,
         )
 
 
@@ -229,6 +232,13 @@ async def project_socket(socket: WebSocket, project_id: str) -> None:
                         await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
                     else:
                         await hub.broadcast(AgentSelected(agent=event.agent))
+                case SetWebSearch():
+                    try:
+                        await hub.session.set_web_search(event.enabled)
+                    except ProjectError as exc:
+                        await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
+                    else:
+                        await hub.broadcast(WebSearchChanged(enabled=event.enabled))
     except WebSocketDisconnect:
         pass
     finally:

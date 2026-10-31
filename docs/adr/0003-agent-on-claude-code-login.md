@@ -1,6 +1,7 @@
 # 0003. Run the agent through the Claude Agent SDK on the Claude Code login
 
-- Status: Accepted; amended by 0012 (the agent can also run on Codex)
+- Status: Accepted; amended by 0012 (the agent can also run on Codex) and 0016 (its web
+  search, when a project allows it)
 - Date: 2026-10-14
 
 ## Context

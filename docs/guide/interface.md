@@ -44,6 +44,10 @@
   the agent is idle; the other agent reads the conversation so far with its next message, and
   continues from the project's files. An agent that cannot run on this machine is marked
   "(unavailable)"; hover over it for the reason.
+- **Web search**: lets the agent search and read the web, for methods that work on problems like
+  yours ([ADR 0016](../adr/0016-let-the-agent-search-the-web-when-allowed.md)). It is off for a new
+  or imported project, and can be changed while the agent is idle. Searches show as
+  `web_search` and `web_fetch` lines.
 
 The conversation is kept with the project. Coming back to a project later resumes the same agent
 session, so it remembers what was said.

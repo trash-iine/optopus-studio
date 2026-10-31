@@ -147,6 +147,8 @@ export function App() {
           onSend={say}
           onStop={() => send({ type: "interrupt" })}
           onSelectAgent={(agent) => send({ type: "select_agent", agent })}
+          webSearch={state.webSearch}
+          onSetWebSearch={(enabled) => send({ type: "set_web_search", enabled })}
           onUpload={(file) => upload(projectId ?? "", file)}
         />
         <Canvas

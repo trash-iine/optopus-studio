@@ -68,7 +68,7 @@ The agent still writes the compositions, and `tune` still races them.
   problem, so a recipe that no longer fits optopus fails the tests.
 - **The prompt** adds a step before refining one change at a time:
   1. name the problem in the literature's terms;
-  2. read the recipes;
+  2. read the recipes, and search the web when allowed (ADR 0016);
   3. profile four to six candidates;
   4. write the two to four compositions the readings suggest;
   5. race them with `tune`'s spaces, with the best single heuristics.
@@ -89,6 +89,7 @@ session.
 - The race still decides. A reading that suggests a composition is only a hypothesis until the
   composition wins its race and its evaluation on validation.
 - The recipes are kept by hand. They point to methods; they do not prove that one works on a given
-  problem. New methods come from the agent's own knowledge, not from this page.
+  problem. New methods come from the agent's own knowledge or from the web (ADR 0016), not from
+  this page.
 - The race still searches only the structures the agent wrote. A grammar over compositions in
   `tune` stays possible later, on top of the same records.
