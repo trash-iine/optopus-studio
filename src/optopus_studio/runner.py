@@ -38,6 +38,11 @@ LINE_LIMIT = 64 * 1024 * 1024
 
 
 def worker_command() -> list[str]:
+    """The command that starts a solver worker: ``OPTOPUS_STUDIO_WORKER``, or the Python worker.
+
+    Returns:
+        The command's arguments.
+    """
     custom = os.environ.get("OPTOPUS_STUDIO_WORKER")
     if custom:
         return shlex.split(custom)
@@ -45,6 +50,15 @@ def worker_command() -> list[str]:
 
 
 async def _spawn(command: list[str], cwd: Path) -> asyncio.subprocess.Process:
+    """Starts a process with pipes on its stdin, stdout and stderr.
+
+    Args:
+        command: The command's arguments.
+        cwd: The directory to run it in.
+
+    Returns:
+        The process.
+    """
     return await asyncio.create_subprocess_exec(
         *command,
         cwd=cwd,
@@ -56,6 +70,11 @@ async def _spawn(command: list[str], cwd: Path) -> asyncio.subprocess.Process:
 
 
 async def _kill(process: asyncio.subprocess.Process) -> None:
+    """Kills a process unless it has exited, and waits for it.
+
+    Args:
+        process: The process.
+    """
     if process.returncode is None:
         process.kill()
         await process.wait()
@@ -72,6 +91,17 @@ async def run_solve(
     """Runs one solve and returns its summary, calling ``on_update`` after every event.
 
     The Python worker runs it unless ``rust_binary``, a built port, is given.
+
+    Args:
+        request: The solve.
+        rev: The revision the solve belongs to.
+        cwd: The project's directory, where the worker runs.
+        on_update: Called with the summary so far after every event the worker sends.
+        timeout: How long the solve may take, in seconds.
+        rust_binary: The port to run instead of the Python worker, if any.
+
+    Returns:
+        The summary, with an error when the worker failed, timed out or exited early.
     """
     summary = RunSummary(
         rev=rev,
@@ -91,6 +121,7 @@ async def run_solve(
     stderr_task = asyncio.create_task(process.stderr.read())
 
     async def read_events() -> None:
+        """Reads the worker's events into the summary until its stdout closes."""
         assert process.stdout
         async for line in process.stdout:
             try:
@@ -137,6 +168,14 @@ async def run_solve(
 
 
 def view_input(summary: RunSummary) -> dict[str, Any]:
+    """The ``result`` that ``to_view`` reads: the summary with the best run added as ``best``.
+
+    Args:
+        summary: The solve's summary.
+
+    Returns:
+        The summary as JSON.
+    """
     result = summary.model_dump(mode="json")
     best = summary.runs[summary.best_run] if summary.best_run is not None else None
     result["best"] = best.model_dump(mode="json") if best else None
@@ -146,7 +185,17 @@ def view_input(summary: RunSummary) -> dict[str, Any]:
 async def render_view(
     view_path: Path, instance: dict[str, Any], summary: RunSummary, timeout: float = 30.0
 ) -> tuple[ViewSpec | None, str | None]:
-    """Runs ``view.py`` on a solve's summary, returning the view or the error."""
+    """Runs ``view.py`` on a solve's summary, returning the view or the error.
+
+    Args:
+        view_path: The project's ``view.py``.
+        instance: The instance the solve read.
+        summary: The solve's summary.
+        timeout: How long ``view.py`` may take, in seconds.
+
+    Returns:
+        The view and None, or None and what went wrong.
+    """
     request = {"view_path": str(view_path), "instance": instance, "result": view_input(summary)}
     answer, error = await _ask(
         [sys.executable, "-m", "optopus_studio.viewer"], view_path.parent, request, timeout
@@ -161,7 +210,17 @@ async def render_view(
 async def run_generator(
     path: Path, seed: int, params: dict[str, Any], timeout: float = 60.0
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """Runs ``generate.py``, returning the instance it made or the error."""
+    """Runs ``generate.py``, returning the instance it made or the error.
+
+    Args:
+        path: The ``generate.py`` to run.
+        seed: The seed passed to ``generate``.
+        params: The keyword arguments passed to ``generate``.
+        timeout: How long ``generate.py`` may take, in seconds.
+
+    Returns:
+        The instance and None, or None and what went wrong.
+    """
     request = {"path": str(path), "seed": seed, "params": params}
     answer, error = await _ask(
         [sys.executable, "-m", "optopus_studio.generator"], path, request, timeout
@@ -176,7 +235,20 @@ async def run_generator(
 async def evaluate_solutions(
     command: list[str], request: EvaluateRequest, cwd: Path, timeout: float = 60.0
 ) -> list[float]:
-    """Scores solutions with a worker started with ``--evaluate`` (see ``EvaluateRequest``)."""
+    """Scores solutions with a worker started with ``--evaluate`` (see ``EvaluateRequest``).
+
+    Args:
+        command: The command that starts the worker, without ``--evaluate``.
+        request: The model, the instance and the solutions to score.
+        cwd: The directory to run the worker in.
+        timeout: How long the worker may take, in seconds.
+
+    Returns:
+        Each solution's objective, in order.
+
+    Raises:
+        RuntimeError: The worker timed out, crashed or answered with an error.
+    """
     answer, error = await _ask([*command, "--evaluate"], cwd, request.model_dump(), timeout)
     if error:
         raise RuntimeError(f"the worker {error}")
@@ -188,7 +260,17 @@ async def evaluate_solutions(
 async def _ask(
     command: list[str], cwd: Path, request: dict[str, Any], timeout: float
 ) -> tuple[dict[str, Any], str | None]:
-    """Sends one JSON line to a fresh process and reads its one-line answer."""
+    """Sends one JSON line to a fresh process and reads its one-line answer.
+
+    Args:
+        command: The command that starts the process.
+        cwd: The directory to run it in, or a file in that directory.
+        request: The request to send.
+        timeout: How long the process may take, in seconds.
+
+    Returns:
+        The answer and None, or an empty answer and why there is none.
+    """
     process = await _spawn(command, cwd if cwd.is_dir() else cwd.parent)
     try:
         stdout, stderr = await asyncio.wait_for(

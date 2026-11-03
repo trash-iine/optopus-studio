@@ -87,31 +87,49 @@ export type Views = (
   | CustomHtmlView
 )[];
 
+/**
+ * What a project's ``view.py`` hands the GUI to draw: views, top to bottom.
+ */
 export interface ViewSpec {
   views: Views;
 }
+/**
+ * A row of headline figures.
+ */
 export interface KpiView {
   items: Items;
   title: Title;
   type: Type;
 }
+/**
+ * One figure of a KPI view.
+ */
 export interface KpiItem {
   label: Label;
   unit: Unit;
   value: Value;
 }
+/**
+ * A table of rows.
+ */
 export interface TableView {
   columns: Columns;
   rows: Rows;
   title: Title1;
   type: Type1;
 }
+/**
+ * A Gantt chart, such as a schedule of jobs on machines.
+ */
 export interface GanttView {
   tasks: Tasks;
   time_unit: TimeUnit;
   title: Title2;
   type: Type2;
 }
+/**
+ * One task of a Gantt chart: a bar on a lane, from its start to its end.
+ */
 export interface GanttTask {
   end: End;
   group: Group;
@@ -119,6 +137,9 @@ export interface GanttTask {
   lane: Lane;
   start: Start;
 }
+/**
+ * Points on a plane and the routes that visit them.
+ */
 export interface RouteMapView {
   closed: Closed;
   points: Points;
@@ -126,6 +147,9 @@ export interface RouteMapView {
   title: Title3;
   type: Type3;
 }
+/**
+ * A point on a route map, such as a city or a depot.
+ */
 export interface MapPoint {
   id: Id;
   kind: Kind;
@@ -133,22 +157,34 @@ export interface MapPoint {
   x: X;
   y: Y;
 }
+/**
+ * One route on a map: the points it visits, in order.
+ */
 export interface Route {
   label: Label3;
   path: Path;
 }
+/**
+ * A graph of nodes and edges, such as a cut or a coloring.
+ */
 export interface GraphView {
   edges: Edges;
   nodes: Nodes;
   title: Title4;
   type: Type4;
 }
+/**
+ * An edge of a graph view, which may be highlighted, such as one in the solution.
+ */
 export interface GraphEdge {
   highlight: Highlight;
   source: Source;
   target: Target;
   weight: Weight;
 }
+/**
+ * A node of a graph view; without x and y, the GUI lays it out.
+ */
 export interface GraphNode {
   group: Group1;
   id: Id1;
@@ -156,6 +192,9 @@ export interface GraphNode {
   x: X1;
   y: Y1;
 }
+/**
+ * A bar chart.
+ */
 export interface BarView {
   categories: Categories;
   series: Series;
@@ -163,15 +202,24 @@ export interface BarView {
   title: Title5;
   type: Type5;
 }
+/**
+ * One series of a bar chart: a value per category.
+ */
 export interface BarSeries {
   name: Name;
   values: Values;
 }
+/**
+ * Text in Markdown.
+ */
 export interface MarkdownView {
   text: Text;
   title: Title6;
   type: Type6;
 }
+/**
+ * Anything the other views cannot draw, as a document in a sandboxed iframe.
+ */
 export interface CustomHtmlView {
   height: Height;
   html: Html;

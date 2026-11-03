@@ -2,6 +2,7 @@
   "$defs": {
     "AppColumn": {
       "additionalProperties": false,
+      "description": "A column every row of an app's input must have.",
       "properties": {
         "description": {
           "anyOf": [
@@ -228,7 +229,7 @@
     },
     "AppSpec": {
       "additionalProperties": false,
-      "description": "app.json: what a packaged app lets its user change. Everything else is fixed, and is\nchanged in the studio.",
+      "description": "app.json: what a packaged app lets its user change.\n\nEverything else is fixed, and is changed in the studio.",
       "properties": {
         "description": {
           "anyOf": [
@@ -275,6 +276,7 @@
     },
     "BarSeries": {
       "additionalProperties": false,
+      "description": "One series of a bar chart: a value per category.",
       "properties": {
         "name": {
           "title": "Name",
@@ -297,6 +299,7 @@
     },
     "BarView": {
       "additionalProperties": false,
+      "description": "A bar chart.",
       "properties": {
         "categories": {
           "items": {
@@ -348,6 +351,7 @@
     },
     "CustomHtmlView": {
       "additionalProperties": false,
+      "description": "Anything the other views cannot draw, as a document in a sandboxed iframe.",
       "properties": {
         "height": {
           "default": 400,
@@ -391,6 +395,7 @@
     },
     "GanttTask": {
       "additionalProperties": false,
+      "description": "One task of a Gantt chart: a bar on a lane, from its start to its end.",
       "properties": {
         "end": {
           "title": "End",
@@ -435,6 +440,7 @@
     },
     "GanttView": {
       "additionalProperties": false,
+      "description": "A Gantt chart, such as a schedule of jobs on machines.",
       "properties": {
         "tasks": {
           "items": {
@@ -485,6 +491,7 @@
     },
     "GraphEdge": {
       "additionalProperties": false,
+      "description": "An edge of a graph view, which may be highlighted, such as one in the solution.",
       "properties": {
         "highlight": {
           "default": false,
@@ -537,6 +544,7 @@
     },
     "GraphNode": {
       "additionalProperties": false,
+      "description": "A node of a graph view; without x and y, the GUI lays it out.",
       "properties": {
         "group": {
           "anyOf": [
@@ -611,6 +619,7 @@
     },
     "GraphView": {
       "additionalProperties": false,
+      "description": "A graph of nodes and edges, such as a cut or a coloring.",
       "properties": {
         "edges": {
           "items": {
@@ -656,6 +665,7 @@
     },
     "KpiItem": {
       "additionalProperties": false,
+      "description": "One figure of a KPI view.",
       "properties": {
         "label": {
           "title": "Label",
@@ -698,6 +708,7 @@
     },
     "KpiView": {
       "additionalProperties": false,
+      "description": "A row of headline figures.",
       "properties": {
         "items": {
           "items": {
@@ -774,6 +785,7 @@
     },
     "MapPoint": {
       "additionalProperties": false,
+      "description": "A point on a route map, such as a city or a depot.",
       "properties": {
         "id": {
           "anyOf": [
@@ -828,6 +840,7 @@
     },
     "MarkdownView": {
       "additionalProperties": false,
+      "description": "Text in Markdown.",
       "properties": {
         "text": {
           "title": "Text",
@@ -862,6 +875,7 @@
     },
     "Route": {
       "additionalProperties": false,
+      "description": "One route on a map: the points it visits, in order.",
       "properties": {
         "label": {
           "anyOf": [
@@ -900,6 +914,7 @@
     },
     "RouteMapView": {
       "additionalProperties": false,
+      "description": "Points on a plane and the routes that visit them.",
       "properties": {
         "closed": {
           "default": true,
@@ -952,6 +967,7 @@
     },
     "RunFinished": {
       "additionalProperties": false,
+      "description": "One run's outcome: its best solution, objective, and how the search went.",
       "properties": {
         "best_iteration": {
           "title": "Best Iteration",
@@ -1262,6 +1278,7 @@
     },
     "TableView": {
       "additionalProperties": false,
+      "description": "A table of rows.",
       "properties": {
         "columns": {
           "items": {
@@ -1349,6 +1366,7 @@
     },
     "ViewSpec": {
       "additionalProperties": false,
+      "description": "What a project's ``view.py`` hands the GUI to draw: views, top to bottom.",
       "properties": {
         "views": {
           "items": {
@@ -1404,6 +1422,7 @@
     },
     "WorkerError": {
       "additionalProperties": false,
+      "description": "A solve failed, at the stage it failed at.",
       "properties": {
         "message": {
           "title": "Message",

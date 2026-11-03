@@ -18,6 +18,21 @@ from typing import Any
 
 
 def generate(path: str, seed: int, params: dict[str, Any]) -> dict[str, Any]:
+    """Runs ``generate(seed, **params)`` of a ``generate.py`` and checks its instance.
+
+    Args:
+        path: The path of the ``generate.py`` to run.
+        seed: The seed passed to ``generate``.
+        params: The keyword arguments passed to ``generate``.
+
+    Returns:
+        The instance, round-tripped through JSON so that what is stored is what ``model.py`` reads.
+
+    Raises:
+        ImportError: The file cannot be loaded.
+        AttributeError: The file defines no ``generate``.
+        TypeError: ``generate`` returned something other than a dict.
+    """
     spec = importlib.util.spec_from_file_location("studio_generate", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")
@@ -34,6 +49,11 @@ def generate(path: str, seed: int, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
+    """Answers one request read from stdin with one JSON line on stdout.
+
+    Returns:
+        The exit status: 0 when an instance was generated, 1 when it failed.
+    """
     out = sys.stdout
     sys.stdout = sys.stderr
     try:

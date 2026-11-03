@@ -61,9 +61,20 @@ PATH = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*(?:\.(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]
 
 
 class Parameter(BaseModel):
-    """One argument of the heuristic to tune: a float or an int in [low, high], or one of
-    ``choices``. ``name`` is its path in the heuristic, such as "initial_temperature", or
-    "search.cooling_rate" in a nested heuristic, or "steps.0.tabu_tenure" in a list."""
+    """One argument of the heuristic to tune: a number in [low, high], or one of ``choices``.
+
+    A number is a float or an int. ``name`` is its path in the heuristic, such as
+    "initial_temperature", or "search.cooling_rate" in a nested heuristic, or "steps.0.tabu_tenure"
+    in a list.
+
+    Attributes:
+        name: The argument's path in the heuristic.
+        type: float, int or categorical; categorical when ``choices`` is given, float otherwise.
+        low: The lowest value of a number.
+        high: The highest value of a number.
+        log: Whether a number is sampled on a log scale.
+        choices: The values of a categorical one.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -76,6 +87,14 @@ class Parameter(BaseModel):
 
     @model_validator(mode="after")
     def check(self) -> Parameter:
+        """Checks the path and that the bounds or choices fit the type, which it fills in.
+
+        Returns:
+            The parameter.
+
+        Raises:
+            ValueError: The path is malformed or not tunable, or the bounds or choices do not fit.
+        """
         if not PATH.match(self.name):
             raise ValueError(f"{self.name!r} is not a path like cooling_rate or search.tenure")
         segments = self.name.split(".")
@@ -100,14 +119,27 @@ class Parameter(BaseModel):
         return self
 
     def _bounds(self) -> tuple[float, float]:
-        """The interval values are drawn from: log-scaled, and one wider for an int, whose
-        values are the floors."""
+        """The interval values are drawn from.
+
+        It is log-scaled for a log parameter, and one wider for an int, whose values are the floors.
+
+        Returns:
+            The interval's ends.
+        """
         assert self.low is not None
         assert self.high is not None
         high = self.high + 1 if self.type == "int" else self.high
         return (math.log(self.low), math.log(high)) if self.log else (self.low, high)
 
     def _value(self, z: float) -> Any:
+        """The value at a point of the interval values are drawn from, kept within [low, high].
+
+        Args:
+            z: The point.
+
+        Returns:
+            The value.
+        """
         assert self.low is not None
         assert self.high is not None
         x = math.exp(z) if self.log else z
@@ -116,6 +148,14 @@ class Parameter(BaseModel):
         return min(max(x, self.low), self.high)
 
     def _position(self, value: Any) -> float | None:
+        """Where a value lies in the interval values are drawn from.
+
+        Args:
+            value: The value.
+
+        Returns:
+            The point, or None when the value is not a number the interval holds.
+        """
         if isinstance(value, bool) or not isinstance(value, int | float):
             return None
         x = value + 0.5 if self.type == "int" else float(value)
@@ -124,7 +164,14 @@ class Parameter(BaseModel):
         return x
 
     def unit(self, value: Any) -> float | None:
-        """Where ``value`` lies in the space, from 0 to 1; None for a categorical or no number."""
+        """Where ``value`` lies in the space, from 0 to 1; None for a categorical or no number.
+
+        Args:
+            value: The value.
+
+        Returns:
+            The share of the space below the value, or None.
+        """
         position = None if self.choices is not None else self._position(value)
         if position is None:
             return None
@@ -132,14 +179,31 @@ class Parameter(BaseModel):
         return (position - lo) / (hi - lo)
 
     def at(self, u: float) -> Any:
-        """The value at ``u`` in [0, 1) of the space, evenly."""
+        """The value at ``u`` in [0, 1) of the space, evenly.
+
+        Args:
+            u: The share of the space.
+
+        Returns:
+            The value.
+        """
         if self.choices is not None:
             return self.choices[min(int(u * len(self.choices)), len(self.choices) - 1)]
         lo, hi = self._bounds()
         return self._value(lo + u * (hi - lo))
 
     def near(self, value: Any, spread: float, rng: random.Random) -> Any:
-        """A value drawn around ``value``, within ``spread`` of the space's width."""
+        """A value drawn around ``value``, within ``spread`` of the space's width.
+
+        Args:
+            value: The value to draw around.
+            spread: The spread, as a share of the space's width; for a categorical, the chance of
+                drawing a choice anew.
+            rng: The random source.
+
+        Returns:
+            The value drawn.
+        """
         if self.choices is not None:
             if value not in self.choices or rng.random() < spread:
                 return rng.choice(self.choices)
@@ -159,7 +223,15 @@ class Parameter(BaseModel):
 
 
 def chi2_sf(x: float, df: int) -> float:
-    """P(X > x) for chi-squared with ``df`` degrees of freedom (Abramowitz & Stegun 26.4.4-5)."""
+    """P(X > x) for chi-squared with ``df`` degrees of freedom (Abramowitz & Stegun 26.4.4-5).
+
+    Args:
+        x: The statistic.
+        df: The degrees of freedom.
+
+    Returns:
+        The probability.
+    """
     if x <= 0:
         return 1.0
     if df % 2 == 0:
@@ -177,7 +249,15 @@ def chi2_sf(x: float, df: int) -> float:
 
 
 def t_sf(t: float, df: int) -> float:
-    """P(T > t) for Student's t with ``df`` degrees of freedom (Abramowitz & Stegun 26.7.3-4)."""
+    """P(T > t) for Student's t with ``df`` degrees of freedom (Abramowitz & Stegun 26.7.3-4).
+
+    Args:
+        t: The statistic.
+        df: The degrees of freedom.
+
+    Returns:
+        The probability.
+    """
     if t < 0:
         return 1 - t_sf(-t, df)
     theta = math.atan(t / math.sqrt(df))
@@ -198,9 +278,17 @@ def t_sf(t: float, df: int) -> float:
 
 
 def friedman(blocks: list[list[float]]) -> tuple[float, list[float], list[float]]:
-    """The Friedman test over ``blocks`` (one row of values per task, lower is better), as irace
-    runs it: its p-value, each column's rank sum, and each column's two-sided p-value against the
-    column of the lowest rank sum by Conover's comparison."""
+    """The Friedman test over ``blocks``, as irace runs it.
+
+    The blocks are one row of values per task; lower is better.
+
+    Args:
+        blocks: The values, a row per task and a column per setting.
+
+    Returns:
+        Its p-value, each column's rank sum, and each column's two-sided p-value against the column
+        of the lowest rank sum by Conover's comparison.
+    """
     n, k = len(blocks), len(blocks[0])
     ranked = [ranks(b) for b in blocks]
     sums = [sum(r[c] for r in ranked) for c in range(k)]
@@ -228,8 +316,21 @@ def friedman(blocks: list[list[float]]) -> tuple[float, list[float], list[float]
 
 @dataclass
 class Setting:
-    """One point of the space: a variant and its parameters' values, None where the heuristic
-    leaves an argument out (only a variant's own settings can)."""
+    """One point of the space: a variant and its parameters' values.
+
+    A value is None where the heuristic leaves an argument out (only a variant's own settings can).
+
+    Attributes:
+        id: The setting's number in the tuning; 0 the revision's own.
+        variant: The variant's label.
+        values: Each parameter's value, by path.
+        iteration: The iteration it was drawn in.
+        parent: The elite it was drawn around, if any.
+        results: The best objective of its run on each task.
+        runs: Its run on each task, without the solution and trajectory.
+        error: Why its runs failed, if they did.
+        eliminated: The iteration and the tasks raced when a race eliminated it.
+    """
 
     id: int
     variant: str
@@ -246,9 +347,15 @@ class Setting:
 
     @property
     def key(self) -> str:
+        """What makes two settings the same, for drawing each only once."""
         return json.dumps([self.variant, self.values], sort_keys=True)
 
     def describe(self) -> str:
+        """The setting's values in words.
+
+        Returns:
+            The values, or "its own settings" when it has none.
+        """
         return (
             ", ".join(
                 f"{k}={'(default)' if v is None else _short(v)}" for k, v in self.values.items()
@@ -258,13 +365,32 @@ class Setting:
 
 
 def _short(value: Any) -> str:
+    """A value in a few characters.
+
+    Args:
+        value: The value.
+
+    Returns:
+        A float to four significant digits, anything else as JSON.
+    """
     if isinstance(value, float):
         return f"{value:.4g}"
     return json.dumps(value)
 
 
 def _get(heuristic: dict[str, Any], path: str) -> Any:
-    """The value at ``path``, None when its argument is left out; a missing parent is an error."""
+    """The value at ``path``, None when its argument is left out; a missing parent is an error.
+
+    Args:
+        heuristic: The heuristic's dict.
+        path: The argument's path.
+
+    Returns:
+        The value, or None.
+
+    Raises:
+        ProjectError: Something on the way to the argument is missing, or not a heuristic or list.
+    """
     *parents, leaf = path.split(".")
     node: Any = heuristic
     for segment in parents:
@@ -277,6 +403,19 @@ def _get(heuristic: dict[str, Any], path: str) -> Any:
 
 
 def _child(node: Any, segment: str, path: str) -> Any:
+    """One step along a path: an item of a list, or an argument of a heuristic.
+
+    Args:
+        node: The list or heuristic.
+        segment: The index or argument's name.
+        path: The whole path, for the error.
+
+    Returns:
+        The item or argument.
+
+    Raises:
+        ProjectError: There is nothing at ``segment``.
+    """
     if isinstance(node, list) and segment.isdigit() and int(segment) < len(node):
         return node[int(segment)]
     if isinstance(node, dict) and segment in node:
@@ -285,6 +424,15 @@ def _child(node: Any, segment: str, path: str) -> Any:
 
 
 def with_values(heuristic: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+    """A copy of a heuristic with values set at their paths; None leaves an argument as it is.
+
+    Args:
+        heuristic: The heuristic's dict.
+        values: Each value, by path.
+
+    Returns:
+        The copy.
+    """
     result = copy.deepcopy(heuristic)
     for path, value in values.items():
         if value is None:
@@ -302,6 +450,30 @@ def with_values(heuristic: dict[str, Any], values: dict[str, Any]) -> dict[str, 
 
 @dataclass
 class Tuning:
+    """A race of settings on the benchmark, and what it found.
+
+    Attributes:
+        id: The tuning's number among the project's; 0 until it is kept.
+        rev: The revision tuned.
+        spec: The benchmark's runs, seed and budget.
+        side: The revision, with the variant whose own settings the others are measured against.
+        space: The parameters of each variant raced, that variant first.
+        variants: The revision's variants, by label.
+        budget: The runs the race may make.
+        seed: The race's seed.
+        instances: The train instances, each with its content.
+        settings: Every setting drawn.
+        iterations: Per iteration: the ids raced, the tasks raced, and the elites it kept.
+        used: The runs made.
+        higher_is_better: The direction the objectives are ranked in.
+        elites: The elites of the last iteration, best first.
+        written: Whether the best settings were written into solve.json.
+        validation: The evaluation that checked them on validation, if any.
+        signs: What the race shows that settings cannot fix.
+        progress: Called as runs finish, if given.
+        done: The runs finished, for the progress.
+    """
+
     id: int
     rev: int
     spec: bench.BenchSpec
@@ -328,10 +500,12 @@ class Tuning:
 
     @property
     def default(self) -> Setting:
+        """The revision's own settings, which the others are measured against."""
         return self.settings[0]
 
     @property
     def best(self) -> Setting:
+        """The best elite."""
         return self.elites[0]
 
     @property
@@ -345,14 +519,41 @@ class Tuning:
         return sum(len(p) for p in self.space.values()) + (len(self.space) if self.choosing else 0)
 
     def heuristic(self, s: Setting) -> dict[str, Any]:
+        """The heuristic a setting runs.
+
+        Args:
+            s: The setting.
+
+        Returns:
+            The variant's heuristic with the setting's values.
+        """
         return with_values(self.variants[s.variant].heuristic, s.values)
 
     def describe(self, s: Setting) -> str:
+        """A setting in words, with its variant when the race chooses among several.
+
+        Args:
+            s: The setting.
+
+        Returns:
+            The words.
+        """
         return f"{s.variant}: {s.describe()}" if self.choosing else s.describe()
 
     def near(self, parent: Setting, spread: float, rng: random.Random) -> tuple[str, dict]:
-        """A setting drawn around ``parent``: of another variant now and then, its parameters
-        then drawn anew, since they do not carry over."""
+        """A setting drawn around ``parent``.
+
+        Now and then it is of another variant, its parameters then drawn anew, since they do not
+        carry over.
+
+        Args:
+            parent: The elite to draw around.
+            spread: How far to draw, as a share of each space's width.
+            rng: The random source.
+
+        Returns:
+            The variant's label and the values drawn.
+        """
         label = parent.variant
         if self.choosing and rng.random() < spread:
             label = rng.choice(list(self.space))
@@ -363,16 +564,39 @@ class Tuning:
         }
 
     def task(self, t: int) -> tuple[bench.BenchInstance, dict[str, Any], int]:
-        """Task ``t``: every train instance in turn, under the next seed after each round."""
+        """Task ``t``: every train instance in turn, under the next seed after each round.
+
+        Args:
+            t: The task's number.
+
+        Returns:
+            The instance's entry, its content, and the seed.
+        """
         entry, instance = self.instances[t % len(self.instances)]
         return entry, instance, self.spec.seed + t // len(self.instances)
 
     def score(self, objective: float) -> float:
+        """An objective on a scale where lower is better.
+
+        Args:
+            objective: The objective.
+
+        Returns:
+            The objective, negated when higher is better.
+        """
         return -objective if self.higher_is_better else objective
 
     def gain(self, s: Setting) -> tuple[float, int] | None:
-        """The mean gain of ``s`` over the revision's settings on the tasks both ran, relative to
-        the revision's objective (+ is better), and how many those are."""
+        """The mean gain of ``s`` over the revision's settings on the tasks both ran.
+
+        The gain is relative to the revision's objective; positive is better.
+
+        Args:
+            s: The setting.
+
+        Returns:
+            The mean gain and the number of tasks both ran, or None when they share none.
+        """
         shared = [t for t in s.results if t in self.default.results]
         if not shared:
             return None
@@ -384,6 +608,11 @@ class Tuning:
         return statistics.fmean(gains), len(shared)
 
     def to_json(self) -> dict[str, Any]:
+        """The tuning's record, as kept in ``bench/tunings``.
+
+        Returns:
+            The record.
+        """
         return {
             "id": self.id,
             "rev": self.rev,
@@ -435,6 +664,12 @@ class Tuning:
 
 
 def _keep(project: Project, tuning: Tuning) -> None:
+    """Keeps the tuning's record, numbering it the first time.
+
+    Args:
+        project: The project.
+        tuning: The tuning.
+    """
     # The id is taken when the record is first written, so tunings that overlap get their own.
     if not tuning.id:
         tuning.id = bench.next_id(bench.tunings_dir(project))
@@ -442,6 +677,20 @@ def _keep(project: Project, tuning: Tuning) -> None:
 
 
 def parse_space(space: Any, heuristic: dict[str, Any], empty: bool = False) -> list[Parameter]:
+    """Reads one variant's parameters and checks them against its heuristic.
+
+    Args:
+        space: The parameters, as the agent gave them.
+        heuristic: The variant's heuristic.
+        empty: Whether no parameters is allowed, as for a variant only chosen among.
+
+    Returns:
+        The parameters.
+
+    Raises:
+        ProjectError: The space is not a list of parameters, names one twice, or names an argument
+            the heuristic does not have.
+    """
     if not isinstance(space, list) or not (space or empty):
         raise ProjectError("give the space as a list of parameters")
     try:
@@ -457,8 +706,23 @@ def parse_space(space: Any, heuristic: dict[str, Any], empty: bool = False) -> l
 
 
 def parse_spaces(space: Any, side: bench.Side, where: str) -> dict[str, list[Parameter]]:
-    """The space of one variant, a list of parameters, as the parameters of each variant to
-    choose among, a dict by label whose first is the side's."""
+    """The parameters of each variant to race.
+
+    A list is the parameters of the side's variant alone; a dict by label gives each variant's, the
+    side's first, to choose among them.
+
+    Args:
+        space: The space, as the agent gave it.
+        side: The revision, with the variant the others are measured against.
+        where: Whose solve.json it is, in words.
+
+    Returns:
+        Each variant's parameters, by label.
+
+    Raises:
+        ProjectError: A variant does not exist, its parameters do not fit, or there is nothing to
+            tune.
+    """
     if not isinstance(space, dict):
         return {side.variant.label: parse_space(space, side.variant.heuristic)}
     variants = {v.label: v for v in variants_of(side.solve)}
@@ -484,9 +748,28 @@ async def tune(
     seed: int | None = None,
     progress: bench.Progress | None = None,
 ) -> Tuning:
-    """Races settings of revision ``rev`` on the train split with ``budget`` runs, and keeps the
-    record in ``bench/tunings``. ``space`` is a list of the parameters of ``variant``, or a dict
-    of each variant's parameters to choose among them, the first the one to measure against."""
+    """Races settings of revision ``rev`` on the train split and keeps the record.
+
+    The record is kept in ``bench/tunings``. ``space`` is a list of the parameters of ``variant``,
+    or a dict of each variant's parameters to choose among them, the first the one to measure
+    against.
+
+    Args:
+        project: The project.
+        rev: The revision whose settings are tuned.
+        space: A list of the parameters of ``variant``, or a dict of each variant's parameters.
+        budget: The runs the race may make.
+        variant: The variant to tune; None when solve.json has only one, or ``space`` is a dict.
+        seed: The race's seed; the benchmark's when None.
+        progress: Called as runs finish, if given.
+
+    Returns:
+        The tuning.
+
+    Raises:
+        ProjectError: The benchmark has no train instances, the space is invalid, the budget is too
+            small, or the revision's own settings fail.
+    """
     spec = bench.load_spec(project)
     entries = bench.instances_of(spec, "train")
     if not entries:
@@ -526,6 +809,15 @@ async def tune(
 
 
 async def _search(tuning: Tuning, rounds: int) -> None:
+    """Iterates the race: draws settings, races them, and keeps the elites.
+
+    Args:
+        tuning: The tuning.
+        rounds: The iterations, and the elites each keeps.
+
+    Raises:
+        ProjectError: Every setting of an iteration failed, or the revision's own did.
+    """
     rng = random.Random(tuning.seed)
     # As many elites survive a round as there are rounds.
     survive = rounds
@@ -534,6 +826,17 @@ async def _search(tuning: Tuning, rounds: int) -> None:
     def add(
         variant: str, values: dict[str, Any], iteration: int, parent: int | None
     ) -> Setting | None:
+        """Adds a setting to the tuning, unless the same one was drawn before.
+
+        Args:
+            variant: The variant's label.
+            values: Each parameter's value.
+            iteration: The iteration it is drawn in.
+            parent: The elite it was drawn around, if any.
+
+        Returns:
+            The setting, or None when it was drawn before.
+        """
         s = Setting(len(tuning.settings), variant, values, iteration, parent)
         if s.key in seen:
             return None
@@ -600,7 +903,24 @@ async def _search(tuning: Tuning, rounds: int) -> None:
 async def _race(
     tuning: Tuning, settings: list[Setting], budget: int, iteration: int, survive: int
 ) -> int:
-    """Races ``settings`` task by task within ``budget`` new runs; returns the tasks raced."""
+    """Races ``settings`` task by task within ``budget`` new runs; returns the tasks raced.
+
+    After ``FIRST_TEST`` tasks, each task ends with a Friedman test that eliminates the settings
+    clearly worse than the best, until ``survive`` are left or the budget is spent.
+
+    Args:
+        tuning: The tuning.
+        settings: The settings to race.
+        budget: The new runs the race may make.
+        iteration: The iteration, recorded with an elimination.
+        survive: How many settings the race may stop at.
+
+    Returns:
+        The number of tasks raced.
+
+    Raises:
+        ProjectError: The revision's own settings fail.
+    """
     used, tasks = 0, 0
     alive = list(settings)
     while True:
@@ -630,6 +950,12 @@ async def _race(
 
 
 async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
+    """Makes the runs needed, grouping the settings that share a task into solves.
+
+    Args:
+        tuning: The tuning.
+        needed: Each setting and the task it runs.
+    """
     by_task: dict[int, list[Setting]] = {}
     for s, t in needed:
         by_task.setdefault(t, []).append(s)
@@ -641,9 +967,25 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
     gate = asyncio.Semaphore(parallel)
 
     async def ignore(_: RunSummary) -> None:
-        pass
+        """Ignores a solve's progress.
+
+        Args:
+            _: The solve so far.
+        """
 
     async def solve(t: int, group: list[Setting]) -> None:
+        """Runs a group of settings on a task, one solve with a variant each.
+
+        When the solve fails at the heuristic or the run, each setting runs again on its own, to
+        find which failed.
+
+        Args:
+            t: The task.
+            group: The settings.
+
+        Raises:
+            ProjectError: The model fails on the task.
+        """
         entry, instance, seed = tuning.task(t)
         side = tuning.side
         variants = [Variant(label=f"#{s.id}", heuristic=tuning.heuristic(s)) for s in group]
@@ -682,9 +1024,15 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
 
 
 def write_best(project: Project, tuning: Tuning) -> None:
-    """Makes the project files revision ``tuning.rev``'s, with the best settings in solve.json;
-    the variant keeps its own stop. A race among variants settled which to solve with, so it
-    becomes solve.json's only heuristic."""
+    """Makes the project files revision ``tuning.rev``'s, with the best settings in solve.json.
+
+    The variant keeps its own stop. A race among variants settled which to solve with, so it becomes
+    solve.json's only heuristic.
+
+    Args:
+        project: The project.
+        tuning: The tuning.
+    """
     project.restore(tuning.rev)
     solve = copy.deepcopy(tuning.side.solve)
     best = tuning.best
@@ -711,8 +1059,27 @@ async def tune_and_check(
     seed: int | None = None,
     progress: bench.Progress | None = None,
 ) -> tuple[Tuning, bench.Evaluation | None]:
-    """``tune``, then, when the best settings are new, writes them into solve.json and judges
-    them against revision ``rev`` on the validation split, if the benchmark has one."""
+    """``tune``, then writes new best settings into solve.json and checks them.
+
+    They are judged against revision ``rev`` on the validation split, if the benchmark has one. The
+    tuning's record is kept even when that fails.
+
+    Args:
+        project: The project.
+        rev: The revision whose settings are tuned.
+        space: A list of the parameters of ``variant``, or a dict of each variant's parameters.
+        budget: The runs the race may make.
+        variant: The variant to tune; None when solve.json has only one, or ``space`` is a dict.
+        seed: The race's seed; the benchmark's when None.
+        progress: Called as runs finish, if given.
+
+    Returns:
+        The tuning, and the evaluation on validation if there was one.
+
+    Raises:
+        ProjectError: The tuning failed, or the evaluation did; then the error says the project
+            files hold the tuned settings.
+    """
     tuning = await tune(project, rev, space, budget, variant, seed, progress)
     if tuning.best is tuning.default:
         return tuning, None
@@ -745,8 +1112,14 @@ async def tune_and_check(
 
 
 def _last_race(t: Tuning) -> tuple[list[Setting], float, list[float]]:
-    """The settings alive at the end of the last race, its Friedman p-value and their mean
-    ranks."""
+    """The settings alive at the end of the last race, its Friedman p-value and their mean ranks.
+
+    Args:
+        t: The tuning.
+
+    Returns:
+        The settings, the p-value, and each setting's mean rank in the settings' order.
+    """
     last = t.iterations[-1]
     alive = [
         s for s in t.settings if s.id in last["raced"] and s.error is None and not s.eliminated
@@ -758,14 +1131,29 @@ def _last_race(t: Tuning) -> tuple[list[Setting], float, list[float]]:
 
 
 def _early(runs: list[RunFinished]) -> float | None:
-    """The mean share of a run's iterations gone when it found its best."""
+    """The mean share of a run's iterations gone when it found its best.
+
+    Args:
+        runs: The runs.
+
+    Returns:
+        The share, or None when no run made an iteration.
+    """
     shares = [r.best_iteration / r.iterations for r in runs if r.iterations > 0]
     return statistics.fmean(shares) if shares else None
 
 
 def signs(t: Tuning) -> list[str]:
-    """What the race shows that settings cannot fix, each with the change of structure it
-    suggests: hints for the agent's next hypothesis, not verdicts."""
+    """What the race shows that settings cannot fix, each with the change of structure it suggests.
+
+    They are hints for the agent's next hypothesis, not verdicts.
+
+    Args:
+        t: The tuning.
+
+    Returns:
+        The signs, as sentences.
+    """
     found = []
     best = t.best
     kind = f" of {best.variant}" if t.choosing else ""
@@ -843,6 +1231,15 @@ def signs(t: Tuning) -> list[str]:
 
 
 def report(tuning: Tuning, evaluation: bench.Evaluation | None) -> str:
+    """What the agent reads of a tuning.
+
+    Args:
+        tuning: The tuning.
+        evaluation: Its evaluation on validation, if there was one.
+
+    Returns:
+        The report's text: the elites, the failures, the signs, and what became of solve.json.
+    """
     t = tuning
     budget = bench.describe_budget(t.spec)
     raced = f"variants {', '.join(t.space)}" if t.choosing else f"variant {t.side.variant.label}"
@@ -900,6 +1297,15 @@ def report(tuning: Tuning, evaluation: bench.Evaluation | None) -> str:
 
 
 def _gain(t: Tuning, s: Setting) -> str:
+    """A setting's gain over the revision's settings, in words.
+
+    Args:
+        t: The tuning.
+        s: The setting.
+
+    Returns:
+        The words.
+    """
     if s is t.default:
         return "the revision's settings"
     gain = t.gain(s)
@@ -907,7 +1313,14 @@ def _gain(t: Tuning, s: Setting) -> str:
 
 
 def describe(project: Project) -> list[str]:
-    """A line per tuning, for bench_list."""
+    """A line per tuning, for bench_list.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The lines of the last ten tunings.
+    """
     lines = []
     for r in bench.tunings(project)[-10:]:
         best = next((s for s in r["settings"] if s["id"] == r["best"]), None) or {}

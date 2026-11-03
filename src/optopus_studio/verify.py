@@ -32,23 +32,49 @@ STAT_TOLERANCE = 0.05
 
 @dataclass
 class Verdict:
+    """What a check of a port found, line by line.
+
+    Attributes:
+        ok: Whether every check passed so far.
+        lines: The report's lines, failures prefixed with ``FAIL``.
+    """
+
     ok: bool = True
     lines: list[str] = field(default_factory=list)
 
     def fail(self, line: str) -> None:
+        """Records a failed check.
+
+        Args:
+            line: What failed.
+        """
         self.ok = False
         self.lines.append(f"FAIL {line}")
 
     def note(self, line: str) -> None:
+        """Records a passed check or a measurement.
+
+        Args:
+            line: What was found.
+        """
         self.lines.append(line)
 
     @property
     def text(self) -> str:
+        """The report: PASS or FAIL, then every line."""
         head = "PASS" if self.ok else "FAIL"
         return "\n".join([f"verification: {head}", *self.lines])
 
 
 def has_time_limit(spec: Any) -> bool:
+    """Whether a heuristic, or one nested in it, stops after a time limit.
+
+    Args:
+        spec: A heuristic's dict, or any value nested in one.
+
+    Returns:
+        True when some ``stop`` has a ``max_duration_secs``.
+    """
     if isinstance(spec, dict):
         stop = spec.get("stop")
         if isinstance(stop, dict) and stop.get("max_duration_secs") is not None:
@@ -60,11 +86,26 @@ def has_time_limit(spec: Any) -> bool:
 
 
 def _rate(runs: list[RunFinished]) -> float:
+    """How many iterations the runs made per second.
+
+    Args:
+        runs: The runs to measure.
+
+    Returns:
+        The iterations per second; infinity when the runs took no time.
+    """
     seconds = sum(r.total_time_secs for r in runs)
     return sum(r.iterations for r in runs) / seconds if seconds > 0 else math.inf
 
 
 def _exact(py: RunSummary, rs: RunSummary, verdict: Verdict) -> None:
+    """Checks that every run of the port matches the Python worker's, step for step.
+
+    Args:
+        py: The Python worker's solve.
+        rs: The Rust worker's solve, with the same request and seeds.
+        verdict: The verdict to record the outcome in.
+    """
     for p, r in zip(py.runs, rs.runs, strict=True):
         fields = {
             "seed": (p.seed, r.seed),
@@ -86,6 +127,13 @@ def _exact(py: RunSummary, rs: RunSummary, verdict: Verdict) -> None:
 
 
 def _stat(py: RunSummary, rs: RunSummary, verdict: Verdict) -> None:
+    """Checks, per heuristic, that the port's mean objective is no worse than Python's by much.
+
+    Args:
+        py: The Python worker's solve.
+        rs: The Rust worker's solve, with the same request and seeds.
+        verdict: The verdict to record the outcome in.
+    """
     for index, label in enumerate(py.variants):
         p_runs = [r for r in py.runs if r.variant == index]
         r_runs = [r for r in rs.runs if r.variant == index]
@@ -109,8 +157,25 @@ def _stat(py: RunSummary, rs: RunSummary, verdict: Verdict) -> None:
 async def verify(
     request: SolveRequest, binary: Path, cwd: Path, view_path: Path, timeout: float
 ) -> Verdict:
+    """Checks a Rust port against the Python model it replaces.
+
+    Args:
+        request: The solve both workers run.
+        binary: The port's worker binary.
+        cwd: The project's directory, where the workers run.
+        view_path: The project's ``view.py``, which must render the port's result.
+        timeout: How long each solve may take, in seconds.
+
+    Returns:
+        The verdict, with a line per check and the port's speed.
+    """
+
     async def ignore(_: RunSummary) -> None:
-        pass
+        """Ignores a solve's progress.
+
+        Args:
+            _: The solve so far.
+        """
 
     verdict = Verdict()
     py = await run_solve(request, 0, cwd, ignore, timeout)

@@ -1,9 +1,9 @@
-"""The agent on Claude: a Claude Agent SDK client, with the studio's tools as an in-process MCP
-server (docs/adr/0003).
+"""The agent on Claude: a Claude Agent SDK client, with the studio's tools as an MCP server.
 
-Authentication is Claude Code's: the SDK runs the bundled Claude Code CLI, which uses the login
-in ``~/.claude``. ``optopus_studio.cli`` removes ``ANTHROPIC_API_KEY`` from the environment
-before anything starts, so a key that happens to be exported is not used instead.
+The tools are an in-process MCP server (docs/adr/0003). Authentication is Claude Code's: the SDK
+runs the bundled Claude Code CLI, which uses the login in ``~/.claude``. ``optopus_studio.cli``
+removes ``ANTHROPIC_API_KEY`` from the environment before anything starts, so a key that happens to
+be exported is not used instead.
 """
 
 from __future__ import annotations
@@ -43,6 +43,17 @@ WEB_TOOLS = {"WebSearch": "web_search", "WebFetch": "web_fetch"}
 def options(
     specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False
 ) -> ClaudeAgentOptions:
+    """The SDK's options: the studio's tools only, plus web search when the project allows it.
+
+    Args:
+        specs: The studio's tools.
+        cwd: The project's directory.
+        resume: The session to resume, if any.
+        web: Whether the agent may search and fetch the web (docs/adr/0016).
+
+    Returns:
+        The options.
+    """
     tools = [tool(s.name, s.description, s.input_schema)(s.call) for s in specs]
     web_tools = list(WEB_TOOLS) if web else []
     return ClaudeAgentOptions(
@@ -65,19 +76,40 @@ def options(
 
 
 class ClaudeBackend:
+    """The agent's session on Claude."""
+
     def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False):
+        """Prepares a client; ``open`` connects it.
+
+        Args:
+            specs: The studio's tools.
+            cwd: The project's directory.
+            resume: The session to resume, if any.
+            web: Whether the agent may search and fetch the web.
+        """
         self.client = ClaudeSDKClient(options(specs, cwd, resume, web))
 
     async def open(self) -> None:
+        """Connects to Claude Code."""
         await self.client.connect()
 
     async def close(self) -> None:
+        """Disconnects from Claude Code."""
         await self.client.disconnect()
 
     async def interrupt(self) -> None:
+        """Stops the turn in progress."""
         await self.client.interrupt()
 
     async def turn(self, text: str) -> AsyncIterator[AgentEvent]:
+        """Sends the user's message and streams the turn.
+
+        Args:
+            text: The user's message.
+
+        Yields:
+            What the chat shows of the turn, ending with the turn's result.
+        """
         await self.client.query(text)
         async for message in self.client.receive_response():
             for event in events(message):
@@ -85,6 +117,14 @@ class ClaudeBackend:
 
 
 def events(message: Any) -> list[AgentEvent]:
+    """What the chat shows of one message from the SDK.
+
+    Args:
+        message: A message of the SDK's stream.
+
+    Returns:
+        Text as it streams, whole texts, tool calls and the turn's result; empty for the rest.
+    """
     if isinstance(message, StreamEvent):
         event = message.event
         delta = event.get("delta") or {}

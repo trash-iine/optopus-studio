@@ -117,6 +117,7 @@
     },
     "BenchInstance": {
       "additionalProperties": false,
+      "description": "One instance of the benchmark, kept under bench/instances.",
       "properties": {
         "name": {
           "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$",
@@ -154,6 +155,7 @@
     },
     "BenchInstanceResult": {
       "additionalProperties": false,
+      "description": "How the candidate did against the baseline on one instance.",
       "properties": {
         "baseline": {
           "description": "The baseline's mean best objective.",
@@ -388,6 +390,7 @@
     },
     "BenchSide": {
       "additionalProperties": false,
+      "description": "One side of an evaluation: whose files, which heuristic, which worker.",
       "properties": {
         "rev": {
           "anyOf": [
@@ -600,7 +603,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation, tuning and profile on\nit.",
+  "description": "GET /api/projects/{id}/bench: the benchmark and every evaluation, tuning and profile.",
   "properties": {
     "evaluations": {
       "items": {

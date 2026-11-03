@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Strict(BaseModel):
+    """A contract's base: unknown fields are rejected, and defaults are always sent."""
+
     # In the serialization schemas a field with a default is still always present, so the
     # generated TypeScript types can narrow unions on `type`.
     model_config = ConfigDict(extra="forbid", json_schema_serialization_defaults_required=True)
@@ -65,6 +67,8 @@ class SolveRequest(Strict):
 
 
 class Started(Strict):
+    """The worker built the problem and its heuristics, and the runs begin."""
+
     type: Literal["started"] = "started"
     runs: int = Field(description="Runs per variant.")
     variants: list[str] = Field(description="The variants' labels, in the order they run.")
@@ -87,6 +91,8 @@ class Progress(Strict):
 
 
 class RunFinished(Strict):
+    """One run's outcome: its best solution, objective, and how the search went."""
+
     type: Literal["run_finished"] = "run_finished"
     run: int = Field(description="The run's position among all runs of the solve, from 0.")
     variant: int = Field(description="The index of the variant the run belongs to.")
@@ -124,12 +130,16 @@ class RunFinished(Strict):
 
 
 class Done(Strict):
+    """Every run has finished; the best of them."""
+
     type: Literal["done"] = "done"
     best_run: int
     best_objective: float
 
 
 class WorkerError(Strict):
+    """A solve failed, at the stage it failed at."""
+
     type: Literal["error"] = "error"
     stage: Literal["request", "build", "heuristic", "start", "run", "encode"]
     message: str
@@ -164,18 +174,24 @@ class EvaluateRequest(Strict):
 
 
 class KpiItem(Strict):
+    """One figure of a KPI view."""
+
     label: str
     value: float | int | str
     unit: str | None = None
 
 
 class KpiView(Strict):
+    """A row of headline figures."""
+
     type: Literal["kpi"] = "kpi"
     title: str | None = None
     items: list[KpiItem]
 
 
 class TableView(Strict):
+    """A table of rows."""
+
     type: Literal["table"] = "table"
     title: str | None = None
     columns: list[str]
@@ -183,6 +199,8 @@ class TableView(Strict):
 
 
 class GanttTask(Strict):
+    """One task of a Gantt chart: a bar on a lane, from its start to its end."""
+
     lane: str = Field(description="The row the task is drawn on, such as a machine or a person.")
     label: str
     start: float
@@ -191,6 +209,8 @@ class GanttTask(Strict):
 
 
 class GanttView(Strict):
+    """A Gantt chart, such as a schedule of jobs on machines."""
+
     type: Literal["gantt"] = "gantt"
     title: str | None = None
     tasks: list[GanttTask]
@@ -198,6 +218,8 @@ class GanttView(Strict):
 
 
 class MapPoint(Strict):
+    """A point on a route map, such as a city or a depot."""
+
     id: int | str
     x: float
     y: float
@@ -206,11 +228,15 @@ class MapPoint(Strict):
 
 
 class Route(Strict):
+    """One route on a map: the points it visits, in order."""
+
     path: list[int | str] = Field(description="Point ids in visiting order.")
     label: str | None = None
 
 
 class RouteMapView(Strict):
+    """Points on a plane and the routes that visit them."""
+
     type: Literal["route_map"] = "route_map"
     title: str | None = None
     points: list[MapPoint]
@@ -219,6 +245,8 @@ class RouteMapView(Strict):
 
 
 class GraphNode(Strict):
+    """A node of a graph view; without x and y, the GUI lays it out."""
+
     id: int | str
     label: str | None = None
     group: str | None = Field(None, description="Nodes of one group share a color.")
@@ -227,6 +255,8 @@ class GraphNode(Strict):
 
 
 class GraphEdge(Strict):
+    """An edge of a graph view, which may be highlighted, such as one in the solution."""
+
     source: int | str
     target: int | str
     weight: float | None = None
@@ -234,6 +264,8 @@ class GraphEdge(Strict):
 
 
 class GraphView(Strict):
+    """A graph of nodes and edges, such as a cut or a coloring."""
+
     type: Literal["graph"] = "graph"
     title: str | None = None
     nodes: list[GraphNode]
@@ -241,11 +273,15 @@ class GraphView(Strict):
 
 
 class BarSeries(Strict):
+    """One series of a bar chart: a value per category."""
+
     name: str
     values: list[float]
 
 
 class BarView(Strict):
+    """A bar chart."""
+
     type: Literal["bar"] = "bar"
     title: str | None = None
     categories: list[str]
@@ -254,12 +290,16 @@ class BarView(Strict):
 
 
 class MarkdownView(Strict):
+    """Text in Markdown."""
+
     type: Literal["markdown"] = "markdown"
     title: str | None = None
     text: str
 
 
 class CustomHtmlView(Strict):
+    """Anything the other views cannot draw, as a document in a sandboxed iframe."""
+
     type: Literal["custom_html"] = "custom_html"
     title: str | None = None
     html: str = Field(description="A whole document, drawn in a sandboxed iframe with scripts on.")
@@ -280,6 +320,8 @@ View = Annotated[
 
 
 class ViewSpec(Strict):
+    """What a project's ``view.py`` hands the GUI to draw: views, top to bottom."""
+
     views: list[View]
 
 
@@ -319,6 +361,8 @@ class RunSummary(Strict):
 
 
 class ChatEntry(Strict):
+    """One entry of the conversation as the GUI shows it."""
+
     role: Literal["user", "assistant", "tool"]
     text: str
 
@@ -328,50 +372,68 @@ AgentName = Literal["claude", "codex"]
 
 
 class AgentChoice(Strict):
+    """An agent a project's chat can run on, and whether it can run here."""
+
     name: AgentName
     available: bool
     reason: str | None = Field(None, description="Why the agent cannot run here, if it cannot.")
 
 
 class AssistantDelta(Strict):
+    """Text of the agent's reply as it streams."""
+
     type: Literal["assistant_delta"] = "assistant_delta"
     text: str
 
 
 class AssistantText(Strict):
+    """A whole text of the agent's reply."""
+
     type: Literal["assistant_text"] = "assistant_text"
     text: str
 
 
 class ToolActivity(Strict):
+    """A tool the agent called, and what it called it with, in a few words."""
+
     type: Literal["tool"] = "tool"
     name: str
     summary: str
 
 
 class TurnEnd(Strict):
+    """The agent finished its turn, or failed it."""
+
     type: Literal["turn_end"] = "turn_end"
     error: str | None = None
 
 
 class FilesChanged(Strict):
+    """The work files changed: all of them, as they are now."""
+
     type: Literal["files"] = "files"
     files: dict[str, str]
 
 
 class SolveStarted(Strict):
+    """A solve of a new revision began."""
+
     type: Literal["solve_started"] = "solve_started"
     rev: int
     runs: int
 
 
 class SolveProgress(Strict):
+    """How a solve stands, after each event of its worker."""
+
     type: Literal["solve_progress"] = "solve_progress"
     rev: int
     summary: RunSummary
 
 
 class ViewUpdated(Strict):
+    """What a revision's ``view.py`` drew, or why it failed."""
+
     type: Literal["view"] = "view"
     rev: int
     view: ViewSpec | None
@@ -395,8 +457,10 @@ class BenchProgress(Strict):
 
 
 class BenchChanged(Strict):
-    """The benchmark, its evaluations, tunings or profiles changed: GET
-    /api/projects/{id}/bench."""
+    """The benchmark, its evaluations, tunings or profiles changed.
+
+    The browser reads them again from GET /api/projects/{id}/bench.
+    """
 
     type: Literal["bench_changed"] = "bench_changed"
 
@@ -474,25 +538,35 @@ class ProjectInfo(Strict):
 
 
 class UserMessage(Strict):
+    """A message the user sent to the agent."""
+
     type: Literal["user_message"] = "user_message"
     text: str = Field(min_length=1)
 
 
 class SelectRevision(Strict):
+    """The user chose a revision to show."""
+
     type: Literal["select_revision"] = "select_revision"
     rev: int
 
 
 class Interrupt(Strict):
+    """The user stopped the agent's turn."""
+
     type: Literal["interrupt"] = "interrupt"
 
 
 class SelectAgent(Strict):
+    """The user chose another agent for the project's chat."""
+
     type: Literal["select_agent"] = "select_agent"
     agent: AgentName
 
 
 class SetWebSearch(Strict):
+    """The user let the agent search the web, or stopped it."""
+
     type: Literal["set_web_search"] = "set_web_search"
     enabled: bool
 
@@ -511,6 +585,8 @@ PARAMETER_TARGET = r"^(instance(\.[^.]+)+|solve\.(max_duration_secs|runs|seed))$
 
 
 class AppColumn(Strict):
+    """A column every row of an app's input must have."""
+
     name: str = Field(min_length=1)
     type: Literal["number", "integer", "string", "boolean"] | None = Field(
         None, description="Checked in every row when given."
@@ -552,8 +628,10 @@ class AppParameter(Strict):
 
 
 class AppSpec(Strict):
-    """app.json: what a packaged app lets its user change. Everything else is fixed, and is
-    changed in the studio."""
+    """app.json: what a packaged app lets its user change.
+
+    Everything else is fixed, and is changed in the studio.
+    """
 
     title: str = Field(min_length=1)
     description: str | None = None
@@ -574,6 +652,8 @@ class AppInfo(Strict):
 
 
 class CaseInput(Strict):
+    """A file the app's user gave for one input of a case."""
+
     key: str
     file: str
     rows: int | None = Field(description="The number of rows read, for a table.")
@@ -604,6 +684,8 @@ BENCH_NAME = r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$"
 
 
 class BenchInstance(Strict):
+    """One instance of the benchmark, kept under bench/instances."""
+
     name: str = Field(pattern=BENCH_NAME)
     split: Literal["train", "validation"] = Field(
         description="Candidates are chosen on train; the final choice is checked on validation."
@@ -632,6 +714,8 @@ Verdict = Literal["better", "mixed", "same", "worse", "rejected", "failed"]
 
 
 class BenchSide(Strict):
+    """One side of an evaluation: whose files, which heuristic, which worker."""
+
     where: str = Field(description="'the work files' or 'revision <n>'.")
     rev: int | None
     variant: str
@@ -639,6 +723,8 @@ class BenchSide(Strict):
 
 
 class BenchInstanceResult(Strict):
+    """How the candidate did against the baseline on one instance."""
+
     name: str
     gain: float = Field(
         description="The mean gain over the paired runs, relative to the "
@@ -733,8 +819,7 @@ class BenchProfile(Strict):
 
 
 class BenchState(Strict):
-    """GET /api/projects/{id}/bench: the benchmark, and every evaluation, tuning and profile on
-    it."""
+    """GET /api/projects/{id}/bench: the benchmark and every evaluation, tuning and profile."""
 
     spec: BenchSpec
     evaluations: list[BenchEvaluation]

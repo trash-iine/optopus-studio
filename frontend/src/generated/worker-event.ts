@@ -71,6 +71,9 @@ export type Stage = "request" | "build" | "heuristic" | "start" | "run" | "encod
 export type Traceback = string | null;
 export type Type4 = "error";
 
+/**
+ * The worker built the problem and its heuristics, and the runs begin.
+ */
 export interface Started {
   higher_is_better: HigherIsBetter;
   native: Native;
@@ -89,6 +92,9 @@ export interface Progress {
   type: Type1;
   variant: Variant;
 }
+/**
+ * One run's outcome: its best solution, objective, and how the search went.
+ */
 export interface RunFinished {
   best_iteration: BestIteration;
   best_objective: BestObjective;
@@ -113,11 +119,17 @@ export interface RunFinished {
 export interface Solution {
   [k: string]: unknown;
 }
+/**
+ * Every run has finished; the best of them.
+ */
 export interface Done {
   best_objective: BestObjective1;
   best_run: BestRun;
   type: Type3;
 }
+/**
+ * A solve failed, at the stage it failed at.
+ */
 export interface WorkerError {
   message: Message;
   stage: Stage;

@@ -42,8 +42,9 @@ export type Parameters = AppParameter[];
 export type Title = string;
 
 /**
- * app.json: what a packaged app lets its user change. Everything else is fixed, and is
- * changed in the studio.
+ * app.json: what a packaged app lets its user change.
+ *
+ * Everything else is fixed, and is changed in the studio.
  */
 export interface AppSpec {
   description?: Description;
@@ -61,6 +62,9 @@ export interface AppInput {
   label: Label;
   required?: Required1;
 }
+/**
+ * A column every row of an app's input must have.
+ */
 export interface AppColumn {
   description?: Description1;
   name: Name;

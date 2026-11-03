@@ -1,13 +1,13 @@
-"""The agent on Codex: a ``codex app-server`` per session, spoken to as JSON-RPC over its stdin
-and stdout, with the studio's tools as dynamic tools (docs/adr/0012).
+"""The agent on Codex: a ``codex app-server`` per session, spoken to as JSON-RPC.
 
-Codex calls a dynamic tool by asking the client (``item/tool/call``), so the tools run here, in
-the studio's process, as they do for Claude. Its own tools (shell, apply_patch, web search, MCP,
-images, plugins) are turned off with ``-c`` overrides, and the thread runs read-only with no
-approvals; a request for one is answered with an error.
+The studio speaks to it over its stdin and stdout, with the studio's tools as dynamic tools
+(docs/adr/0012). Codex calls a dynamic tool by asking the client (``item/tool/call``), so the tools
+run here, in the studio's process, as they do for Claude. Its own tools (shell, apply_patch, web
+search, MCP, images, plugins) are turned off with ``-c`` overrides, and the thread runs read-only
+with no approvals; a request for one is answered with an error.
 
-Authentication is the Codex login (``codex login``, kept in ``$CODEX_HOME``). The app-server
-starts without ``OPENAI_API_KEY`` and ``CODEX_API_KEY``, so an exported key is not used instead.
+Authentication is the Codex login (``codex login``, kept in ``$CODEX_HOME``). The app-server starts
+without ``OPENAI_API_KEY`` and ``CODEX_API_KEY``, so an exported key is not used instead.
 """
 
 from __future__ import annotations
@@ -77,16 +77,33 @@ UNSUPPORTED = "optopus-studio does not offer this; ask the user in your reply in
 
 
 def codex_binary() -> str | None:
+    """Finds the Codex CLI: ``OPTOPUS_STUDIO_CODEX``, or ``codex`` on the PATH.
+
+    Returns:
+        The executable's path, or None when there is none.
+    """
     return shutil.which(os.environ.get("OPTOPUS_STUDIO_CODEX") or "codex")
 
 
 def codex_home() -> Path:
+    """Codex's home: ``CODEX_HOME``, or ``~/.codex``.
+
+    Returns:
+        The directory's path.
+    """
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
 @functools.cache
 def version_of(binary: str) -> tuple[int, ...] | str:
-    """``codex --version`` as numbers, or why it could not be read."""
+    """``codex --version`` as numbers, or why it could not be read.
+
+    Args:
+        binary: The Codex executable.
+
+    Returns:
+        The version's numbers, or the reason as text.
+    """
     try:
         out = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -98,7 +115,11 @@ def version_of(binary: str) -> tuple[int, ...] | str:
 
 
 def codex_unavailable() -> str | None:
-    """Why the agent cannot run on Codex here, or None when it can."""
+    """Why the agent cannot run on Codex here, or None when it can.
+
+    Returns:
+        The reason, or None.
+    """
     binary = codex_binary()
     if binary is None:
         named = os.environ.get("OPTOPUS_STUDIO_CODEX")
@@ -115,6 +136,14 @@ def codex_unavailable() -> str | None:
 
 
 def configured_mcp_servers(home: Path) -> list[str]:
+    """The MCP servers Codex's config names.
+
+    Args:
+        home: Codex's home, which holds ``config.toml``.
+
+    Returns:
+        The servers' names; empty when the config cannot be read.
+    """
     try:
         config = tomllib.loads((home / "config.toml").read_text())
     except (OSError, tomllib.TOMLDecodeError):
@@ -124,8 +153,17 @@ def configured_mcp_servers(home: Path) -> list[str]:
 
 
 def config_overrides(home: Path, web: bool = False) -> list[str]:
-    """The ``-c`` overrides: Codex's own tools off, and the MCP servers of its config too; its
-    web search on when the project lets the agent search the web (docs/adr/0016)."""
+    """The ``-c`` overrides: Codex's own tools off, and the MCP servers of its config too.
+
+    Its web search is on when the project lets the agent search the web (docs/adr/0016).
+
+    Args:
+        home: Codex's home, whose MCP servers are turned off.
+        web: Whether Codex's web search is on.
+
+    Returns:
+        The overrides, each a ``key=value``.
+    """
     overrides = [f"features.{name}=false" for name in FEATURES_OFF] + list(SETTINGS)
     overrides.append(f'web_search="{"live" if web else "disabled"}"')
     overrides += [
@@ -135,6 +173,14 @@ def config_overrides(home: Path, web: bool = False) -> list[str]:
 
 
 def dynamic_tool(spec: ToolSpec) -> dict[str, Any]:
+    """A studio tool as a Codex dynamic tool.
+
+    Args:
+        spec: The tool.
+
+    Returns:
+        The tool's definition for ``thread/start``.
+    """
     return {
         "type": "function",
         "name": spec.name,
@@ -144,6 +190,14 @@ def dynamic_tool(spec: ToolSpec) -> dict[str, Any]:
 
 
 def thread_params(cwd: Path) -> dict[str, Any]:
+    """The parameters a thread starts or resumes with: the system prompt, read-only, no approvals.
+
+    Args:
+        cwd: The project's directory.
+
+    Returns:
+        The parameters, with ``OPTOPUS_STUDIO_CODEX_MODEL`` as the model when it is set.
+    """
     params: dict[str, Any] = {
         "baseInstructions": SYSTEM_PROMPT,
         "cwd": str(cwd),
@@ -156,6 +210,11 @@ def thread_params(cwd: Path) -> dict[str, Any]:
 
 
 def studio_version() -> str:
+    """The installed studio's version, which the app-server is told.
+
+    Returns:
+        The version, or "0" when the studio is not installed as a package.
+    """
     try:
         return importlib.metadata.version("optopus-studio")
     except importlib.metadata.PackageNotFoundError:
@@ -163,11 +222,21 @@ def studio_version() -> str:
 
 
 class RpcError(Exception):
-    pass
+    """An error the app-server answered a request with."""
 
 
 class CodexBackend:
+    """The agent's session on Codex: one app-server and its thread."""
+
     def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False):
+        """Prepares a session; ``open`` starts it.
+
+        Args:
+            specs: The studio's tools, which Codex gets as dynamic tools.
+            cwd: The project's directory.
+            resume: The thread to resume, if any.
+            web: Whether Codex's web search is on (docs/adr/0016).
+        """
         self.specs = {spec.name: spec for spec in specs}
         self.cwd = cwd
         self.web = web
@@ -182,6 +251,12 @@ class CodexBackend:
         self.turn_error: str | None = None
 
     async def open(self) -> None:
+        """Starts the app-server, checks the login, and starts or resumes the thread.
+
+        Raises:
+            AgentError: Codex is missing, too old, or not signed in.
+            SessionLost: The thread to resume is gone.
+        """
         reason = codex_unavailable()
         binary = codex_binary()
         if reason or binary is None:
@@ -231,6 +306,7 @@ class CodexBackend:
             self.thread_id = started["thread"]["id"]
 
     async def close(self) -> None:
+        """Stops the app-server and the tasks that read it."""
         for task in list(self.tasks):
             task.cancel()
         if self.process and self.process.returncode is None:
@@ -242,12 +318,24 @@ class CodexBackend:
                 await self.process.wait()
 
     async def interrupt(self) -> None:
+        """Stops the turn in progress, if there is one."""
         if self.turn_id:
             await self.request(
                 "turn/interrupt", {"threadId": self.thread_id, "turnId": self.turn_id}
             )
 
     async def turn(self, text: str) -> AsyncIterator[AgentEvent]:
+        """Sends the user's message and streams the turn.
+
+        Args:
+            text: The user's message.
+
+        Yields:
+            What the chat shows of the turn, ending with the turn's result.
+
+        Raises:
+            AgentError: The app-server stopped during the turn.
+        """
         # What a late notification left behind belongs to no turn; that Codex stopped still does.
         for _ in range(self.events.qsize()):
             event = self.events.get_nowait()
@@ -277,17 +365,40 @@ class CodexBackend:
     # --- JSON-RPC ------------------------------------------------------------------------------
 
     def spawn(self, coroutine: Any) -> None:
+        """Runs a coroutine as a task the session keeps until it is done or the session closes.
+
+        Args:
+            coroutine: The coroutine.
+        """
         task = asyncio.create_task(coroutine)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
     async def send(self, message: dict[str, Any]) -> None:
+        """Writes one JSON-RPC message to the app-server.
+
+        Args:
+            message: The message.
+        """
         assert self.process is not None
         assert self.process.stdin is not None
         self.process.stdin.write(json.dumps(message).encode() + b"\n")
         await self.process.stdin.drain()
 
     async def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Sends a JSON-RPC request and waits for its answer.
+
+        Args:
+            method: The request's method.
+            params: The request's parameters.
+
+        Returns:
+            The answer's result.
+
+        Raises:
+            RpcError: The app-server answered with an error.
+            AgentError: The app-server stopped before answering.
+        """
         self.next_id += 1
         future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self.pending[self.next_id] = future
@@ -295,6 +406,7 @@ class CodexBackend:
         return await future
 
     async def read(self) -> None:
+        """Reads the app-server's messages until it stops, and reports that it did."""
         assert self.process is not None
         assert self.process.stdout is not None
         try:
@@ -314,6 +426,7 @@ class CodexBackend:
         self.stopped(AgentError(f"Codex stopped{': ' + tail if tail else ''}"))
 
     async def read_stderr(self) -> None:
+        """Keeps the tail of the app-server's stderr, for when it stops."""
         assert self.process is not None
         assert self.process.stderr is not None
         async for line in self.process.stderr:
@@ -322,6 +435,11 @@ class CodexBackend:
             log.debug("codex: %s", text)
 
     def stopped(self, error: AgentError) -> None:
+        """Fails the waiting requests, and the turn, with the reason the app-server stopped.
+
+        Args:
+            error: Why it stopped.
+        """
         for future in self.pending.values():
             if not future.done():
                 future.set_exception(error)
@@ -329,6 +447,11 @@ class CodexBackend:
         self.events.put_nowait(error)
 
     def resolve(self, message: dict[str, Any]) -> None:
+        """Hands an answer to the request waiting for it.
+
+        Args:
+            message: The answer.
+        """
         future = self.pending.pop(message.get("id"), None)  # type: ignore[arg-type]
         if future is None or future.done():
             return
@@ -338,6 +461,12 @@ class CodexBackend:
             future.set_result(message.get("result") or {})
 
     def notice(self, method: str, params: dict[str, Any]) -> None:
+        """Turns a notification about this thread into what the chat shows.
+
+        Args:
+            method: The notification's method.
+            params: The notification's parameters.
+        """
         if params.get("threadId") != self.thread_id:
             return
         if method == "item/agentMessage/delta":
@@ -358,6 +487,11 @@ class CodexBackend:
             self.events.put_nowait(TurnResult(session_id=self.thread_id, error=error))
 
     async def answer(self, message: dict[str, Any]) -> None:
+        """Answers a request from the app-server: runs a studio tool, or refuses anything else.
+
+        Args:
+            message: The request.
+        """
         method, params = message["method"], message.get("params") or {}
         if method != "item/tool/call":
             await self.send(

@@ -1,5 +1,8 @@
-"""``optopus-studio``: start the studio on localhost; ``optopus-studio app <package>`` runs a
-packaged app instead, and ``optopus-studio image <package>`` builds the app's Docker image."""
+"""``optopus-studio``: start the studio on localhost, run a packaged app, or build its image.
+
+``optopus-studio app <package>`` runs a packaged app instead of the studio, and ``optopus-studio
+image <package>`` builds the app's Docker image.
+"""
 
 from __future__ import annotations
 
@@ -16,10 +19,16 @@ CREDENTIAL_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
 
 def use_claude_code_login() -> list[str]:
+    """Drops the Anthropic credentials from the environment, so the agent uses Claude Code's login.
+
+    Returns:
+        The names of the variables that were set and are now dropped.
+    """
     return [name for name in CREDENTIAL_VARIABLES if os.environ.pop(name, None) is not None]
 
 
 def main() -> None:
+    """Parses the command line and runs the studio, an app, or an image build."""
     parser = argparse.ArgumentParser(description="Chat-driven optimization studio on optopus.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
@@ -108,7 +117,16 @@ def main() -> None:
 
 
 def check_app(parser: argparse.ArgumentParser, package: Path, self_test: bool) -> None:
-    """What an app's image runs while it is built (docker/app.Dockerfile)."""
+    """What an app's image runs while it is built (docker/app.Dockerfile).
+
+    Opens the package, then builds its Rust port or, with ``self_test``, solves its packaged data
+    once. Exits with status 1 when the package cannot be opened or solved.
+
+    Args:
+        parser: The command line's parser, to exit through.
+        package: The package's zip, or the folder it unpacked into.
+        self_test: Whether to solve the packaged data instead of only building the port.
+    """
     from optopus_studio.apps import App
     from optopus_studio.projects import ProjectError
 
@@ -126,6 +144,14 @@ def check_app(parser: argparse.ArgumentParser, package: Path, self_test: bool) -
 
 
 def build_image(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Builds a packaged app's Docker image and says how to run it.
+
+    Exits with status 1 when the image cannot be built.
+
+    Args:
+        parser: The command line's parser, to exit through.
+        args: The parsed arguments of ``optopus-studio image``.
+    """
     from optopus_studio.image import DEFAULT_PLATFORM, build_image, run_command
     from optopus_studio.projects import ProjectError
 

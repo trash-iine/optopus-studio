@@ -1,9 +1,9 @@
-"""An app's Docker image (docs/adr/0010): a package with everything it runs on, so whoever runs
-it needs Docker and nothing else.
+"""An app's Docker image (docs/adr/0010): a package with everything it runs on.
 
-``docker/app.Dockerfile`` installs the studio without the agent, builds the frontend and the
-package's Rust port, and solves the packaged data once before the image is done.
-``build_image`` runs it on a package and can save the image as a tar to hand over.
+Whoever runs it needs Docker and nothing else. ``docker/app.Dockerfile`` installs the studio without
+the agent, builds the frontend and the package's Rust port, and solves the packaged data once before
+the image is done. ``build_image`` runs it on a package and can save the image as a tar to hand
+over.
 """
 
 from __future__ import annotations
@@ -27,10 +27,26 @@ _TAG = re.compile(r"\A[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?
 
 
 def default_tag(manifest: dict[str, Any]) -> str:
+    """The image's tag when none is given: ``optopus-app-<project>:r<rev>``.
+
+    Args:
+        manifest: The package's manifest.
+
+    Returns:
+        The tag.
+    """
     return f"optopus-app-{manifest['project']}:r{manifest['rev']}"
 
 
 def labels(manifest: dict[str, Any]) -> dict[str, str]:
+    """The OCI labels that say which project, revision and optopus an image holds.
+
+    Args:
+        manifest: The package's manifest.
+
+    Returns:
+        Each label's value, by its key.
+    """
     return {
         "org.opencontainers.image.title": manifest["title"],
         "org.opencontainers.image.created": manifest["packaged_at"],
@@ -47,6 +63,18 @@ def build_command(
     platform: str,
     test: bool,
 ) -> list[str]:
+    """The ``docker build`` command line for a package.
+
+    Args:
+        package_dir: The build context that holds the package's zip alone.
+        manifest: The package's manifest, for the labels.
+        tag: The image's tag.
+        platform: The platform to build for, such as ``linux/amd64``.
+        test: Whether the build solves the packaged data once.
+
+    Returns:
+        The command's arguments.
+    """
     command = [
         "docker",
         "build",
@@ -69,7 +97,11 @@ def build_command(
 
 
 def docker_problem() -> str | None:
-    """Why images cannot be built here, if they cannot."""
+    """Why images cannot be built here, if they cannot.
+
+    Returns:
+        What is wrong with Docker, or None when it is installed and running.
+    """
     if shutil.which("docker") is None:
         return "docker is not installed; see https://docs.docker.com/get-docker/"
     ready = subprocess.run(["docker", "info"], capture_output=True, text=True)
@@ -86,7 +118,21 @@ def build_image(
     save: Path | None = None,
     test: bool = True,
 ) -> str:
-    """Builds the image of a package and returns its tag; with ``save``, writes it as a tar."""
+    """Builds the image of a package; with ``save``, also writes it as a tar.
+
+    Args:
+        package: The package's zip, or the folder it unpacked into.
+        tag: The image's tag; ``default_tag`` when None.
+        platform: The platform to build for.
+        save: The tar file to write the image to, if any.
+        test: Whether the build solves the packaged data once.
+
+    Returns:
+        The image's tag.
+
+    Raises:
+        ProjectError: The tag is invalid, Docker is not usable, or the build or save failed.
+    """
     data = read_package(package)
     manifest = package_manifest(data)
     tag = tag or default_tag(manifest)
@@ -108,5 +154,13 @@ def build_image(
 
 
 def run_command(tag: str, volume: str = "optopus-app-data") -> str:
-    """How the image's user starts it: on this machine only, with its cases in a volume."""
+    """How the image's user starts it: on this machine only, with its cases in a volume.
+
+    Args:
+        tag: The image's tag.
+        volume: The Docker volume that keeps the app's cases.
+
+    Returns:
+        The ``docker run`` command line.
+    """
     return f"docker run -d -p 127.0.0.1:{PORT}:{PORT} -v {volume}:/data {tag}"

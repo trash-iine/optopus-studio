@@ -27,7 +27,11 @@ FETCH_TIMEOUT = 15.0
 
 
 def installed_commit() -> str | None:
-    """The optopus-py commit uv built the installed optopus from, if it came from git."""
+    """The optopus-py commit uv built the installed optopus from, if it came from git.
+
+    Returns:
+        The commit's hash, or None when optopus is not installed or was not built from git.
+    """
     try:
         recorded = metadata.distribution("optopus").read_text("direct_url.json")
     except metadata.PackageNotFoundError:
@@ -37,11 +41,33 @@ def installed_commit() -> str | None:
 
 
 def fetch(url: str) -> str:
+    """Reads a page over HTTP.
+
+    Args:
+        url: The page's URL.
+
+    Returns:
+        The page's text.
+    """
     with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT) as response:
         return response.read().decode()
 
 
 def read_page(page: str) -> str:
+    """Reads a page of the guide: the studio's own, or optopus-py's at the installed commit.
+
+    A page of optopus-py is fetched from GitHub the first time and kept under the studio's home;
+    ``OPTOPUS_STUDIO_DOCS`` points at a local ``docs/source`` instead.
+
+    Args:
+        page: The page's name, without ``.md``.
+
+    Returns:
+        The page's Markdown.
+
+    Raises:
+        ProjectError: The page cannot be found, or fetched.
+    """
     if page in STUDIO_PAGES:
         return (GUIDES / f"{page}.md").read_text()
     configured = os.environ.get("OPTOPUS_STUDIO_DOCS")

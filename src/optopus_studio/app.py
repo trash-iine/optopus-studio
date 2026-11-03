@@ -51,11 +51,21 @@ class Hub:
     """A project's agent session and the browsers watching it."""
 
     def __init__(self, project: Project):
+        """Opens the project's agent session, with no browser watching yet.
+
+        Args:
+            project: The project.
+        """
         self.project = project
         self.sockets: set[WebSocket] = set()
         self.session = AgentSession(project, self.broadcast)
 
     async def broadcast(self, event: BaseModel) -> None:
+        """Sends an event to every browser watching, dropping those that are gone.
+
+        Args:
+            event: The event.
+        """
         payload = event.model_dump_json()
         for socket in list(self.sockets):
             try:
@@ -64,6 +74,19 @@ class Hub:
                 self.sockets.discard(socket)
 
     def snapshot(self, rev: int | None = None) -> Snapshot:
+        """Everything a browser shows of the project, at one revision.
+
+        Args:
+            rev: The revision to show; the latest when None.
+
+        Returns:
+            The snapshot. The files are the work files at the latest revision, the revision's own at
+                an
+            earlier one.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
         revisions = self.project.revisions()
         files = self.project.files()
         summary = view = view_error = None
@@ -93,6 +116,17 @@ hubs: dict[str, Hub] = {}
 
 
 def hub_for(project_id: str) -> Hub:
+    """The hub of a project, opened the first time it is asked for.
+
+    Args:
+        project_id: The project's id.
+
+    Returns:
+        The hub.
+
+    Raises:
+        ProjectError: There is no such project.
+    """
     if project_id not in hubs:
         hubs[project_id] = Hub(Project.open(project_id))
     return hubs[project_id]
@@ -100,6 +134,14 @@ def hub_for(project_id: str) -> Hub:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Closes every agent session when the server stops.
+
+    Args:
+        _: The application.
+
+    Yields:
+        Nothing; the server runs while it waits.
+    """
     yield
     await asyncio.gather(*(hub.session.close() for hub in hubs.values()))
 
@@ -109,21 +151,47 @@ app = FastAPI(title="optopus-studio", lifespan=lifespan)
 
 @app.get("/api/mode")
 def mode() -> dict[str, str]:
+    """Says that this server runs the studio, not an app.
+
+    Returns:
+        ``{"mode": "studio"}``.
+    """
     return {"mode": "studio"}
 
 
 @app.get("/api/projects")
 def list_projects() -> list[ProjectInfo]:
+    """The projects, newest first.
+
+    Returns:
+        Each project's summary.
+    """
     return [Project.open(project_id).info() for project_id in Project.list()]
 
 
 @app.post("/api/projects")
 def create_project() -> dict[str, str]:
+    """Creates an empty project.
+
+    Returns:
+        ``{"id": <the new project's id>}``.
+    """
     return {"id": Project.create().id}
 
 
 @app.post("/api/projects/import")
 async def import_project(request: Request) -> dict[str, str]:
+    """Creates a project from an exported zip, the request's body.
+
+    Args:
+        request: The request, whose body is read.
+
+    Returns:
+        ``{"id": <the new project's id>}``.
+
+    Raises:
+        HTTPException: The body is not a project's zip.
+    """
     try:
         return {"id": Project.import_archive(await request.body()).id}
     except ProjectError as exc:
@@ -131,6 +199,17 @@ async def import_project(request: Request) -> dict[str, str]:
 
 
 def open_project(project_id: str) -> Project:
+    """A project, or a 404.
+
+    Args:
+        project_id: The project's id.
+
+    Returns:
+        The project.
+
+    Raises:
+        HTTPException: There is no such project.
+    """
     try:
         return Project.open(project_id)
     except ProjectError as exc:
@@ -139,6 +218,14 @@ def open_project(project_id: str) -> Project:
 
 @app.get("/api/projects/{project_id}/export")
 def export_project(project_id: str) -> Response:
+    """The project as a zip to hand to someone.
+
+    Args:
+        project_id: The project's id.
+
+    Returns:
+        The zip, as a download.
+    """
     project = open_project(project_id)
     return Response(
         project.export(),
@@ -149,6 +236,18 @@ def export_project(project_id: str) -> Response:
 
 @app.get("/api/projects/{project_id}/revisions/{rev}")
 def get_revision(project_id: str, rev: int) -> RevisionDetail:
+    """One revision of a project.
+
+    Args:
+        project_id: The project's id.
+        rev: The revision.
+
+    Returns:
+        The revision's files, solve and view.
+
+    Raises:
+        HTTPException: There is no such project or revision.
+    """
     project = open_project(project_id)
     try:
         files, summary, view, view_error = project.load_revision(rev)
@@ -159,11 +258,31 @@ def get_revision(project_id: str, rev: int) -> RevisionDetail:
 
 @app.get("/api/projects/{project_id}/bench")
 def get_bench(project_id: str) -> BenchState:
+    """A project's benchmark, its evaluations, tunings and profiles.
+
+    Args:
+        project_id: The project's id.
+
+    Returns:
+        The benchmark's state.
+    """
     return bench.state(open_project(project_id))
 
 
 @app.get("/api/projects/{project_id}/revisions/{rev}/package")
 def package_revision(project_id: str, rev: int) -> Response:
+    """A revision as an app package (docs/adr/0009).
+
+    Args:
+        project_id: The project's id.
+        rev: The revision.
+
+    Returns:
+        The package's zip, as a download.
+
+    Raises:
+        HTTPException: The revision cannot be packaged.
+    """
     project = open_project(project_id)
     try:
         data, _ = apps.package(project, rev)
@@ -179,6 +298,19 @@ def package_revision(project_id: str, rev: int) -> Response:
 
 @app.post("/api/projects/{project_id}/uploads")
 async def upload(project_id: str, name: str, request: Request) -> dict[str, str]:
+    """Attaches a file to a project; the request's body is its content.
+
+    Args:
+        project_id: The project's id.
+        name: The file's name.
+        request: The request, whose body is read.
+
+    Returns:
+        ``{"name": <the name the file is kept under>}``.
+
+    Raises:
+        HTTPException: The file cannot be kept.
+    """
     project = open_project(project_id)
     try:
         return {"name": project.save_upload(name, await request.body())}
@@ -188,6 +320,18 @@ async def upload(project_id: str, name: str, request: Request) -> dict[str, str]
 
 @app.post("/api/projects/{project_id}/cases")
 async def attach_case(project_id: str, request: Request) -> dict[str, str]:
+    """Attaches a case an app exported; the request's body is its zip.
+
+    Args:
+        project_id: The project's id.
+        request: The request, whose body is read.
+
+    Returns:
+        ``{"case": <the name the case is kept under>}``.
+
+    Raises:
+        HTTPException: The body is not a case's zip, or not of this project.
+    """
     project = open_project(project_id)
     try:
         return {"case": apps.import_case(project, await request.body())}
@@ -197,6 +341,12 @@ async def attach_case(project_id: str, request: Request) -> dict[str, str]:
 
 @app.websocket("/api/projects/{project_id}/ws")
 async def project_socket(socket: WebSocket, project_id: str) -> None:
+    """Speaks with one browser: sends a snapshot, then answers its events until it disconnects.
+
+    Args:
+        socket: The browser's WebSocket.
+        project_id: The project's id.
+    """
     try:
         hub = hub_for(project_id)
     except ProjectError as exc:

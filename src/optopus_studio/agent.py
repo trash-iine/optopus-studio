@@ -326,13 +326,34 @@ model.
 
 
 def read_doc_page(page: str) -> str:
+    """A page of the guide the agent may read.
+
+    Args:
+        page: The page's name, one of ``DOC_PAGES``.
+
+    Returns:
+        The page's Markdown.
+
+    Raises:
+        ProjectError: The page is not one of ``DOC_PAGES``, or cannot be read.
+    """
     if page not in DOC_PAGES:
         raise ProjectError(f"unknown page {page!r}; expected one of {DOC_PAGES}")
     return docs.read_page(page)
 
 
 def api_help(name: str) -> str:
-    """The docstring and signature of an optopus class and of its public methods."""
+    """The docstring and signature of an optopus class and of its public methods.
+
+    Args:
+        name: The class's name in optopus.
+
+    Returns:
+        The text, a section per method.
+
+    Raises:
+        ProjectError: optopus has no such public name.
+    """
     obj = getattr(optopus, name, None)
     if obj is None or name.startswith("_"):
         public = [n for n in dir(optopus) if not n.startswith("_") and n != "optopus"]
@@ -355,7 +376,14 @@ HISTORY_LIMIT = 40_000
 
 
 def certificate(run: RunFinished) -> str:
-    """What a BranchAndBound run proved, as the tail of its line in ``describe``."""
+    """What a BranchAndBound run proved, as the tail of its line in ``describe``.
+
+    Args:
+        run: The run.
+
+    Returns:
+        The tail; empty for a run of any other heuristic.
+    """
     if run.proven_optimal:
         return ", proven optimal"
     if run.dual_bound is not None:
@@ -366,7 +394,15 @@ def certificate(run: RunFinished) -> str:
 
 
 def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> str:
-    """What the agent reads back after a solve."""
+    """What the agent reads back after a solve.
+
+    Args:
+        summary: The solve's summary.
+        solution_preview: How many characters of the best solution to show.
+
+    Returns:
+        The text: each run, the best solution, and the error, if any.
+    """
     lines = []
     if summary.problem:
         direction = "higher" if summary.higher_is_better else "lower"
@@ -409,10 +445,28 @@ def describe(summary: RunSummary, solution_preview: int = SOLUTION_PREVIEW) -> s
 
 
 def text_result(text: str, is_error: bool = False) -> dict[str, Any]:
+    """A tool's answer of text.
+
+    Args:
+        text: The text.
+        is_error: Whether the tool failed.
+
+    Returns:
+        The answer, as both backends take it.
+    """
     return {"content": [{"type": "text", "text": text}], "is_error": is_error}
 
 
 def object_schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
+    """The JSON Schema of a tool's input: an object.
+
+    Args:
+        properties: Each field's schema, by name.
+        required: The fields that must be given.
+
+    Returns:
+        The schema.
+    """
     return {"type": "object", "properties": properties, "required": required}
 
 
@@ -437,7 +491,14 @@ ToolCall = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 @dataclass(frozen=True)
 class ToolSpec:
-    """One tool: what the agent is told about it, and the call that answers with text_result."""
+    """One tool: what the agent is told about it, and the call that answers with text_result.
+
+    Attributes:
+        name: The tool's name.
+        description: What the agent is told the tool does.
+        input_schema: The JSON Schema of its input.
+        call: Answers a call with the tool's input.
+    """
 
     name: str
     description: str
@@ -446,19 +507,52 @@ class ToolSpec:
 
 
 class Tools:
-    """The agent's tools, bound to one project and to the GUI's broadcast."""
+    """The agent's tools, bound to one project and to the GUI's broadcast.
+
+    Each tool is a method that takes the tool's input and returns its result; ``specs`` lists them
+    as the agent is given them.
+
+    Attributes:
+        project: The project the tools act on.
+        broadcast: Sends an event to every browser watching the project.
+    """
 
     def __init__(self, project: Project, broadcast: Broadcast):
+        """Binds the tools to a project.
+
+        Args:
+            project: The project.
+            broadcast: Sends an event to every browser watching it.
+        """
         self.project = project
         self.broadcast = broadcast
 
     def solve_json(self) -> dict[str, Any]:
+        """The work files' solve.json.
+
+        Returns:
+            Its content.
+
+        Raises:
+            ProjectError: solve.json is missing or not JSON.
+        """
         try:
             return json.loads(self.project.read_file("solve.json"))
         except json.JSONDecodeError as exc:
             raise ProjectError(f"invalid JSON: {exc}") from exc
 
     def solve_request(self, overrides: dict[str, Any]) -> SolveRequest:
+        """The solve the work files describe.
+
+        Args:
+            overrides: ``max_duration_secs``, ``runs`` or ``seed`` to use instead of solve.json's.
+
+        Returns:
+            The request.
+
+        Raises:
+            ProjectError: The files are missing, not JSON, or do not describe a solve.
+        """
         try:
             instance = json.loads(self.project.read_file("instance.json"))
         except json.JSONDecodeError as exc:
@@ -466,6 +560,14 @@ class Tools:
         return solve_request(self.solve_json(), instance, self.project.work / "model.py", overrides)
 
     async def rust_guide(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``rust_guide`` tool: the Rust worker's guide and the examples' ports.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+        """
         parts = [(rust.WORKER_LIB / "GUIDE.md").read_text()]
         examples = rust.WORKER_LIB.parents[1] / "examples"
         for name in ("tsp", "workload"):
@@ -476,6 +578,17 @@ class Tools:
         return text_result("\n\n".join(parts))
 
     async def build_rust(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``build_rust`` tool: builds rust/main.rs.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no rust/main.rs.
+        """
         built = await rust.build(self.project.read_file(rust.RUST_FILE))
         if not built.ok:
             return text_result(f"rust/main.rs does not build:\n{built.log}", is_error=True)
@@ -484,6 +597,17 @@ class Tools:
         return text_result(f"built in {built.seconds:.1f}s. Now call verify_rust.")
 
     async def verify_rust(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``verify_rust`` tool: builds the port and checks it against model.py.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The files are missing or broken.
+        """
         built = await rust.build(self.project.read_file(rust.RUST_FILE))
         if not built.ok:
             return text_result(f"rust/main.rs does not build:\n{built.log}", is_error=True)
@@ -500,12 +624,45 @@ class Tools:
         return text_result(verdict.text, is_error=not verdict.ok)
 
     async def read_docs(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``read_docs`` tool: a page of the guide.
+
+        Args:
+            args: The tool's input: ``page``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The page is unknown, or cannot be read.
+        """
         return text_result(read_doc_page(args["page"]))
 
     async def api_help(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``api_help`` tool: an optopus class's docstrings.
+
+        Args:
+            args: The tool's input: ``name``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: optopus has no such name.
+        """
         return text_result(api_help(args["name"]))
 
     async def read_file(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``read_file`` tool: a work file, cut short when long.
+
+        Args:
+            args: The tool's input: ``name``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The file is not a project file, or not written yet.
+        """
         text = self.project.read_file(args["name"])
         if len(text) > READ_FILE_LIMIT:
             text = (
@@ -515,10 +672,29 @@ class Tools:
         return text_result(text)
 
     async def list_uploads(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``list_uploads`` tool: the files the user attached.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+        """
         names = self.project.uploads()
         return text_result("\n".join(names) if names else "no uploads")
 
     async def preview_upload(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``preview_upload`` tool: an upload's shape, columns and first rows.
+
+        Args:
+            args: The tool's input: ``name``, and ``sheet`` for a workbook.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such upload.
+        """
         path = self.project.upload_path(args["name"])
         try:
             return text_result(preview(path, args.get("sheet")))
@@ -526,6 +702,17 @@ class Tools:
             return text_result(f"cannot read {args['name']}: {exc}", is_error=True)
 
     async def import_upload(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``import_upload`` tool: puts an upload's records into instance.json.
+
+        Args:
+            args: The tool's input: ``name``, ``key``, and ``sheet`` for a workbook.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such upload, or instance.json is not an object.
+        """
         path = self.project.upload_path(args["name"])
         try:
             data = read_records(path, args.get("sheet"))
@@ -542,7 +729,18 @@ class Tools:
         )
 
     async def store_in_instance(self, key: str, data: Any) -> dict[str, Any]:
-        """Puts ``data`` into instance.json under ``key``, keeping the other keys."""
+        """Puts ``data`` into instance.json under ``key``, keeping the other keys.
+
+        Args:
+            key: The key.
+            data: The value.
+
+        Returns:
+            The new instance.
+
+        Raises:
+            ProjectError: instance.json is not a JSON object.
+        """
         try:
             instance = json.loads(self.project.read_file("instance.json"))
         except ProjectError:
@@ -555,6 +753,17 @@ class Tools:
         return instance
 
     async def import_solution(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``import_solution`` tool: puts a revision's best solution into instance.json.
+
+        Args:
+            args: The tool's input: ``rev`` and ``key``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The revision has no solution.
+        """
         rev, key = int(args["rev"]), args["key"]
         _, summary, _, _ = self.project.load_revision(rev)
         if summary is None or summary.best_run is None:
@@ -568,16 +777,46 @@ class Tools:
         )
 
     async def write_file(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``write_file`` tool: writes a work file.
+
+        Args:
+            args: The tool's input: ``name`` and ``content``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The name is not a project file, or the content does not fit it.
+        """
         self.project.write_file(args["name"], args["content"])
         await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(f"wrote {args['name']} ({len(args['content'])} characters)")
 
     async def rust_binary(self) -> Path | None:
-        """The built port when solve.json asks for the Rust worker, else None."""
+        """The built port when solve.json asks for the Rust worker, else None.
+
+        Returns:
+            The port's binary, or None.
+
+        Raises:
+            ProjectError: The Rust worker is asked for, but there is no port or it does not build.
+        """
         return await rust_binary(self.solve_json(), self.project.files().get(rust.RUST_FILE))
 
     async def check_model(self, args: dict[str, Any]) -> dict[str, Any]:
-        """One short run, without a revision: does the model build, run, encode and render?"""
+        """The ``check_model`` tool: one short run, without a revision.
+
+        It says whether the model builds, runs, encodes and renders.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The files are missing or broken.
+        """
         request = self.solve_request({"runs": 1})
         binary = await self.rust_binary()
         for v in request.variants:
@@ -585,7 +824,11 @@ class Tools:
             v.heuristic = with_stop(v.heuristic, max_duration_secs=min(seconds, CHECK_SECONDS))
 
         async def ignore(_: RunSummary) -> None:
-            pass
+            """Ignores a solve's progress.
+
+            Args:
+                _: The solve so far.
+            """
 
         summary = await run_solve(request, 0, self.project.work, ignore, 60.0, binary)
         report = describe(summary)
@@ -599,6 +842,17 @@ class Tools:
         return text_result(f"{report}\n\nview.py ok: {kinds}. Now call run_solver.")
 
     async def check_app(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``check_app`` tool: whether app.json fits the work files.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The files are missing or broken.
+        """
         spec = load_spec(self.project.read_file(APP_FILE))
         try:
             instance = json.loads(self.project.read_file("instance.json"))
@@ -621,12 +875,31 @@ class Tools:
         return text_result("\n".join(lines))
 
     async def read_case(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``read_case`` tool: a case an app exported, or the list of them.
+
+        Args:
+            args: The tool's input: ``case``, or nothing to list the cases.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such case.
+        """
         case = str(args.get("case") or "").removeprefix("case:")
         if not case:
             cases = project_cases(self.project)
             return text_result("\n".join(f"case:{c}" for c in cases) if cases else "no cases")
 
         def preview_file(path: Path) -> str:
+            """What the agent reads of a case's input file.
+
+            Args:
+                path: The file.
+
+            Returns:
+                Its preview, or why it cannot be read as a table.
+            """
             try:
                 return preview(path)
             except (TableError, ValueError, OSError) as exc:
@@ -635,11 +908,35 @@ class Tools:
         return text_result(describe_case(self.project, case, preview_file))
 
     async def load_case(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``load_case`` tool: puts a case's instance into instance.json.
+
+        Args:
+            args: The tool's input: ``case``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such case, or it cannot be rebuilt.
+        """
         report = load_case(self.project, str(args["case"]).removeprefix("case:"))
         await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(report)
 
     async def run_solver(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``run_solver`` tool: solves the work files into a new revision.
+
+        The canvas shows the solve as it runs, and then the revision's view.
+
+        Args:
+            args: The tool's input: ``max_duration_secs``, ``runs`` or ``seed`` to override.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The files are missing or broken.
+        """
         request = self.solve_request(args)
         # Built before the snapshot, so a port that does not compile makes no revision. The
         # snapshot holds the same rust/main.rs, so its binary is this one.
@@ -651,6 +948,11 @@ class Tools:
         await self.broadcast(SolveStarted(rev=rev, runs=total))
 
         async def progress(summary: RunSummary) -> None:
+            """Shows a solve's progress on the canvas.
+
+            Args:
+                summary: The solve so far.
+            """
             await self.broadcast(SolveProgress(rev=rev, summary=summary))
 
         timeout = solve_timeout(request)
@@ -668,13 +970,35 @@ class Tools:
         return text_result(report, is_error=bool(summary.error or error))
 
     async def restore_revision(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``restore_revision`` tool: makes the work files a revision's again.
+
+        Args:
+            args: The tool's input: ``rev``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
         rev = int(args["rev"])
         self.project.restore(rev)
         await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(f"the files are revision {rev}'s again: {sorted(self.project.files())}")
 
     async def bench_instance(self, args: dict[str, Any]) -> tuple[Any, str]:
-        """The instance bench_add's "source" names, and where it came from in words."""
+        """The instance bench_add's "source" names, and where it came from in words.
+
+        Args:
+            args: bench_add's input: ``source``, and ``key``, ``sheet``, ``seed`` or ``params`` as
+                the source needs.
+
+        Returns:
+            The instance and its origin.
+
+        Raises:
+            ProjectError: The source is unknown, or its instance cannot be made.
+        """
         source = str(args["source"])
         if source == "instance":
             return self.instance_json(self.project.read_file("instance.json")), "instance.json"
@@ -717,15 +1041,42 @@ class Tools:
 
     @staticmethod
     def instance_json(text: str) -> Any:
+        """Reads an instance's text.
+
+        Args:
+            text: The text.
+
+        Returns:
+            The instance.
+
+        Raises:
+            ProjectError: The text is not JSON.
+        """
         try:
             return json.loads(text)
         except json.JSONDecodeError as exc:
             raise ProjectError(f"the instance is not JSON: {exc}") from exc
 
     async def bench_progress(self, progress: BenchProgress) -> None:
+        """Shows how far a task on the benchmark has got.
+
+        Args:
+            progress: The progress.
+        """
         await self.broadcast(progress)
 
     async def bench_add(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``bench_add`` tool: adds an instance to the benchmark.
+
+        Args:
+            args: The tool's input: ``name``, ``split`` and ``source``, with what the source needs.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The source or the name is invalid.
+        """
         instance, where = await self.bench_instance(args)
         entry = bench.add_instance(self.project, args["name"], args["split"], where, instance)
         await self.broadcast(BenchChanged())
@@ -736,11 +1087,33 @@ class Tools:
         return text_result(f"{entry.split} instance {entry.name!r} from {where} ({shape})")
 
     async def bench_remove(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``bench_remove`` tool: removes an instance from the benchmark.
+
+        Args:
+            args: The tool's input: ``name``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such instance.
+        """
         bench.remove_instance(self.project, args["name"])
         await self.broadcast(BenchChanged())
         return text_result(f"removed {args['name']!r}\n{bench.describe_bench(self.project)}")
 
     async def bench_settings(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``bench_settings`` tool: changes the benchmark's runs, seed or budget.
+
+        Args:
+            args: The tool's input: the settings to change; 0 takes a limit away.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: A setting is invalid.
+        """
         # 0 takes a limit away, which a tool schema says more portably than null.
         settings = {k: (None if v == 0 and k.startswith("max_") else v) for k, v in args.items()}
         bench.configure(self.project, **settings)
@@ -748,6 +1121,14 @@ class Tools:
         return text_result(bench.describe_bench(self.project))
 
     async def bench_list(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``bench_list`` tool: the benchmark, and its evaluations, tunings and profiles.
+
+        Args:
+            args: The tool's input, which it does not read.
+
+        Returns:
+            The tool's result.
+        """
         lines = [bench.describe_bench(self.project)]
         for heading, described in (
             ("tunings:", tune.describe(self.project)),
@@ -758,6 +1139,18 @@ class Tools:
         return text_result("\n".join(lines))
 
     async def evaluate(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``evaluate`` tool: judges a candidate against a baseline revision.
+
+        Args:
+            args: The tool's input: ``baseline_rev``, and ``split``, ``candidate_rev``, ``variant``,
+                ``baseline_variant`` and ``note`` if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The evaluation cannot run.
+        """
         candidate = args.get("candidate_rev")
         evaluation = await bench.evaluate(
             self.project,
@@ -773,6 +1166,22 @@ class Tools:
         return text_result(bench.report(evaluation), is_error=evaluation.verdict == "failed")
 
     async def tune(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``tune`` tool: races a revision's settings, and checks the best on validation.
+
+        The GUI hears that the benchmark changed, and that the files did when the best settings were
+        written, even when the check failed.
+
+        Args:
+            args: The tool's input: ``rev``, ``budget``, and ``space`` with ``variant``, or
+                ``spaces``; ``seed`` if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: Both or neither of space and spaces are given, or the tuning or its check
+                fails.
+        """
         seed = args.get("seed")
         if ("space" in args) == ("spaces" in args):
             raise ProjectError("give either 'space' (one variant) or 'spaces' (to choose among)")
@@ -795,6 +1204,17 @@ class Tools:
         return text_result(tune.report(tuning, evaluation))
 
     async def profile(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``profile`` tool: runs several heuristics on the benchmark and reads them.
+
+        Args:
+            args: The tool's input: ``rev``, ``variants`` and ``split``, if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The profile cannot run.
+        """
         rev = args.get("rev")
         profiled = await profiling.profile(
             self.project,
@@ -807,10 +1227,31 @@ class Tools:
         return text_result(profiling.report(profiled))
 
     def specs(self) -> list[ToolSpec]:
-        """The tools as each agent is given them (agent_claude.py, agent_codex.py)."""
+        """The tools as each agent is given them (agent_claude.py, agent_codex.py).
+
+        Returns:
+            The tools, each answering a ProjectError as a failed result.
+        """
 
         def guarded(fn: ToolCall) -> ToolCall:
+            """A tool that answers a ProjectError as a failed result rather than raising it.
+
+            Args:
+                fn: The tool's method.
+
+            Returns:
+                The tool's call.
+            """
+
             async def call(args: dict[str, Any]) -> dict[str, Any]:
+                """Calls the tool.
+
+                Args:
+                    args: The tool's input.
+
+                Returns:
+                    The tool's result, or the error as a failed one.
+                """
                 try:
                     return await fn(args)
                 except ProjectError as exc:
@@ -1097,8 +1538,18 @@ class Tools:
 
 
 def with_history(chat: list[ChatEntry], text: str) -> str:
-    """The first message of a session that joins a conversation it was not part of: one an
-    imported project brought from another studio, or one held with the other agent."""
+    """The first message of a session that joins a conversation it was not part of.
+
+    The conversation is one an imported project brought from another studio, or one held with the
+    other agent.
+
+    Args:
+        chat: The conversation so far.
+        text: The user's new message.
+
+    Returns:
+        The conversation, cut to its latest part when long, and then the message.
+    """
     lines = [
         f"[tool] {entry.text}" if entry.role == "tool" else f"[{entry.role}]\n{entry.text}"
         for entry in chat
@@ -1115,13 +1566,27 @@ def with_history(chat: list[ChatEntry], text: str) -> str:
 
 
 def tool_activity(name: str, args: dict[str, Any]) -> ToolActivity:
+    """A tool call as the chat shows it: the tool, and the input that says most about the call.
+
+    Args:
+        name: The tool's name.
+        args: The tool's input.
+
+    Returns:
+        The activity.
+    """
     detail = args.get("name") or args.get("page") or args.get("query") or args.get("url") or ""
     return ToolActivity(name=name, summary=str(detail))
 
 
 @dataclass
 class TurnResult:
-    """How a turn ended: the session to resume next time, and the error, if it failed."""
+    """How a turn ended: the session to resume next time, and the error, if it failed.
+
+    Attributes:
+        session_id: The session to resume, if the backend has one.
+        error: Why the turn failed, if it did.
+    """
 
     session_id: str | None
     error: str | None = None
@@ -1141,17 +1606,32 @@ class SessionLost(AgentError):
 class Backend(Protocol):
     """One agent's session: opened and closed in the task that uses it."""
 
-    async def open(self) -> None: ...
+    async def open(self) -> None:
+        """Starts the session, resuming the one the project had if it has one."""
 
-    async def close(self) -> None: ...
+    async def close(self) -> None:
+        """Ends the session."""
 
-    def turn(self, text: str) -> AsyncIterator[AgentEvent]: ...
+    def turn(self, text: str) -> AsyncIterator[AgentEvent]:
+        """Sends the user's message and streams the turn.
 
-    async def interrupt(self) -> None: ...
+        Args:
+            text: The user's message.
+
+        Returns:
+            What the chat shows of the turn, ending with the turn's result.
+        """
+
+    async def interrupt(self) -> None:
+        """Stops the turn in progress."""
 
 
 def default_agent() -> AgentName:
-    """The agent a new project starts on: OPTOPUS_STUDIO_AGENT, else the first available."""
+    """The agent a new project starts on: OPTOPUS_STUDIO_AGENT, else the first available.
+
+    Returns:
+        The agent's name.
+    """
     named = os.environ.get("OPTOPUS_STUDIO_AGENT")
     if named in AGENTS:
         return named  # type: ignore[return-value]
@@ -1159,6 +1639,11 @@ def default_agent() -> AgentName:
 
 
 def agent_choices() -> list[AgentChoice]:
+    """The agents a project's chat can run on, and whether each can run here.
+
+    Returns:
+        The choices, in order.
+    """
     from optopus_studio.agent_codex import codex_unavailable
 
     claude = None
@@ -1174,6 +1659,18 @@ def agent_choices() -> list[AgentChoice]:
 def open_backend(
     agent: AgentName, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False
 ) -> Backend:
+    """A session on an agent, not yet opened.
+
+    Args:
+        agent: The agent.
+        specs: The studio's tools.
+        cwd: The project's directory.
+        resume: The session to resume, if any.
+        web: Whether the agent may search the web (docs/adr/0016).
+
+    Returns:
+        The backend.
+    """
     if agent == "codex":
         from optopus_studio.agent_codex import CodexBackend
 
@@ -1184,9 +1681,25 @@ def open_backend(
 
 
 class AgentSession:
-    """One project's conversation. A single task owns the agent's backend, fed by a queue."""
+    """One project's conversation. A single task owns the agent's backend, fed by a queue.
+
+    Attributes:
+        project: The project.
+        broadcast: Sends an event to every browser watching the project.
+        tools: The agent's tools.
+        inbox: The messages waiting for the agent.
+        busy: Whether the agent is on a turn.
+        backend: The agent's session, while it is open.
+        task: The task that owns the backend.
+    """
 
     def __init__(self, project: Project, broadcast: Broadcast):
+        """Prepares the conversation; the agent starts with the first message.
+
+        Args:
+            project: The project.
+            broadcast: Sends an event to every browser watching it.
+        """
         self.project = project
         self.broadcast = broadcast
         self.tools = Tools(project, broadcast)
@@ -1197,6 +1710,7 @@ class AgentSession:
 
     @property
     def agent(self) -> AgentName:
+        """The agent the project's chat runs on."""
         meta = self.project.meta()
         # A project from before there was a choice has a Claude session, or none yet.
         if meta.get("agent") in AGENTS:
@@ -1204,7 +1718,14 @@ class AgentSession:
         return "claude" if meta.get("session_id") else default_agent()
 
     async def select(self, agent: AgentName) -> None:
-        """Run the chat on ``agent`` from the next message, which hands it the conversation."""
+        """Run the chat on ``agent`` from the next message, which hands it the conversation.
+
+        Args:
+            agent: The agent.
+
+        Raises:
+            ProjectError: The agent is on a turn, or the other agent cannot run here.
+        """
         if self.busy:
             raise ProjectError("the agent is still working")
         if agent == self.agent:
@@ -1217,11 +1738,20 @@ class AgentSession:
 
     @property
     def web_search(self) -> bool:
+        """Whether the agent may search the web (docs/adr/0016)."""
         return bool(self.project.meta().get("web_search"))
 
     async def set_web_search(self, enabled: bool) -> None:
-        """Let the agent search and read the web, or stop it, from the next message, in the
-        same session (docs/adr/0016)."""
+        """Let the agent search and read the web, or stop it, from the next message.
+
+        The session stays the same; the setting is the project's (docs/adr/0016).
+
+        Args:
+            enabled: Whether the agent may.
+
+        Raises:
+            ProjectError: The agent is on a turn.
+        """
         if self.busy:
             raise ProjectError("the agent is still working")
         if enabled == self.web_search:
@@ -1230,6 +1760,14 @@ class AgentSession:
         self.project.set_meta(web_search=enabled)
 
     def submit(self, text: str) -> bool:
+        """Hands the agent a message, starting its session if it is not running.
+
+        Args:
+            text: The user's message.
+
+        Returns:
+            True, or False when the agent is still on a turn.
+        """
         if self.busy:
             return False
         self.busy = True
@@ -1239,10 +1777,12 @@ class AgentSession:
         return True
 
     async def interrupt(self) -> None:
+        """Stops the agent's turn, if it is on one."""
         if self.backend and self.busy:
             await self.backend.interrupt()
 
     async def close(self) -> None:
+        """Stops the session's task, which closes the backend."""
         if self.task:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -1250,6 +1790,10 @@ class AgentSession:
             self.task = None
 
     async def _loop(self) -> None:
+        """Opens the backend and takes a turn per message, until cancelled.
+
+        When the agent fails, the waiting message is dropped and the GUI hears why.
+        """
         agent = self.agent
         try:
             self.backend = await self._open(agent)
@@ -1274,6 +1818,17 @@ class AgentSession:
                     await backend.close()
 
     async def _open(self, agent: AgentName) -> Backend:
+        """Opens a backend, resuming the project's session or starting a new one when it is lost.
+
+        Args:
+            agent: The agent.
+
+        Returns:
+            The open backend.
+
+        Raises:
+            AgentError: The agent cannot start.
+        """
         resume = self.project.meta().get("session_id")
         while True:
             backend = open_backend(
@@ -1293,6 +1848,15 @@ class AgentSession:
             resume = None
 
     async def _turn(self, backend: Backend, agent: AgentName, text: str) -> None:
+        """Takes one turn, keeping the chat and the session to resume.
+
+        A session that joins a conversation it was not part of gets the conversation first.
+
+        Args:
+            backend: The agent's session.
+            agent: The agent.
+            text: The user's message.
+        """
         history = self.project.chat()
         joining = bool(history) and not self.project.meta().get("session_id")
         self.project.append_chat(ChatEntry(role="user", text=text))
@@ -1310,6 +1874,11 @@ class AgentSession:
             await self.broadcast(TurnEnd(error=error))
 
     async def _show(self, event: AssistantDelta | AssistantText | ToolActivity) -> None:
+        """Shows an event of the turn in the chat, keeping what the chat keeps.
+
+        Args:
+            event: The event.
+        """
         if isinstance(event, AssistantText):
             self.project.append_chat(ChatEntry(role="assistant", text=event.text))
         elif isinstance(event, ToolActivity):

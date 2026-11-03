@@ -49,6 +49,11 @@ SCHEMAS = {
 
 
 def render() -> dict[str, str]:
+    """Renders the JSON Schema of each contract.
+
+    Returns:
+        The text of each schema file, by its name in ``schema/``.
+    """
     titles = {
         "solve-request.json": "SolveRequest",
         "evaluate-request.json": "EvaluateRequest",
@@ -72,6 +77,11 @@ def render() -> dict[str, str]:
 
 
 def main() -> int:
+    """Writes every schema to ``schema/``.
+
+    Returns:
+        The exit status, 0.
+    """
     SCHEMA_DIR.mkdir(exist_ok=True)
     for name, text in render().items():
         (SCHEMA_DIR / name).write_text(text)
