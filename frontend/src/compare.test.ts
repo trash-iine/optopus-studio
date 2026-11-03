@@ -24,6 +24,8 @@ function run(index: number, variant: number, best: number): RunFinished {
     total_time_secs: 10,
     proven_optimal: null,
     dual_bound: null,
+    n_accepted: null,
+    n_rejected: null,
   };
 }
 

@@ -13,7 +13,13 @@ import pytest
 from pydantic import TypeAdapter
 
 from optopus_studio import worker
-from optopus_studio.protocol import InitialSolution, SolveRequest, Variant, WorkerEvent
+from optopus_studio.protocol import (
+    EvaluateRequest,
+    InitialSolution,
+    SolveRequest,
+    Variant,
+    WorkerEvent,
+)
 from tests.conftest import EXAMPLE_NAMES, EXAMPLES, example_request, one, write_model
 
 EVENTS = TypeAdapter(list[WorkerEvent])
@@ -339,3 +345,38 @@ def test_a_python_problem_reports_progress_while_it_runs(tmp_path):
     assert progress, "the first improvement is reported at once"
     assert progress[-1].objective == finished.best_objective
     assert stream.index(progress[0]) < stream.index(finished)
+
+
+def evaluate_with_worker(request: EvaluateRequest) -> dict:
+    stdout = io.StringIO()
+    worker.main(io.StringIO(request.model_dump_json() + "\n"), stdout, ["--evaluate"])
+    return json.loads(stdout.getvalue())
+
+
+@pytest.mark.parametrize("name", EXAMPLE_NAMES)
+def test_evaluate_scores_a_solution_as_the_run_that_found_it(name):
+    request = example_request(name, runs=2)
+    runs = [e for e in run_worker(request) if e.type == "run_finished"]
+    answer = evaluate_with_worker(
+        EvaluateRequest(
+            model_path=request.model_path,
+            instance=request.instance,
+            solutions=[r.solution for r in runs],
+            heuristic=request.variants[0].heuristic,
+        )
+    )
+    assert answer["objectives"] == pytest.approx([r.best_objective for r in runs], rel=1e-9)
+    assert all(r.n_accepted is not None and r.n_rejected is not None for r in runs)
+
+
+def test_evaluate_reports_a_solution_it_cannot_decode():
+    request = example_request("workload")
+    answer = evaluate_with_worker(
+        EvaluateRequest(
+            model_path=request.model_path,
+            instance=request.instance,
+            solutions=[{"assignment": [0]}],
+            heuristic=request.variants[0].heuristic,
+        )
+    )
+    assert answer["error"].startswith("ValueError: the assignment has 1 tasks")

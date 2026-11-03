@@ -5,8 +5,8 @@ Both workers solve the same request with the same seeds. Then:
 - **objective**: the port evaluates the Python worker's best solutions, and must give the same
   objectives. This is what proves the port models the same problem.
 - **exact** (a built-in problem, seeded, no time limit anywhere): every run must match, seed,
-  initial and best objective, iteration count, trajectory and solution. Both sides run the same
-  core code from the same state, so any difference is a bug in the port.
+  initial and best objective, iteration and accepted move counts, trajectory and solution. Both
+  sides run the same core code from the same state, so any difference is a bug in the port.
 - **stat** (otherwise; a problem written in Python draws its random moves through Python's
   ``random``): per heuristic, the Rust mean must not be worse than the Python mean by more than
   twice the larger spread plus 5% of the Python runs' mean improvement, the rule of optopus-py's
@@ -92,6 +92,7 @@ def _exact(py: RunSummary, rs: RunSummary, verdict: Verdict) -> None:
             "initial_objective": (p.initial_objective, r.initial_objective),
             "best_objective": (p.best_objective, r.best_objective),
             "iterations": (p.iterations, r.iterations),
+            "n_accepted": (p.n_accepted, r.n_accepted),
             "trajectory": ([t[1:] for t in p.trajectory], [t[1:] for t in r.trajectory]),
             "solution": (p.solution, r.solution),
         }

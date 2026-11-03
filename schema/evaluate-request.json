@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "description": "A worker started with ``--evaluate``: score solutions with a model, without searching.\n\nThe answer is one JSON line, ``{\"objectives\": [...]}`` in the order of ``solutions`` on the\nscale ``best_objective`` reports, or ``{\"error\": ...}`` when the model cannot build or a\nsolution cannot be decoded. A Rust worker is the model, so it reads only ``instance`` and\n``solutions``.",
+  "properties": {
+    "heuristic": {
+      "additionalProperties": true,
+      "description": "A heuristic of the model's solve.json. The Python worker starts a run of it from each solution and stops it before its first iteration, so a built-in problem scores the solution as a run would report it.",
+      "title": "Heuristic",
+      "type": "object"
+    },
+    "instance": {
+      "additionalProperties": true,
+      "title": "Instance",
+      "type": "object"
+    },
+    "model_path": {
+      "description": "Path of the model.py that scores the solutions.",
+      "title": "Model Path",
+      "type": "string"
+    },
+    "solutions": {
+      "description": "Solutions in the form encode_solution writes.",
+      "items": {},
+      "title": "Solutions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_path",
+    "instance",
+    "solutions",
+    "heuristic"
+  ],
+  "title": "EvaluateRequest",
+  "type": "object"
+}

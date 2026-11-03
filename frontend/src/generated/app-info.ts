@@ -42,6 +42,14 @@ export type DualBound = number | null;
 export type InitialObjective = number;
 export type Iterations = number;
 /**
+ * Moves the run applied; null in a result.json older than the field.
+ */
+export type NAccepted = number | null;
+/**
+ * Iterations the run advanced without applying a move; null in a result.json older than the field.
+ */
+export type NRejected = number | null;
+/**
  * Whether a BranchAndBound run proved its best solution optimal; null for every other heuristic.
  */
 export type ProvenOptimal = boolean | null;
@@ -267,6 +275,8 @@ export interface RunFinished {
   dual_bound: DualBound;
   initial_objective: InitialObjective;
   iterations: Iterations;
+  n_accepted: NAccepted;
+  n_rejected: NRejected;
   proven_optimal: ProvenOptimal;
   run: Run1;
   seed: Seed;

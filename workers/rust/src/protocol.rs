@@ -79,6 +79,8 @@ pub enum WorkerEvent {
         /// What a `BranchAndBound` run proved; the factory builds none, so always `None`.
         proven_optimal: Option<bool>,
         dual_bound: Option<f64>,
+        n_accepted: Option<u64>,
+        n_rejected: Option<u64>,
     },
     Done {
         best_run: usize,

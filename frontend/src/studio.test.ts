@@ -23,6 +23,8 @@ function run(index: number, overrides: Partial<RunFinished> = {}): RunFinished {
     total_time_secs: 1,
     proven_optimal: null,
     dual_bound: null,
+    n_accepted: null,
+    n_rejected: null,
     ...overrides,
   };
 }

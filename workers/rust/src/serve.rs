@@ -196,6 +196,8 @@ fn run_once<P: StudioProblem>(
         total_time_secs: total_time.as_secs_f64(),
         proven_optimal: None,
         dual_bound: None,
+        n_accepted: Some(state.n_accepted),
+        n_rejected: Some(state.n_rejected),
     })
 }
 
@@ -220,6 +222,7 @@ fn monotone(points: &[TrajectoryPoint], start: Instant, higher: bool) -> Vec<(f6
 }
 
 /// `--evaluate`: reads `{"instance", "solutions"}` and writes `{"objectives"}`, or `{"error"}`.
+/// The other fields of an `EvaluateRequest` are for the Python worker.
 fn evaluate<P: StudioProblem>(line: &str, build: impl Fn(&Value) -> Result<P, String>) -> ExitCode {
     let answer = guarded(|| {
         let input: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
