@@ -1,7 +1,20 @@
+"""The TSP's best tour on a map, with its legs."""
+
 import math
 
 
 def to_view(instance, result):
+    """What the canvas shows of the best run.
+
+    It shows the tour's length, the tour on a map, and its legs.
+
+    Args:
+        instance: instance.json's content.
+        result: The solve, with the best run as ``best``.
+
+    Returns:
+        The views; the cities alone when the solve failed.
+    """
     cities = instance["cities"]
     points = [{"id": i, "x": c["x"], "y": c["y"], "label": c["name"]} for i, c in enumerate(cities)]
     best = result["best"]
