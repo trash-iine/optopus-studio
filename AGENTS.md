@@ -56,6 +56,11 @@ coding agents.
 - English in code, comments and docs (the one exception: the translation in `docs/ja/`); the chat
   itself follows the user's language.
 - Python: Ruff, `line-length = 100`. Tests: tiny instances, hermetic, under `tmp_path`.
+- Every module, class and function in `src/` and `examples/`, private and nested ones too, has
+  a Google-style docstring: a one-line summary, then `Args`, `Returns` (or `Yields`) and
+  `Raises` where they apply, and `Attributes` for a dataclass. Ruff's `D` rules check the public
+  ones. The models in `protocol.py` get a summary only: their docstrings and `Field`
+  descriptions are the JSON Schemas' descriptions.
 - A change to the worker protocol touches `protocol.py`, `worker.py` and `workers/rust/src`
   together; `tests/test_rust_worker.py` checks the Rust side against the Python models.
 - optopus comes from a pinned optopus-py commit (`pyproject.toml`), and the Rust worker's core
