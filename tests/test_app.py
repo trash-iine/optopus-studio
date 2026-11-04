@@ -7,9 +7,11 @@ from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
 from optopus_studio import app as app_module
+from optopus_studio import bench
 from optopus_studio.agent import Tools
 from optopus_studio.projects import Project
 from optopus_studio.protocol import ChatEntry
+from tests.conftest import example_project
 
 
 @pytest.fixture
@@ -64,8 +66,6 @@ def test_an_unknown_project_closes_the_socket(client):
 
 
 def test_an_earlier_revision_can_be_selected(client, home):
-    from tests.conftest import example_project
-
     project = example_project("knapsack", home)
     tools = Tools(project, lambda event: asyncio.sleep(0))
     asyncio.run(tools.run_solver({"runs": 1}))
@@ -93,8 +93,6 @@ def test_an_earlier_revision_can_be_selected(client, home):
 
 
 def test_a_revision_is_served_for_comparison(client, home):
-    from tests.conftest import example_project
-
     project = example_project("tsp", home)
     asyncio.run(Tools(project, lambda event: asyncio.sleep(0)).run_solver({"runs": 1}))
     detail = client.get(f"/api/projects/{project.id}/revisions/1").json()
@@ -125,8 +123,6 @@ def test_a_file_is_attached_by_posting_its_content(client, home):
 
 
 def test_a_project_is_handed_over_as_a_zip(client, home):
-    from tests.conftest import example_project
-
     project = example_project("tsp", home)
     project.append_chat(ChatEntry(role="user", text="visit every city"))
     asyncio.run(Tools(project, lambda event: asyncio.sleep(0)).run_solver({"runs": 1}))
@@ -143,3 +139,12 @@ def test_a_project_is_handed_over_as_a_zip(client, home):
     assert client.get(f"/api/projects/{copy_id}/revisions/1").json()["summary"]["runs"]
     assert client.post("/api/projects/import", content=b"hello").status_code == 400
     assert client.get("/api/projects/0123456789ab/export").status_code == 404
+
+
+def test_the_benchmark_is_served_for_the_improve_tab(client, home):
+    project = example_project("tsp", home)
+    bench.add_instance(project, "given", "train", "instance.json", {"cities": []})
+    state = client.get(f"/api/projects/{project.id}/bench").json()
+    assert [i["name"] for i in state["spec"]["instances"]] == ["given"]
+    assert state["evaluations"] == []
+    assert client.get("/api/projects/0123456789ab/bench").status_code == 404

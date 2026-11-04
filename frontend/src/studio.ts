@@ -1,7 +1,14 @@
 // The connection to one project's WebSocket, and the state the GUI draws from it.
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ClientEvent } from "./generated/client-event";
-import type { AgentChoice, ChatEntry, RunSummary, ServerEvent, ViewSpec } from "./generated/server-event";
+import type {
+  AgentChoice,
+  BenchProgress,
+  ChatEntry,
+  RunSummary,
+  ServerEvent,
+  ViewSpec,
+} from "./generated/server-event";
 
 export interface StudioState {
   connected: boolean;
@@ -19,6 +26,10 @@ export interface StudioState {
   /** The agent the project's chat runs on, and the ones it can switch to (docs/adr/0012). */
   agent: AgentChoice["name"] | null;
   agents: AgentChoice[];
+  /** Counts the changes to the benchmark, and its evaluations, to fetch it again. */
+  benchVersion: number;
+  /** The evaluation running now, if one is. */
+  benchProgress: BenchProgress | null;
 }
 
 export const initialState: StudioState = {
@@ -36,6 +47,8 @@ export const initialState: StudioState = {
   error: null,
   agent: null,
   agents: [],
+  benchVersion: 0,
+  benchProgress: null,
 };
 
 type Action =
@@ -82,7 +95,7 @@ export function reduce(state: StudioState, action: Action): StudioState {
         chat: [...state.chat, { role: "tool", text: `${e.name} ${e.summary}`.trim() }],
       };
     case "turn_end":
-      return { ...state, busy: false, streaming: "", solving: null, error: e.error };
+      return { ...state, busy: false, streaming: "", solving: null, benchProgress: null, error: e.error };
     case "files":
       return { ...state, files: e.files };
     case "solve_started":
@@ -117,6 +130,10 @@ export function reduce(state: StudioState, action: Action): StudioState {
         solving: null,
         ...(e.rev === state.rev ? { view: e.view, viewError: e.error } : {}),
       };
+    case "bench_progress":
+      return { ...state, benchProgress: e };
+    case "bench_changed":
+      return { ...state, benchVersion: state.benchVersion + 1, benchProgress: null };
   }
 }
 

@@ -16,6 +16,10 @@ a Gantt chart, the convergence of every run).
   best objective, the headline numbers, both convergence curves and a diff of the files.
 - **Problems of your own**: when no built-in problem or `Formula` fits (an objective that is a
   maximum, a lookup, a simulation), the agent writes the problem in Python.
+- **Improving the search**: ask the agent to improve the algorithm. It builds a benchmark of
+  instances, tries one change at a time, and keeps a change only when a paired test on the
+  benchmark says it is better and the objective is unchanged; the result is checked on held-out
+  instances (`docs/adr/0013`).
 - **Speeding up with Rust**: a problem written in Python can be ported to Rust (the "Port to
   Rust" button, or just ask). The agent writes `rust/main.rs`, the studio builds it, checks it
   against the Python model with the same seeds, and switches the worker once it passes.

@@ -25,6 +25,7 @@ data, so it solves the same way later even if you attach new files
 | `view.py` | what the canvas draws from the result | "show each machine's idle time" |
 | `rust/main.rs` | optional: the model ported to Rust, for speed | "port to Rust" |
 | `app.json` | optional: what a packaged app lets its user change | "make this an app where the user uploads the orders" |
+| `generate.py` | optional: makes instances for the benchmark, like yours but more of them | "improve the search on instances like this one" |
 
 `model.py` builds the problem in one of three ways, the first that fits: one of optopus's
 **built-in problems** (TSP, vehicle routing, job shop scheduling, …), a **`Formula`** (a
@@ -72,6 +73,41 @@ the form the result shows it, which `model.py`'s `encode_solution` writes and it
 
 A solution that does not fit the problem, such as a tour that visits a city twice, stops the solve
 at the start stage.
+
+## Improving the algorithm
+
+Ask the agent to make the search better, or to improve it on its own for a number of attempts:
+
+> Improve the search: 10 attempts, a solve may take 5 seconds.
+
+It does not judge a change on one solve, which rewards luck and changes fitted to one instance.
+It first builds a **benchmark**: a few **train** instances and two or three **validation** ones,
+from your data and, when that is too little, from a `generate.py` it writes. Then it tries one
+change at a time (another heuristic or setting, a faster or richer `model.py`, a Rust port) and
+**evaluates** each against the current revision: both solve every train instance with the same
+seeds and the same budget per run, and a paired test gives the verdict.
+
+| Verdict | Meaning |
+|---|---|
+| better | significantly better, and on no instance more than 1% worse on average |
+| mixed | better overall, but clearly worse on some instances; not taken |
+| same | no significant difference |
+| worse | significantly worse |
+| rejected | the change scores solutions otherwise: it changed the problem, not the search |
+| failed | the candidate could not solve an instance |
+
+Only a better change is solved into a new revision; the others are undone. The canvas's
+**Improve** tab follows along: the benchmark's instances, every change judged with its verdict,
+gain and the revision it was solved into (click one for each instance). At the end the agent
+evaluates the final revision against the one it started from on the validation instances, which
+none of the choices were made on, and presents the improvement only if it holds there.
+
+The budget of the evaluation replaces each heuristic's own stop, so a change cannot win by
+running longer. The objective is fixed by the revision the change is compared with: its model
+scores the candidate's solutions again, so a change of a penalty weight is caught. Changing what
+is optimized is a change of the model, which the agent agrees with you first. The benchmark and
+every evaluation are kept in the project's `bench/` folder and exported with it
+([ADR 0013](../adr/0013-improve-against-a-benchmark-of-instances.md)).
 
 ## The examples
 

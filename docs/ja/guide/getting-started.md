@@ -106,6 +106,7 @@ uv run optopus-studio --agent codex            # 新しいプロジェクトを 
 | `OPTOPUS_STUDIO_WORKER` | Python ワーカー | ソルバーのコマンド(例: Rust ワーカー) |
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | 停止条件から計算 | 求解を打ち切るまでの秒数 |
 | `OPTOPUS_STUDIO_RUST_DIR` | `$OPTOPUS_STUDIO_HOME/rust` | Rust 移植をビルドし、バイナリを置く場所 |
+| `OPTOPUS_STUDIO_BENCH_PARALLEL` | コア数の半分 | ベンチマークでの評価で同時に走らせる求解の数 |
 
 `OPTOPUS_STUDIO_SOLVE_TIMEOUT` が無いとき、求解は全ランが停止条件上かかりうる合計時間に 30 秒を足した
 時間(最大 20 分)で打ち切られます。時間制限(`max_duration_secs`)の無いヒューリスティックがあれば
@@ -123,6 +124,7 @@ studio が保存するものはすべて `OPTOPUS_STUDIO_HOME`(既定は `~/.opt
         revs/<n>/       各求解: 解いたときのファイルと result.json、view.json
         uploads/        チャットで添付したファイル
         cases/<id>/     パッケージ化したアプリから添付されたケース
+        bench/          エージェントが探索を改善するベンチマークと、その評価の記録
         meta.json       会話を再開するためのエージェントのセッション
     docs/<commit>/      エージェントが読んだ optopus-py のドキュメント
     rust/               ビルド中の Rust 移植

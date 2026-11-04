@@ -102,6 +102,7 @@ uv run optopus-studio --agent codex            # new projects start on Codex (ea
 | `OPTOPUS_STUDIO_WORKER` | the Python worker | the solver command, e.g. a Rust worker |
 | `OPTOPUS_STUDIO_SOLVE_TIMEOUT` | from the stop condition | seconds before a solve is killed |
 | `OPTOPUS_STUDIO_RUST_DIR` | `$OPTOPUS_STUDIO_HOME/rust` | where Rust ports are built and their binaries kept |
+| `OPTOPUS_STUDIO_BENCH_PARALLEL` | half the cores | solves an evaluation on the benchmark runs at once |
 
 Without `OPTOPUS_STUDIO_SOLVE_TIMEOUT`, a solve is stopped after the time its runs may take by
 their stop conditions plus 30 seconds (20 minutes at most), or after 300 seconds when a heuristic
@@ -119,6 +120,7 @@ Everything the studio keeps is under `OPTOPUS_STUDIO_HOME` (`~/.optopus-studio` 
         revs/<n>/       each solve: the files as solved, with result.json and view.json
         uploads/        files you attached in the chat
         cases/<id>/     cases attached from a packaged app
+        bench/          the benchmark the agent improves the search on, and its evaluations
         meta.json       the agent's session, to resume the conversation
     docs/<commit>/      optopus-py documentation pages the agent has read
     rust/               Rust ports being built

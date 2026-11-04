@@ -179,3 +179,18 @@ def test_an_archive_that_is_not_a_project_is_refused(home, files, message):
 def test_a_file_that_is_not_a_zip_is_refused(home):
     with pytest.raises(ProjectError, match="not a zip"):
         Project.import_archive(b"hello", home)
+
+
+def test_restore_makes_the_work_files_a_revision_again(home):
+    project = example_project("tsp", home)
+    rev = project.snapshot()
+    files = project.files()
+    project.write_file("solve.json", "{}")
+    project.write_file("rust/main.rs", "fn main() {}\n")
+    generator = "def generate(seed):\n    return {}\n"
+    project.write_file("generate.py", generator)
+    project.restore(rev)
+    # The benchmark's generator is not the algorithm: restoring a revision keeps it.
+    assert project.files() == {**files, "generate.py": generator}
+    with pytest.raises(ProjectError, match="no revision 9"):
+        project.restore(9)

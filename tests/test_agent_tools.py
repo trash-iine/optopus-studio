@@ -17,6 +17,8 @@ from optopus_studio.agent import (
 )
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
+    BenchChanged,
+    BenchProgress,
     ChatEntry,
     FilesChanged,
     RunSummary,
@@ -336,3 +338,94 @@ def test_a_new_project_starts_on_the_agent_named_or_the_first_that_can_run(home,
     # A project from before the choice has a Claude session.
     assert agent(session_id="a-claude-session") == "claude"
     assert agent(agent="claude") == "claude"
+
+
+TSP_GENERATOR = """\
+import random
+
+
+def generate(seed, n=30):
+    rng = random.Random(seed)
+    return {"cities": [{"name": f"C{i}", "x": rng.uniform(0, 100), "y": rng.uniform(0, 100)}
+                       for i in range(n)]}
+"""
+
+
+def test_the_benchmark_is_built_and_a_change_evaluated_through_the_tools(home):
+    project = example_project("tsp", home)
+    tools = Tools(project, Recorder())
+    assert "train: none" in text(call(tools.bench_list))
+    project.write_file("generate.py", TSP_GENERATOR)
+    for seed, split in ((1, "train"), (2, "train"), (3, "validation")):
+        result = call(
+            tools.bench_add,
+            name=f"g{seed}",
+            split=split,
+            source="generate",
+            seed=seed,
+            params={"n": 25},
+        )
+        assert not result["is_error"], text(result)
+    assert text(result) == "validation instance 'g3' from generate.py seed 3, n=25 (cities: 25)"
+    listed = text(call(tools.bench_settings, runs=3, max_duration_secs=0, max_iteration=2000))
+    assert "budget per run {'max_iteration': 2000}" in listed
+    assert "validation: g3 (generate.py seed 3, n=25)" in listed
+
+    assert not call(tools.run_solver)["is_error"]
+    solve = json.loads(project.read_file("solve.json"))
+    walk = {"kind": "RandomWalk", "neighbor": "TwoOpt", "stop": {}}
+    project.write_file("solve.json", json.dumps({**solve, "heuristic": walk}))
+    tools.broadcast.events.clear()
+    result = call(tools.evaluate, baseline_rev=1, note="a random walk")
+    assert not result["is_error"], text(result)
+    assert text(result).endswith("verdict: WORSE")
+    # Two sides of the two train instances, then the evaluation to show.
+    progress = [(e.done, e.total) for e in tools.broadcast.events if isinstance(e, BenchProgress)]
+    assert progress == [(1, 4), (2, 4), (3, 4), (4, 4)]
+    assert isinstance(tools.broadcast.events[-1], BenchChanged)
+    assert project.revisions() == [1]
+    result = call(tools.restore_revision, rev=1)
+    assert json.loads(project.read_file("solve.json")) == solve
+    assert "- a random walk" in text(call(tools.bench_list))
+    assert text(call(tools.evaluate, baseline_rev=1, split="validation")).endswith("SAME")
+
+
+def test_bench_add_takes_a_revision_the_instance_or_an_upload(home):
+    project = example_project("knapsack", home)
+    tools = Tools(project, Recorder())
+    project.snapshot()
+    assert text(call(tools.bench_add, name="r1", split="train", source="rev:1")).startswith(
+        "train instance 'r1' from revision 1"
+    )
+    assert "from instance.json" in text(
+        call(tools.bench_add, name="now", split="validation", source="instance")
+    )
+    project.save_upload("items.csv", b"name,value,weight\na,3,2\nb,4,3\n")
+    with pytest.raises(ProjectError, match='"key" names the key'):
+        call(tools.bench_add, name="up", split="train", source="upload:items.csv")
+    result = call(tools.bench_add, name="up", split="train", source="upload:items.csv", key="items")
+    assert text(result).startswith("train instance 'up' from items.csv as instance[\"items\"]")
+    from optopus_studio import bench
+
+    entry = next(i for i in bench.load_spec(project).instances if i.name == "up")
+    instance = bench.read_instance(project, entry)
+    assert instance["items"] == [
+        {"name": "a", "value": 3, "weight": 2},
+        {"name": "b", "value": 4, "weight": 3},
+    ]
+    assert instance["capacity"] == json.loads(project.read_file("instance.json"))["capacity"]
+    for source, says in (
+        ("generate", "write generate.py first"),
+        ("case:0123456789ab", "no case"),
+        ("elsewhere", "unknown source"),
+    ):
+        with pytest.raises(ProjectError, match=says):
+            call(tools.bench_add, name="x", split="train", source=source)
+
+
+def test_a_generator_that_fails_is_reported(home):
+    project = example_project("tsp", home)
+    tools = Tools(project, Recorder())
+    project.write_file("generate.py", "def generate(seed):\n    return [seed]\n")
+    with pytest.raises(ProjectError, match="not a dict"):
+        call(tools.bench_add, name="x", split="train", source="generate")

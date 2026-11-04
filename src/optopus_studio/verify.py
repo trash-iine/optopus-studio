@@ -18,16 +18,14 @@ The report ends with how much faster the port searches, in iterations per second
 
 from __future__ import annotations
 
-import asyncio
-import json
 import math
 import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from optopus_studio.protocol import RunFinished, RunSummary, SolveRequest
-from optopus_studio.runner import render_view, run_solve
+from optopus_studio.protocol import EvaluateRequest, RunFinished, RunSummary, SolveRequest
+from optopus_studio.runner import evaluate_solutions, render_view, run_solve
 
 STAT_TOLERANCE = 0.05
 
@@ -59,25 +57,6 @@ def has_time_limit(spec: Any) -> bool:
     if isinstance(spec, list):
         return any(has_time_limit(v) for v in spec)
     return False
-
-
-async def evaluate(binary: Path, instance: dict, solutions: list[Any]) -> list[float]:
-    process = await asyncio.create_subprocess_exec(
-        str(binary),
-        "--evaluate",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    payload = json.dumps({"instance": instance, "solutions": solutions}) + "\n"
-    stdout, stderr = await asyncio.wait_for(process.communicate(payload.encode()), 60.0)
-    try:
-        answer = json.loads(stdout.decode())
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"--evaluate crashed: {stderr.decode()[-2000:]}") from exc
-    if "error" in answer:
-        raise RuntimeError(answer["error"])
-    return answer["objectives"]
 
 
 def _rate(runs: list[RunFinished]) -> float:
@@ -153,8 +132,14 @@ async def verify(
         return verdict
 
     try:
-        objectives = await evaluate(binary, request.instance, [r.solution for r in py.runs])
-    except (RuntimeError, TimeoutError) as exc:
+        scored = EvaluateRequest(
+            model_path=request.model_path,
+            instance=request.instance,
+            solutions=[r.solution for r in py.runs],
+            heuristic=request.variants[0].heuristic,
+        )
+        objectives = await evaluate_solutions([str(binary)], scored, binary.parent)
+    except (RuntimeError, OSError) as exc:
         verdict.fail(f"objective: the port cannot evaluate the Python solutions: {exc}")
         return verdict
     mismatched = [

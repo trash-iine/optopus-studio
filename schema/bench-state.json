@@ -1,0 +1,325 @@
+{
+  "$defs": {
+    "BenchEvaluation": {
+      "additionalProperties": false,
+      "description": "One evaluation of a change against a baseline revision (bench.py).",
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/BenchSide"
+        },
+        "candidate": {
+          "$ref": "#/$defs/BenchSide"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why a candidate was rejected or failed.",
+          "title": "Detail"
+        },
+        "gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The mean gain over all pairs; null unless judged.",
+          "title": "Gain"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "instances": {
+          "items": {
+            "$ref": "#/$defs/BenchInstanceResult"
+          },
+          "title": "Instances",
+          "type": "array"
+        },
+        "kept": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The later revision whose files are the candidate's, if it was solved into one.",
+          "title": "Kept"
+        },
+        "note": {
+          "description": "What the candidate changes, as the agent said it.",
+          "title": "Note",
+          "type": "string"
+        },
+        "p_better": {
+          "title": "P Better",
+          "type": "number"
+        },
+        "p_worse": {
+          "title": "P Worse",
+          "type": "number"
+        },
+        "split": {
+          "enum": [
+            "train",
+            "validation",
+            "all"
+          ],
+          "title": "Split",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "better",
+            "mixed",
+            "same",
+            "worse",
+            "rejected",
+            "failed"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "worsening": {
+          "description": "The mean worsening over the instances, one way.",
+          "title": "Worsening",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "split",
+        "candidate",
+        "baseline",
+        "note",
+        "verdict",
+        "gain",
+        "worsening",
+        "p_better",
+        "p_worse",
+        "detail",
+        "instances",
+        "kept"
+      ],
+      "title": "BenchEvaluation",
+      "type": "object"
+    },
+    "BenchInstance": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Of the instance file, so a result says what it ran on.",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source": {
+          "description": "Where the instance came from, such as 'revision 3'.",
+          "title": "Source",
+          "type": "string"
+        },
+        "split": {
+          "description": "Candidates are chosen on train; the final choice is checked on validation.",
+          "enum": [
+            "train",
+            "validation"
+          ],
+          "title": "Split",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "split",
+        "source",
+        "sha256"
+      ],
+      "title": "BenchInstance",
+      "type": "object"
+    },
+    "BenchInstanceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "description": "The baseline's mean best objective.",
+          "title": "Baseline",
+          "type": "number"
+        },
+        "candidate": {
+          "description": "The candidate's mean best objective.",
+          "title": "Candidate",
+          "type": "number"
+        },
+        "gain": {
+          "description": "The mean gain over the paired runs, relative to the baseline's mean objective; + is better.",
+          "title": "Gain",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "better",
+            "same",
+            "worse"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "gain",
+        "outcome",
+        "baseline",
+        "candidate"
+      ],
+      "title": "BenchInstanceResult",
+      "type": "object"
+    },
+    "BenchSide": {
+      "additionalProperties": false,
+      "properties": {
+        "rev": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rev"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "string"
+        },
+        "where": {
+          "description": "'the work files' or 'revision <n>'.",
+          "title": "Where",
+          "type": "string"
+        },
+        "worker": {
+          "enum": [
+            "python",
+            "rust"
+          ],
+          "title": "Worker",
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "rev",
+        "variant",
+        "worker"
+      ],
+      "title": "BenchSide",
+      "type": "object"
+    },
+    "BenchSpec": {
+      "additionalProperties": false,
+      "description": "bench/bench.json: the instances and the budget every evaluation runs with.",
+      "properties": {
+        "instances": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BenchInstance"
+          },
+          "title": "Instances",
+          "type": "array"
+        },
+        "max_duration_secs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.0,
+          "description": "Each run's time limit, which replaces the stop of every evaluated heuristic.",
+          "title": "Max Duration Secs"
+        },
+        "max_iteration": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Each run's iteration limit, instead of or as well as the time.",
+          "title": "Max Iteration"
+        },
+        "runs": {
+          "default": 5,
+          "description": "Runs per instance and side, paired by seed.",
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Runs",
+          "type": "integer"
+        },
+        "seed": {
+          "default": 0,
+          "exclusiveMaximum": 18446744073709551616,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "instances",
+        "runs",
+        "seed",
+        "max_duration_secs",
+        "max_iteration"
+      ],
+      "title": "BenchSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/projects/{id}/bench: the benchmark, and every evaluation on it.",
+  "properties": {
+    "evaluations": {
+      "items": {
+        "$ref": "#/$defs/BenchEvaluation"
+      },
+      "title": "Evaluations",
+      "type": "array"
+    },
+    "spec": {
+      "$ref": "#/$defs/BenchSpec"
+    }
+  },
+  "required": [
+    "spec",
+    "evaluations"
+  ],
+  "title": "BenchState",
+  "type": "object"
+}

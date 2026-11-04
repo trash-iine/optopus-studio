@@ -98,6 +98,17 @@ Python one with the same seeds, and switch to it once it matches. It is worth it
 needs many more iterations than the Python model manages in the time you accept; a built-in
 problem already runs in Rust.
 
+## 9. Let the agent improve the search
+
+When the result is good but the search could be better, ask:
+
+> Improve the search: 10 attempts, a solve may take 5 seconds.
+
+The agent builds a benchmark of instances like yours, then tries one change at a time and keeps
+only those that evaluate better on it, each as a new revision. It ends by checking the result on
+instances none of its choices were made on. The **Improve** tab lists every change it judged. [Improving the
+algorithm](projects.md#improving-the-algorithm) explains the verdicts.
+
 ## Tips for good requests
 
 - Say **what is decided**, **what is better** (shorter, cheaper, fewer late jobs) and **what must

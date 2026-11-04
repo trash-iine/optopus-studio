@@ -64,6 +64,7 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 | `solving.py` | モデルのファイルを求解に変える。エージェントとアプリの両方が使う |
 | `runner.py`、`worker.py`、`viewer.py` | ソルバーとビューのプロセスを起動する側と、その中で動くもの |
 | `rust.py`、`verify.py` | プロジェクトの Rust 移植をビルドする。Python のモデルと照合する |
+| `bench.py`、`generator.py` | アルゴリズムの変更をベンチマークで判定する。`generate.py` を実行する |
 | `apps.py`、`appserver.py` | リビジョンを `app.json` 付きでパッケージ化し、エージェント無しで提供する |
 | `image.py`、`docker/app.Dockerfile` | パッケージを Docker イメージにビルドする |
 | `frontend.py` | 両サーバーにビルド済みのフロントエンドを提供する |
@@ -163,3 +164,4 @@ ADR が述べている境界を変える前に、その ADR を読んでくだ�
 | [0009](../../adr/0009-package-a-revision-as-an-app.md) | リビジョンをエージェント無しで動くアプリとしてパッケージ化する |
 | [0010](../../adr/0010-deliver-an-app-as-a-docker-image.md) | パッケージ化したアプリは Docker イメージで届ける |
 | [0012](../../adr/0012-run-the-agent-on-claude-code-or-codex.md) | エージェントは Claude Code か Codex で動かし、プロジェクトごとに選ぶ |
+| [0013](../../adr/0013-improve-against-a-benchmark-of-instances.md) | アルゴリズムの変更はインスタンスのベンチマークで判定する |

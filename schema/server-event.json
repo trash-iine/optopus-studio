@@ -178,6 +178,57 @@
       "title": "BarView",
       "type": "object"
     },
+    "BenchChanged": {
+      "additionalProperties": false,
+      "description": "The benchmark or its evaluations changed: GET /api/projects/{id}/bench.",
+      "properties": {
+        "type": {
+          "const": "bench_changed",
+          "default": "bench_changed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BenchChanged",
+      "type": "object"
+    },
+    "BenchProgress": {
+      "additionalProperties": false,
+      "description": "How far the evaluation on the benchmark the agent is running has got.",
+      "properties": {
+        "done": {
+          "description": "Solves finished.",
+          "title": "Done",
+          "type": "integer"
+        },
+        "task": {
+          "const": "evaluation",
+          "title": "Task",
+          "type": "string"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        },
+        "type": {
+          "const": "bench_progress",
+          "default": "bench_progress",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "done",
+        "total"
+      ],
+      "title": "BenchProgress",
+      "type": "object"
+    },
     "ChatEntry": {
       "additionalProperties": false,
       "properties": {
@@ -1603,6 +1654,8 @@
       "agent_selected": "#/$defs/AgentSelected",
       "assistant_delta": "#/$defs/AssistantDelta",
       "assistant_text": "#/$defs/AssistantText",
+      "bench_changed": "#/$defs/BenchChanged",
+      "bench_progress": "#/$defs/BenchProgress",
       "files": "#/$defs/FilesChanged",
       "snapshot": "#/$defs/Snapshot",
       "solve_progress": "#/$defs/SolveProgress",
@@ -1643,6 +1696,12 @@
     },
     {
       "$ref": "#/$defs/AgentSelected"
+    },
+    {
+      "$ref": "#/$defs/BenchProgress"
+    },
+    {
+      "$ref": "#/$defs/BenchChanged"
     }
   ],
   "title": "ServerEvent"
