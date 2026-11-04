@@ -39,8 +39,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from optopus_studio import bench
 from optopus_studio.bench import ALPHA, ranks
 from optopus_studio.projects import Project, ProjectError, variants_of
-from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunFinished, RunSummary, Variant
-from optopus_studio.runner import run_solve
+from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunFinished, Variant
+from optopus_studio.runner import ignore_progress, run_solve
 from optopus_studio.solving import solve_timeout
 
 # Tasks every setting of a race runs before the first test, and the tests' level.
@@ -969,13 +969,6 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
         jobs += [(t, settings[g::groups]) for g in range(groups)]
     gate = asyncio.Semaphore(parallel)
 
-    async def ignore(_: RunSummary) -> None:
-        """Ignores a solve's progress.
-
-        Args:
-            _: The solve so far.
-        """
-
     async def solve(t: int, group: list[Setting]) -> None:
         """Runs a group of settings on a task, one solve with a variant each.
 
@@ -995,7 +988,7 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
         request = bench.request_for(side, instance, tuning.spec, variants, runs=1, seed=seed)
         async with gate:
             summary = await run_solve(
-                request, tuning.rev, side.root, ignore, solve_timeout(request), side.binary
+                request, tuning.rev, side.root, ignore_progress, solve_timeout(request), side.binary
             )
         if summary.error:
             error = summary.error

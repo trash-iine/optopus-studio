@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from optopus_studio.protocol import EvaluateRequest, RunFinished, RunSummary, SolveRequest
-from optopus_studio.runner import evaluate_solutions, render_view, run_solve
+from optopus_studio.runner import evaluate_solutions, ignore_progress, render_view, run_solve
 
 STAT_TOLERANCE = 0.05
 
@@ -169,17 +169,9 @@ async def verify(
     Returns:
         The verdict, with a line per check and the port's speed.
     """
-
-    async def ignore(_: RunSummary) -> None:
-        """Ignores a solve's progress.
-
-        Args:
-            _: The solve so far.
-        """
-
     verdict = Verdict()
-    py = await run_solve(request, 0, cwd, ignore, timeout)
-    rs = await run_solve(request, 0, cwd, ignore, timeout, rust_binary=binary)
+    py = await run_solve(request, 0, cwd, ignore_progress, timeout)
+    rs = await run_solve(request, 0, cwd, ignore_progress, timeout, rust_binary=binary)
     for name, summary in (("python", py), ("rust", rs)):
         if summary.error:
             error = summary.error
