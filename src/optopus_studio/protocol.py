@@ -379,7 +379,7 @@ class ViewUpdated(Strict):
 
 
 # What the agent runs on the benchmark (bench.py), and the instances it runs on.
-BenchTask = Literal["evaluation", "tuning"]
+BenchTask = Literal["evaluation", "tuning", "profile"]
 BenchSplit = Literal["train", "validation", "all"]
 
 
@@ -388,12 +388,15 @@ class BenchProgress(Strict):
 
     type: Literal["bench_progress"] = "bench_progress"
     task: BenchTask
-    done: int = Field(description="Solves finished in an evaluation, runs in a tuning.")
+    done: int = Field(
+        description="Solves finished in an evaluation or a profile, runs in a tuning."
+    )
     total: int
 
 
 class BenchChanged(Strict):
-    """The benchmark, its evaluations or its tunings changed: GET /api/projects/{id}/bench."""
+    """The benchmark, its evaluations, tunings or profiles changed: GET
+    /api/projects/{id}/bench."""
 
     type: Literal["bench_changed"] = "bench_changed"
 
@@ -676,9 +679,47 @@ class BenchTuning(Strict):
     )
 
 
+class BenchProfileVariant(Strict):
+    """How one heuristic behaved in a profile."""
+
+    label: str
+    error: str | None = Field(description="Why its runs failed; the rest is null then.")
+    mean_rank: float | None = Field(description="Over the runs, 1 the best.")
+    p_vs_best: float | None = Field(
+        description="Conover's p-value against the best; under 0.05 it is clearly worse."
+    )
+    wins: int = Field(description="Instances on which its mean objective is the best.")
+    anytime: list[float] = Field(
+        description="The mean gap of its best so far to the best any heuristic found on the "
+        "instance, relative to that best, at each of the profile's fractions of the budget."
+    )
+    best_found_at: float | None = Field(
+        description="The mean share of the budget spent when a run found its best."
+    )
+    iterations_per_sec: float | None
+    accepted: float | None = Field(description="The share of moves accepted.")
+
+
+class BenchProfile(Strict):
+    """One profile of several heuristics on the benchmark (profiling.py, docs/adr/0015)."""
+
+    id: int
+    rev: int | None = Field(description="The revision profiled; null for the work files.")
+    split: Literal["train", "validation", "all"]
+    instances: list[str]
+    fractions: list[float] = Field(description="The shares of the budget 'anytime' is read at.")
+    p: float | None = Field(description="The Friedman test's p-value over all runs.")
+    variants: list[BenchProfileVariant]
+    readings: list[str] = Field(
+        description="Compositions the profile suggests, as hints for the next variants."
+    )
+
+
 class BenchState(Strict):
-    """GET /api/projects/{id}/bench: the benchmark, and every evaluation and tuning on it."""
+    """GET /api/projects/{id}/bench: the benchmark, and every evaluation, tuning and profile on
+    it."""
 
     spec: BenchSpec
     evaluations: list[BenchEvaluation]
     tunings: list[BenchTuning]
+    profiles: list[BenchProfile] = []

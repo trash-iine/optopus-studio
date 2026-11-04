@@ -26,7 +26,7 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, docs, rust, tune
+from optopus_studio import bench, docs, profiling, rust, tune
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -202,12 +202,25 @@ bench_settings: the time the user would wait per solve, or max_iteration when on
 that run at the same speed are compared. An evaluation takes about instances x runs x 2 x \
 budget / the cores in use; keep it within a minute or two.
 2. The incumbent is a revision: run_solver once if the current files are not one.
-3. Change one thing at a time, as a hypothesis: a heuristic or its parameters in solve.json, \
+3. Choose the structure from evidence before refining it, when the user wants the search \
+improved on your own or a better heuristic than the one you started with:
+   - Name the problem in the literature's terms ("a generalized assignment problem balancing \
+the load"), and the methods reported to work on that kind of problem.
+   - Put four to six candidates as variants of solve.json: the incumbent's heuristic, and those \
+methods, one optopus lacks composed from its heuristics (a move it depends on is a \
+neighborhood to write in model.py). check_model, run_solver, then \
+profile them: who leads early and who ends best, who stalls, which instances prefer which.
+   - Write the compositions its readings suggest, two to four (a Sequential of the one that \
+leads early and the one that ends best, one that stalls inside Iterated), as variants with the \
+best single heuristics, run_solver, and tune with 'spaces', the incumbent first: the race \
+chooses the structure and sets its nested settings, the steps' stops among them \
+("steps.0.stop.max_iteration", "search.tabu_tenure.1"). Then go on one change at a time.
+4. Change one thing at a time, as a hypothesis: a heuristic or its parameters in solve.json, \
 or in model.py a neighborhood, a delta computed from the move, a representation, or a port to \
 Rust. check_model, then evaluate it against the incumbent on train, with a note saying what \
 changed. On BETTER, run_solver: that revision is the new incumbent. On anything else, \
 restore_revision the incumbent and try another hypothesis.
-4. To tune a heuristic's numbers or choices (temperatures, rates, tenures, sizes, which \
+5. To tune a heuristic's numbers or choices (temperatures, rates, tenures, sizes, which \
 neighbor), call tune instead of trying settings one at a time: give the parameters that matter, \
 each with the range worth searching ('log' when it spans orders of magnitude), and a budget of \
 runs, about 30 per parameter or more; it takes about budget x the run's budget / the cores in \
@@ -217,14 +230,14 @@ several heuristics could suit, do not pick one: put them all as variants in solv
 run_solver, and tune with 'spaces', the incumbent first, so the race chooses. Tune again after \
 a change to model.py or another heuristic, since the best settings move with them: compare \
 structures each with its settings tuned, or an untuned constant sinks a good idea.
-5. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
+6. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
 long before the budget ends wants diversification (a perturbation, restarts, another \
 heuristic); a low rate of iterations a cheaper delta or Rust; almost no accepted moves a \
 higher temperature or a larger neighborhood; almost all accepted a cooler search. Read tune's \
-signs the same way: an elite at the edge of a range wants the range widened; settings that \
-barely matter want a change of structure, not more tuning; instances that prefer different \
-settings are worth telling the user.
-6. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
+signs, and a profile's readings, the same way: an elite at the edge of a range wants the \
+range widened; settings that barely matter want a change of structure, not more tuning; \
+instances that prefer different settings are worth telling the user.
+7. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
 nothing. bench_list recalls every change judged so far, with its note and verdict and the \
 revision it was solved into, so do not try one twice; the user follows the same in the \
 canvas's Improve tab. Then evaluate the incumbent against the revision you started from on \
@@ -730,9 +743,14 @@ class Tools:
         return text_result(bench.describe_bench(self.project))
 
     async def bench_list(self, args: dict[str, Any]) -> dict[str, Any]:
-        tunings = tune.describe(self.project)
-        listed = "\n".join([bench.describe_bench(self.project), *(["tunings:"] if tunings else [])])
-        return text_result("\n".join([listed, *tunings]))
+        lines = [bench.describe_bench(self.project)]
+        for heading, described in (
+            ("tunings:", tune.describe(self.project)),
+            ("profiles:", profiling.describe(self.project)),
+        ):
+            if described:
+                lines += [heading, *described]
+        return text_result("\n".join(lines))
 
     async def evaluate(self, args: dict[str, Any]) -> dict[str, Any]:
         candidate = args.get("candidate_rev")
@@ -770,6 +788,18 @@ class Tools:
             if self.project.files() != before:
                 await self.broadcast(FilesChanged(files=self.project.files()))
         return text_result(tune.report(tuning, evaluation))
+
+    async def profile(self, args: dict[str, Any]) -> dict[str, Any]:
+        rev = args.get("rev")
+        profiled = await profiling.profile(
+            self.project,
+            int(rev) if rev is not None else None,
+            variants=args.get("variants"),
+            split=args.get("split", "train"),
+            progress=self.bench_progress,
+        )
+        await self.broadcast(BenchChanged())
+        return text_result(profiling.report(profiled))
 
     def specs(self) -> list[ToolSpec]:
         """The tools as each agent is given them (agent_claude.py, agent_codex.py)."""
@@ -976,7 +1006,8 @@ class Tools:
             ),
             ToolSpec(
                 "bench_list",
-                "The benchmark's settings and instances, and the evaluations so far.",
+                "The benchmark's settings and instances, and the evaluations, tunings and "
+                "profiles so far.",
                 object_schema({}, []),
                 guarded(self.bench_list),
             ),
@@ -1033,6 +1064,27 @@ class Tools:
                     ["rev", "budget"],
                 ),
                 guarded(self.tune),
+            ),
+            ToolSpec(
+                "profile",
+                "Profile the heuristics of a solve.json on the benchmark before composing them: "
+                "each variant (all by default, or those 'variants' names) solves every instance "
+                "of the split with the benchmark's runs, seeds and budget. Reports each one's "
+                "mean rank and Friedman/Conover p-value, the instances it wins, its gap to the "
+                "best found at 10/25/50/100% of the budget (who leads early, who ends best), "
+                "how far through a run it finds its best, its speed and its accepted moves; "
+                "then readings: compositions worth racing. The work files, or revision 'rev'. "
+                "Takes about variants x instances x runs x budget / the cores in use. Makes no "
+                "revision and changes no file.",
+                object_schema(
+                    {
+                        "rev": {"type": "integer", "minimum": 1},
+                        "variants": {"type": "array", "items": {"type": "string"}, "minItems": 2},
+                        "split": {"type": "string", "enum": ["train", "validation", "all"]},
+                    },
+                    [],
+                ),
+                guarded(self.profile),
             ),
         ]
 

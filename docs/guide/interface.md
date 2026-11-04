@@ -114,11 +114,21 @@ revision and the one before it at first).
 
 What the agent did to improve the search
 ([Improving the algorithm](projects.md#improving-the-algorithm)); empty until it builds a
-benchmark. It updates as the agent works, with a progress bar while an evaluation or a tuning
-runs.
+benchmark. It updates as the agent works, with a progress bar while an evaluation, a tuning or
+a profile runs.
 
 - **Benchmark**: the runs per instance and each run's budget, and the train and validation
   instances; hover one for where it came from.
+- **Heuristics profiled**: every profile of several heuristics on the benchmark, newest first. Each
+  table lists the heuristics, the best first, with:
+  - the mean rank and the instances won;
+  - the gap of the best so far to the best any of them found, at 10%, 25%, 50% and 100% of the
+    budget. The leader at each share is in bold, so a heuristic that leads early and another that
+    ends best stand out;
+  - how far into the budget each found its best;
+  - iterations per second, and the moves accepted.
+
+  The readings under the table are the compositions the profile suggests.
 - **Changes judged**: every evaluation, newest first: the agent's note of what changed, the
   revision it was compared with, the split, the verdict, the mean gain (+ is better), how many
   instances got better, stayed and got worse, and the revision the change was solved into ("—"

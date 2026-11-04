@@ -26,9 +26,10 @@ export interface StudioState {
   /** The agent the project's chat runs on, and the ones it can switch to (docs/adr/0012). */
   agent: AgentChoice["name"] | null;
   agents: AgentChoice[];
-  /** Counts the changes to the benchmark, its evaluations and tunings, to fetch it again. */
+  /** Counts the changes to the benchmark, its evaluations, tunings and profiles, to fetch it
+   * again. */
   benchVersion: number;
-  /** The evaluation or tuning running now, if one is. */
+  /** The evaluation, tuning or profile running now, if one is. */
   benchProgress: BenchProgress | null;
 }
 

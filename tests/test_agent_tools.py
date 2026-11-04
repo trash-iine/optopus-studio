@@ -408,6 +408,24 @@ def test_the_benchmark_is_built_and_a_change_evaluated_through_the_tools(home):
     result = call(tools.tune, rev=1, spaces={"SimulatedAnnealing": hot}, budget=40)
     assert "variant SimulatedAnnealing of revision 1" in text(result), text(result)
 
+    with pytest.raises(ProjectError, match="has one heuristic"):
+        call(tools.profile, rev=1)
+    heuristics = [
+        {"label": "SA", "heuristic": solve["heuristic"]},
+        {"label": "RW", "heuristic": walk},
+    ]
+    project.write_file("solve.json", json.dumps({"heuristics": heuristics, "runs": 1, "seed": 0}))
+    tools.broadcast.events.clear()
+    result = call(tools.profile)
+    assert text(result).startswith("profile 1: 2 heuristics of the work files"), text(result)
+    assert "  RW: rank 2.00" in text(result)
+    tasks = {e.task for e in tools.broadcast.events if isinstance(e, BenchProgress)}
+    assert tasks == {"profile"}
+    assert isinstance(tools.broadcast.events[-1], BenchChanged)
+    assert "profiles:\n  1: the work files on train, best first: SA, RW" in text(
+        call(tools.bench_list)
+    )
+
 
 def test_bench_add_takes_a_revision_the_instance_or_an_upload(home):
     project = example_project("knapsack", home)

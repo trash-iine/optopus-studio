@@ -180,7 +180,7 @@
     },
     "BenchChanged": {
       "additionalProperties": false,
-      "description": "The benchmark, its evaluations or its tunings changed: GET /api/projects/{id}/bench.",
+      "description": "The benchmark, its evaluations, tunings or profiles changed: GET\n/api/projects/{id}/bench.",
       "properties": {
         "type": {
           "const": "bench_changed",
@@ -200,14 +200,15 @@
       "description": "How far the evaluation or tuning on the benchmark the agent is running has got.",
       "properties": {
         "done": {
-          "description": "Solves finished in an evaluation, runs in a tuning.",
+          "description": "Solves finished in an evaluation or a profile, runs in a tuning.",
           "title": "Done",
           "type": "integer"
         },
         "task": {
           "enum": [
             "evaluation",
-            "tuning"
+            "tuning",
+            "profile"
           ],
           "title": "Task",
           "type": "string"

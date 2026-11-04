@@ -1,15 +1,20 @@
-// The benchmark the agent improves the search on: its instances, every change it judged there,
-// and every tuning of a heuristic's settings (docs/adr/0013, 0014).
+// The benchmark the agent improves the search on: its instances, every profile of heuristics on
+// it, every change it judged there, and every tuning of a heuristic's settings (docs/adr/0013,
+// 0014, 0015).
 import { Fragment, useEffect, useState } from "react";
-import type { BenchEvaluation, BenchState, BenchTuning } from "../generated/bench-state";
+import type { BenchEvaluation, BenchProfile, BenchState, BenchTuning } from "../generated/bench-state";
 import type { BenchProgress } from "../generated/server-event";
 import {
   best,
   budget,
   fetchBench,
+  gap,
+  leaders,
   outcomes,
   percent,
   progressText,
+  ranked,
+  share,
   side,
   verdictClass,
 } from "../improve";
@@ -43,7 +48,7 @@ export function Improve({ project, version, progress }: Props) {
   );
   if (error) return <div className="banner critical">{error}</div>;
   if (!bench) return <div className="placeholder">Loading the benchmark…</div>;
-  const { spec, evaluations, tunings } = bench;
+  const { spec, evaluations, tunings, profiles } = bench;
   if (spec.instances.length === 0 && evaluations.length === 0) {
     return (
       <div className="result">
@@ -81,6 +86,20 @@ export function Improve({ project, version, progress }: Props) {
           );
         })}
       </section>
+      {profiles.length > 0 && (
+        <section className="card table-wrap">
+          <h3>
+            Heuristics profiled{" "}
+            <span className="sub">
+              newest first; gap of the best so far to the best any of them found, at each share of
+              the budget
+            </span>
+          </h3>
+          {[...profiles].reverse().map((p) => (
+            <Profile key={p.id} profile={p} />
+          ))}
+        </section>
+      )}
       {evaluations.length > 0 && (
         <section className="card table-wrap">
           <h3>
@@ -162,6 +181,75 @@ export function Improve({ project, version, progress }: Props) {
   );
 }
 
+function Profile({ profile: p }: { profile: BenchProfile }) {
+  const lead = leaders(p);
+  return (
+    <div className="profile">
+      <div className="profile-head">
+        #{p.id}: {side(p)} on {p.split} (
+        {p.instances.length} instances)
+        {p.p != null && <span className="muted">; Friedman p = {p.p.toPrecision(2)}</span>}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>heuristic</th>
+            <th className="num">mean rank</th>
+            <th className="num">won</th>
+            {p.fractions.map((f) => (
+              <th key={f} className="num">
+                gap at {Math.round(f * 100)}%
+              </th>
+            ))}
+            <th className="num">best found at</th>
+            <th className="num">iterations/s</th>
+            <th className="num">accepted</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ranked(p).map((v) =>
+            v.error != null ? (
+              <tr key={v.label}>
+                <td>{v.label}</td>
+                <td colSpan={p.fractions.length + 5} className="muted" title={v.error}>
+                  failed: {v.error}
+                </td>
+              </tr>
+            ) : (
+              <tr key={v.label}>
+                <td>{v.label}</td>
+                <td className="num">{v.mean_rank?.toFixed(2)}</td>
+                <td className="num">
+                  {v.wins} / {p.instances.length}
+                </td>
+                {v.anytime.map((g, k) => (
+                  <td
+                    key={p.fractions[k]}
+                    className={lead[k] === v.label ? "num lead" : "num"}
+                    title={lead[k] === v.label ? "closest to the best at this share of the budget" : undefined}
+                  >
+                    {gap(g)}
+                  </td>
+                ))}
+                <td className="num">{share(v.best_found_at, 0)}</td>
+                <td className="num">{v.iterations_per_sec != null ? compact(Math.round(v.iterations_per_sec)) : "—"}</td>
+                <td className="num">{share(v.accepted, 0)}</td>
+              </tr>
+            ),
+          )}
+        </tbody>
+      </table>
+      {p.readings.length > 0 && (
+        <ul className="profile-readings">
+          {p.readings.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Detail({ evaluation: e }: { evaluation: BenchEvaluation }) {
   return (
     <div className="attempt">
@@ -171,7 +259,7 @@ function Detail({ evaluation: e }: { evaluation: BenchEvaluation }) {
         {e.verdict !== "rejected" && e.verdict !== "failed" && (
           <>
             ; p = {e.p_better.toPrecision(3)} against better, {e.p_worse.toPrecision(3)} against
-            worse; mean worsening {(e.worsening * 100).toFixed(2)}%
+            worse; mean worsening {share(e.worsening)}
           </>
         )}
       </p>

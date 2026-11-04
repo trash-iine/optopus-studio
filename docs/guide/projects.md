@@ -110,9 +110,29 @@ different settings, a search that stalls early or accepts almost no move or almo
 agent reads them to choose its next change, and tells you when the instances want different
 settings.
 
+Before it refines one change at a time, the agent chooses the structure of the search from
+evidence ([ADR 0015](../adr/0015-profile-heuristics-before-composing-them.md)). It puts
+four to six candidates in `solve.json` and **profiles** them on the benchmark. Each
+candidate solves every train instance with the benchmark's runs and budget, and the profile
+reports:
+
+- its rank, and the instances it wins;
+- how far its best so far is from the best found, at 10%, 25%, 50% and the end of the budget;
+- how early it found its best.
+
+From this the profile reads the compositions worth trying:
+
+- one candidate that leads early and another that ends best make a `Sequential` of the two;
+- a candidate that stalls goes inside an `Iterated` with a kick;
+- instances that prefer different heuristics want one that adapts within a run.
+
+The agent writes those as variants and races them with the best single heuristics, so the race
+chooses the composition and sets the settings inside it.
+
 Only a better change is solved into a new revision; the others are undone. The canvas's
 **Improve** tab follows along: the benchmark's instances, every change judged with its verdict,
-gain and the revision it was solved into (click one for each instance), and every tuning. At the end the agent
+gain and the revision it was solved into (click one for each instance), every tuning and every
+profile. At the end the agent
 evaluates the final revision against the one it started from on the validation instances, which
 none of the choices were made on, and presents the improvement only if it holds there.
 
@@ -120,7 +140,7 @@ The budget of the evaluation replaces each heuristic's own stop, so a change can
 running longer. The objective is fixed by the revision the change is compared with: its model
 scores the candidate's solutions again, so a change of a penalty weight is caught. Changing what
 is optimized is a change of the model, which the agent agrees with you first. The benchmark,
-every evaluation and every tuning are kept in the project's `bench/` folder and exported with it
+every evaluation, tuning and profile are kept in the project's `bench/` folder and exported with it
 ([ADR 0013](../adr/0013-improve-against-a-benchmark-of-instances.md)).
 
 ## The examples

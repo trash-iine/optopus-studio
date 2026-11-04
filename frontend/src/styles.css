@@ -231,6 +231,10 @@ tr.best td { font-weight: 600; }
 .status progress { vertical-align: middle; width: 160px; margin-left: 8px; }
 .tuning-signs td { border-top: none; padding-top: 0; }
 .tuning-signs ul { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ink-2); }
+.profile + .profile { margin-top: 14px; }
+.profile-head { font-size: 13px; margin-bottom: 6px; }
+.profile td.lead { font-weight: 600; }
+.profile-readings { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: var(--ink-2); }
 .file-diff { margin-top: 8px; }
 .file-diff summary { cursor: pointer; color: var(--ink-2); margin-bottom: 6px; }
 .diff div { white-space: pre; }

@@ -2,7 +2,19 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Improve } from "./components/Improve";
 import type { BenchEvaluation, BenchState } from "./generated/bench-state";
-import { best, budget, outcomes, percent, progressText, settings, verdictClass } from "./improve";
+import {
+  best,
+  budget,
+  gap,
+  leaders,
+  outcomes,
+  percent,
+  progressText,
+  ranked,
+  settings,
+  share,
+  verdictClass,
+} from "./improve";
 import { initialState, reduce } from "./studio";
 
 afterEach(() => {
@@ -86,6 +98,52 @@ const STATE: BenchState = {
       signs: ["#6 accepts 0.5% of its moves: almost none"],
     },
   ],
+  profiles: [
+    {
+      id: 1,
+      rev: 1,
+      split: "train",
+      instances: ["small", "large"],
+      fractions: [0.1, 0.25, 0.5, 1],
+      p: 0.0004,
+      variants: [
+        {
+          label: "Tabu",
+          error: null,
+          mean_rank: 1.4,
+          p_vs_best: 1,
+          wins: 2,
+          anytime: [0.09, 0.05, 0.02, 0],
+          best_found_at: 0.8,
+          iterations_per_sec: 1234.5,
+          accepted: 0.3,
+        },
+        {
+          label: "bad",
+          error: "heuristic: invalid neighbor 'X'",
+          mean_rank: null,
+          p_vs_best: null,
+          wins: 0,
+          anytime: [],
+          best_found_at: null,
+          iterations_per_sec: null,
+          accepted: null,
+        },
+        {
+          label: "SA",
+          error: null,
+          mean_rank: 1.6,
+          p_vs_best: 0.2,
+          wins: 0,
+          anytime: [0.03, 0.04, 0.03, 0.01],
+          best_found_at: 0.1,
+          iterations_per_sec: 2000,
+          accepted: 0.5,
+        },
+      ],
+      readings: ["SA leads at 10% of the budget (gap 3.000% vs 9.000% on 2 of 2 instances)"],
+    },
+  ],
 };
 
 describe("the improve tab", () => {
@@ -108,6 +166,33 @@ describe("the improve tab", () => {
     expect(progressText({ type: "bench_progress", task: "tuning", done: 40, total: 80 })).toBe(
       "Tuning settings by racing: 40 / 80 runs",
     );
+    expect(progressText({ type: "bench_progress", task: "profile", done: 3, total: 12 })).toBe(
+      "Profiling heuristics: 3 / 12 solves",
+    );
+    const profile = STATE.profiles[0];
+    expect(ranked(profile).map((v) => v.label)).toEqual(["Tabu", "SA", "bad"]);
+    expect(leaders(profile)).toEqual(["SA", "SA", "Tabu", "Tabu"]);
+    expect(share(0.0123)).toBe("1.23%");
+    expect(gap(0.0000123)).toBe("0.00123%");
+    expect(gap(0)).toBe("0%");
+    expect(share(null)).toBe("—");
+  });
+
+  it("shows who leads early and who ends best in a profile", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(STATE))));
+    render(<Improve project="p" version="0-2" progress={null} />);
+    await screen.findByText("Heuristics profiled");
+    const sa = screen.getAllByRole("row").find((r) => r.textContent?.startsWith("SA1.60"));
+    const cells = [...(sa?.querySelectorAll("td") ?? [])].map((c) => [c.textContent, c.className]);
+    expect(cells.slice(3, 7)).toEqual([
+      ["3%", "num lead"],
+      ["4%", "num lead"],
+      ["3%", "num"],
+      ["1%", "num"],
+    ]);
+    expect(screen.getByText(/failed: heuristic: invalid neighbor/)).toBeTruthy();
+    expect(screen.getByText(/SA leads at 10% of the budget/).tagName).toBe("LI");
+    expect(screen.getByText("1,235")).toBeTruthy();
   });
 
   it("follows the agent's evaluations and tunings", () => {
@@ -146,7 +231,13 @@ describe("the improve tab", () => {
   });
 
   it("says how to start when there is no benchmark", async () => {
-    const empty = { ...STATE, spec: { ...STATE.spec, instances: [] }, evaluations: [], tunings: [] };
+    const empty = {
+      ...STATE,
+      spec: { ...STATE.spec, instances: [] },
+      evaluations: [],
+      tunings: [],
+      profiles: [],
+    };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(empty))));
     const progress = { type: "bench_progress", task: "evaluation", done: 1, total: 4 } as const;
     render(<Improve project="p" version="0-0" progress={progress} />);
