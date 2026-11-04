@@ -80,6 +80,14 @@ async def _kill(process: asyncio.subprocess.Process) -> None:
         await process.wait()
 
 
+async def ignore_progress(_: RunSummary) -> None:
+    """An ``on_update`` for ``run_solve`` that ignores a solve's progress.
+
+    Args:
+        _: The solve so far.
+    """
+
+
 async def run_solve(
     request: SolveRequest,
     rev: int,

@@ -58,7 +58,7 @@ from optopus_studio.protocol import (
     TurnEnd,
     ViewUpdated,
 )
-from optopus_studio.runner import render_view, run_generator, run_solve
+from optopus_studio.runner import ignore_progress, render_view, run_generator, run_solve
 from optopus_studio.solving import rust_binary, solve_request, solve_timeout, with_stop
 from optopus_studio.tables import TableError, preview, read_records
 from optopus_studio.verify import verify
@@ -823,14 +823,7 @@ class Tools:
             seconds = (v.heuristic.get("stop") or {}).get("max_duration_secs") or CHECK_SECONDS
             v.heuristic = with_stop(v.heuristic, max_duration_secs=min(seconds, CHECK_SECONDS))
 
-        async def ignore(_: RunSummary) -> None:
-            """Ignores a solve's progress.
-
-            Args:
-                _: The solve so far.
-            """
-
-        summary = await run_solve(request, 0, self.project.work, ignore, 60.0, binary)
+        summary = await run_solve(request, 0, self.project.work, ignore_progress, 60.0, binary)
         report = describe(summary)
         if summary.error:
             return text_result(report, is_error=True)

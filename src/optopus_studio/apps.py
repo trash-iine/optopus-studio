@@ -55,7 +55,7 @@ from optopus_studio.protocol import (
     RunSummary,
     ViewSpec,
 )
-from optopus_studio.runner import render_view, run_solve
+from optopus_studio.runner import ignore_progress, render_view, run_solve
 from optopus_studio.solving import rust_binary, solve_request, solve_timeout
 from optopus_studio.tables import UPLOAD_SUFFIXES, TableError, read_records
 
@@ -520,14 +520,9 @@ class App:
         )
         binary = await rust_binary(self.solve, self.files.get("rust/main.rs"))
 
-        async def ignore(_: RunSummary) -> None:
-            """Ignores a solve's progress.
-
-            Args:
-                _: The solve so far.
-            """
-
-        summary = await run_solve(request, 0, self.model, ignore, solve_timeout(request), binary)
+        summary = await run_solve(
+            request, 0, self.model, ignore_progress, solve_timeout(request), binary
+        )
         if summary.error:
             raise ProjectError(f"the packaged data does not solve: {summary.error.message}")
         _, error = await render_view(self.model / "view.py", self.instance, summary)

@@ -56,7 +56,7 @@ from optopus_studio.protocol import (
     Variant,
     Verdict,
 )
-from optopus_studio.runner import evaluate_solutions, run_solve, worker_command
+from optopus_studio.runner import evaluate_solutions, ignore_progress, run_solve, worker_command
 from optopus_studio.solving import initial_solution, rust_binary, solve_timeout
 
 ALPHA = 0.05
@@ -423,13 +423,6 @@ async def solve_all(
     gate = asyncio.Semaphore(parallelism())
     done = 0
 
-    async def ignore(_: RunSummary) -> None:
-        """Ignores a solve's progress.
-
-        Args:
-            _: The solve so far.
-        """
-
     async def solve(s: Side, request: SolveRequest) -> RunSummary:
         """Solves one request when a slot is free, and reports the progress.
 
@@ -443,7 +436,7 @@ async def solve_all(
         nonlocal done
         async with gate:
             summary = await run_solve(
-                request, 0, s.root, ignore, solve_timeout(request), rust_binary=s.binary
+                request, 0, s.root, ignore_progress, solve_timeout(request), rust_binary=s.binary
             )
         done += 1
         if progress:
