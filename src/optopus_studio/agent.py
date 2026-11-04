@@ -49,6 +49,7 @@ from optopus_studio.protocol import (
     BenchSplit,
     ChatEntry,
     FilesChanged,
+    ModelChoice,
     RunFinished,
     RunSummary,
     SolveProgress,
@@ -1652,8 +1653,82 @@ def agent_choices() -> list[AgentChoice]:
     ]
 
 
+# How long an agent may take to list its models: it starts the CLI or the app-server to ask.
+MODEL_LIST_TIMEOUT = 60.0
+# Each agent's models, as it listed them, for as long as the studio runs. Kept in memory only: a
+# restart asks the agents again, so a model they add or drop shows without a change here. Two
+# requests at once may both ask; the later answer wins, and both are the agent's list.
+_model_lists: dict[AgentName, list[ModelChoice]] = {}
+
+
+async def list_models(agent: AgentName) -> list[ModelChoice]:
+    """The models an agent offers, as it lists them, asked once while the studio runs.
+
+    Args:
+        agent: The agent.
+
+    Returns:
+        The models.
+
+    Raises:
+        AgentError: The agent cannot run here, or could not list its models.
+    """
+    if agent in _model_lists:
+        return _model_lists[agent]
+    choice = next(c for c in agent_choices() if c.name == agent)
+    if not choice.available:
+        raise AgentError(f"{agent} cannot run here: {choice.reason}")
+    if agent == "codex":
+        from optopus_studio.agent_codex import list_models as listing
+    else:
+        from optopus_studio.agent_claude import list_models as listing
+    try:
+        models = await asyncio.wait_for(listing(), MODEL_LIST_TIMEOUT)
+    except AgentError:
+        raise
+    except Exception as exc:
+        raise AgentError(f"{agent} could not list its models: {exc}") from exc
+    _model_lists[agent] = models
+    return models
+
+
+def check_model_choice(
+    models: list[ModelChoice], model: str | None, effort: str | None
+) -> str | None:
+    """Why a model and effort are not among an agent's, if they are not.
+
+    Args:
+        models: The agent's models.
+        model: The model, or None for the agent's default.
+        effort: The effort, or None for the model's default.
+
+    Returns:
+        The reason, or None when the choice is one the agent offers.
+    """
+    if model is None and effort is None:
+        return None
+    if model is None:
+        target = next((m for m in models if m.is_default), None)
+        if target is None:
+            return "choose a model to choose its effort"
+    else:
+        target = next((m for m in models if m.id == model), None)
+        if target is None:
+            return f"the agent offers no model {model!r}"
+    if effort is not None and effort not in target.efforts:
+        takes = ", ".join(target.efforts) or "none"
+        return f"{target.name} takes no effort {effort!r} (it takes: {takes})"
+    return None
+
+
 def open_backend(
-    agent: AgentName, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False
+    agent: AgentName,
+    specs: list[ToolSpec],
+    cwd: Path,
+    resume: str | None,
+    web: bool = False,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> Backend:
     """A session on an agent, not yet opened.
 
@@ -1663,6 +1738,8 @@ def open_backend(
         cwd: The project's directory.
         resume: The session to resume, if any.
         web: Whether the agent may search the web (docs/adr/0016).
+        model: The model the project chose, if any.
+        effort: The reasoning effort the project chose, if any.
 
     Returns:
         The backend.
@@ -1670,10 +1747,10 @@ def open_backend(
     if agent == "codex":
         from optopus_studio.agent_codex import CodexBackend
 
-        return CodexBackend(specs, cwd, resume, web)
+        return CodexBackend(specs, cwd, resume, web, model, effort)
     from optopus_studio.agent_claude import ClaudeBackend
 
-    return ClaudeBackend(specs, cwd, resume, web)
+    return ClaudeBackend(specs, cwd, resume, web, model, effort)
 
 
 class AgentSession:
@@ -1755,6 +1832,44 @@ class AgentSession:
         await self.close()
         self.project.set_meta(web_search=enabled)
 
+    def model_choice(self, agent: AgentName | None = None) -> tuple[str | None, str | None]:
+        """The model and effort the project chose for an agent; None for the defaults.
+
+        Args:
+            agent: The agent; the one the chat runs on when None.
+
+        Returns:
+            The model and the effort.
+        """
+        chosen = (self.project.meta().get("models") or {}).get(agent or self.agent) or {}
+        return chosen.get("model"), chosen.get("effort")
+
+    async def select_model(self, model: str | None, effort: str | None) -> None:
+        """Run the agent on ``model`` at ``effort`` from the next message, in the same session.
+
+        Args:
+            model: One of the models the agent lists, or None for its default.
+            effort: One of that model's efforts, or None for its default.
+
+        Raises:
+            ProjectError: The agent is on a turn, cannot list its models, or lists no such model
+                or effort.
+        """
+        if self.busy:
+            raise ProjectError("the agent is still working")
+        if (model, effort) == self.model_choice():
+            return
+        try:
+            models = await list_models(self.agent)
+        except AgentError as exc:
+            raise ProjectError(str(exc)) from exc
+        if problem := check_model_choice(models, model, effort):
+            raise ProjectError(problem)
+        await self.close()
+        chosen = dict(self.project.meta().get("models") or {})
+        chosen[self.agent] = {"model": model, "effort": effort}
+        self.project.set_meta(models=chosen)
+
     def submit(self, text: str) -> bool:
         """Hands the agent a message, starting its session if it is not running.
 
@@ -1828,7 +1943,12 @@ class AgentSession:
         resume = self.project.meta().get("session_id")
         while True:
             backend = open_backend(
-                agent, self.tools.specs(), self.project.work, resume, self.web_search
+                agent,
+                self.tools.specs(),
+                self.project.work,
+                resume,
+                self.web_search,
+                *self.model_choice(agent),
             )
             try:
                 await backend.open()

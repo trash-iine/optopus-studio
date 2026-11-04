@@ -1,9 +1,10 @@
 """A stand-in for ``codex``: ``--version``, and an ``app-server`` that plays one scripted turn.
 
 Every message it reads, its arguments and whether an OpenAI key reached it go to FAKE_CODEX_LOG
-as JSON Lines, for the test to check. A turn streams a delta, asks for a command approval (which
-the studio must refuse), searches the web when started with its web search on, calls the
-studio's write_file tool, and ends with the agent's message once the tool has answered.
+as JSON Lines, for the test to check. ``model/list`` answers in two pages. A turn streams a
+delta, asks for a command approval (which the studio must refuse), searches the web when started
+with its web search on, calls the studio's write_file tool, and ends with the agent's message
+once the tool has answered.
 """
 
 import json
@@ -16,6 +17,31 @@ LOG = os.environ["FAKE_CODEX_LOG"]
 def log(entry):
     with open(LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def model(name, efforts, default=False, hidden=False):
+    return {
+        "id": name,
+        "model": name,
+        "displayName": name.upper(),
+        "description": f"{name} model",
+        "hidden": hidden,
+        "isDefault": default,
+        "supportedReasoningEfforts": [
+            {"reasoningEffort": e, "description": f"{e} effort"} for e in efforts
+        ],
+        "defaultReasoningEffort": efforts[0],
+    }
+
+
+# Two pages, so the studio follows nextCursor, and a hidden model it must leave out.
+MODEL_PAGES = {
+    "first": {"data": [model("gpt-big", ["low", "high"], default=True)], "nextCursor": "2"},
+    "2": {
+        "data": [model("gpt-small", ["low"]), model("gpt-secret", ["low"], hidden=True)],
+        "nextCursor": None,
+    },
+}
 
 
 def send(message):
@@ -70,6 +96,8 @@ def main():
             continue
         elif method == "turn/start":
             result = {"turn": {"id": "turn-1", "status": "inProgress"}}
+        elif method == "model/list":
+            result = MODEL_PAGES[params.get("cursor") or "first"]
         send({"id": message["id"], "result": result})
         if method == "turn/start":
             send(

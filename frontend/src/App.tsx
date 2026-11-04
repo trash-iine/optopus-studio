@@ -149,6 +149,9 @@ export function App() {
           onSelectAgent={(agent) => send({ type: "select_agent", agent })}
           webSearch={state.webSearch}
           onSetWebSearch={(enabled) => send({ type: "set_web_search", enabled })}
+          model={state.model}
+          effort={state.effort}
+          onSelectModel={(model, effort) => send({ type: "select_model", model, effort })}
           onUpload={(file) => upload(projectId ?? "", file)}
         />
         <Canvas

@@ -1,6 +1,7 @@
 // Generated from schema/client-event.json by `npm run gen:types`. Do not edit.
 
-export type ClientEvent = UserMessage | SelectRevision | Interrupt | SelectAgent | SetWebSearch;
+export type ClientEvent =
+  UserMessage | SelectRevision | Interrupt | SelectAgent | SetWebSearch | SelectModel;
 export type Text = string;
 export type Type = "user_message";
 export type Rev = number;
@@ -10,6 +11,9 @@ export type Agent = "claude" | "codex";
 export type Type3 = "select_agent";
 export type Enabled = boolean;
 export type Type4 = "set_web_search";
+export type Effort = string | null;
+export type Model = string | null;
+export type Type5 = "select_model";
 
 /**
  * A message the user sent to the agent.
@@ -44,4 +48,12 @@ export interface SelectAgent {
 export interface SetWebSearch {
   enabled: Enabled;
   type?: Type4;
+}
+/**
+ * The user chose the model and effort the agent runs on; None for the default.
+ */
+export interface SelectModel {
+  effort?: Effort;
+  model?: Model;
+  type?: Type5;
 }

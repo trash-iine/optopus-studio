@@ -379,6 +379,35 @@ class AgentChoice(Strict):
     reason: str | None = Field(None, description="Why the agent cannot run here, if it cannot.")
 
 
+class ModelChoice(Strict):
+    """A model an agent can run on, as the agent's own list of models names it."""
+
+    id: str = Field(
+        description="What the agent is told to run on; an alias such as Claude's 'opus' follows "
+        "the agent's updates."
+    )
+    name: str = Field(description="The model's name to show.")
+    description: str | None = None
+    efforts: list[str] = Field(
+        description="The reasoning efforts the model takes, least first; empty when it takes none."
+    )
+    default_effort: str | None = Field(
+        None, description="The effort the model runs at unless told otherwise, when known."
+    )
+    is_default: bool = Field(
+        False, description="Whether the agent runs on this model unless told otherwise."
+    )
+
+
+class ModelList(Strict):
+    """GET /api/agents/{agent}/models: the models an agent offers, as it lists them now."""
+
+    models: list[ModelChoice]
+    error: str | None = Field(
+        None, description="Why the agent could not list its models; it then runs on its default."
+    )
+
+
 class AssistantDelta(Strict):
     """Text of the agent's reply as it streams."""
 
@@ -483,6 +512,12 @@ class Snapshot(Strict):
     web_search: bool = Field(
         False, description="Whether the agent may search and read the web (docs/adr/0016)."
     )
+    model: str | None = Field(
+        None, description="The model the agent runs on in this project; None for its default."
+    )
+    effort: str | None = Field(
+        None, description="The reasoning effort the agent runs at; None for the model's default."
+    )
 
 
 class AgentSelected(Strict):
@@ -490,6 +525,16 @@ class AgentSelected(Strict):
 
     type: Literal["agent_selected"] = "agent_selected"
     agent: AgentName
+    model: str | None = Field(None, description="The model chosen for that agent, if any.")
+    effort: str | None = Field(None, description="The effort chosen for that agent, if any.")
+
+
+class ModelSelected(Strict):
+    """The agent runs on another model or effort from the next message, in the same session."""
+
+    type: Literal["model_selected"] = "model_selected"
+    model: str | None
+    effort: str | None
 
 
 class WebSearchChanged(Strict):
@@ -510,6 +555,7 @@ ServerEvent = Annotated[
     | SolveProgress
     | ViewUpdated
     | AgentSelected
+    | ModelSelected
     | WebSearchChanged
     | BenchProgress
     | BenchChanged,
@@ -577,8 +623,16 @@ class SetWebSearch(Strict):
     enabled: bool
 
 
+class SelectModel(Strict):
+    """The user chose the model and effort the agent runs on; None for the default."""
+
+    type: Literal["select_model"] = "select_model"
+    model: str | None = Field(None, max_length=200)
+    effort: str | None = Field(None, max_length=50)
+
+
 ClientEvent = Annotated[
-    UserMessage | SelectRevision | Interrupt | SelectAgent | SetWebSearch,
+    UserMessage | SelectRevision | Interrupt | SelectAgent | SetWebSearch | SelectModel,
     Field(discriminator="type"),
 ]
 

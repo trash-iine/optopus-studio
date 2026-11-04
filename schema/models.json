@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "ModelChoice": {
+      "additionalProperties": false,
+      "description": "A model an agent can run on, as the agent's own list of models names it.",
+      "properties": {
+        "default_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The effort the model runs at unless told otherwise, when known.",
+          "title": "Default Effort"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "efforts": {
+          "description": "The reasoning efforts the model takes, least first; empty when it takes none.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Efforts",
+          "type": "array"
+        },
+        "id": {
+          "description": "What the agent is told to run on; an alias such as Claude's 'opus' follows the agent's updates.",
+          "title": "Id",
+          "type": "string"
+        },
+        "is_default": {
+          "default": false,
+          "description": "Whether the agent runs on this model unless told otherwise.",
+          "title": "Is Default",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "The model's name to show.",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "efforts",
+        "default_effort",
+        "is_default"
+      ],
+      "title": "ModelChoice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/agents/{agent}/models: the models an agent offers, as it lists them now.",
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Why the agent could not list its models; it then runs on its default.",
+      "title": "Error"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelChoice"
+      },
+      "title": "Models",
+      "type": "array"
+    }
+  },
+  "required": [
+    "models",
+    "error"
+  ],
+  "title": "ModelList",
+  "type": "object"
+}

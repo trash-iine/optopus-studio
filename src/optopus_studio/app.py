@@ -8,6 +8,7 @@ GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
 GET  /api/projects/{id}/revisions/{rev}/package  the revision as an app package (docs/adr/0009)
 GET  /api/projects/{id}/bench            the benchmark, its evaluations and tunings (BenchState)
 GET  /api/mode                           {"mode": "studio"}; an app server says "app"
+GET  /api/agents/{agent}/models          the models and efforts an agent lists (ModelList)
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
 POST /api/projects/{id}/cases            attach a case an app exported; the body is its zip
 WS   /api/projects/{id}/ws               ServerEvent out, ClientEvent in
@@ -24,17 +25,21 @@ from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSoc
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from optopus_studio import apps, bench
-from optopus_studio.agent import AgentSession, agent_choices
+from optopus_studio.agent import AgentError, AgentSession, agent_choices, list_models
 from optopus_studio.frontend import mount_frontend
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
+    AgentName,
     AgentSelected,
     BenchState,
     ClientEvent,
     Interrupt,
+    ModelList,
+    ModelSelected,
     ProjectInfo,
     RevisionDetail,
     SelectAgent,
+    SelectModel,
     SelectRevision,
     SetWebSearch,
     Snapshot,
@@ -96,6 +101,7 @@ class Hub:
             rev_files, summary, view, view_error = self.project.load_revision(rev)
             if rev != revisions[-1]:
                 files = rev_files
+        model, effort = self.session.model_choice()
         return Snapshot(
             project=self.project.id,
             chat=self.project.chat(),
@@ -109,6 +115,8 @@ class Hub:
             agent=self.session.agent,
             agents=agent_choices(),
             web_search=self.session.web_search,
+            model=model,
+            effort=effort,
         )
 
 
@@ -157,6 +165,22 @@ def mode() -> dict[str, str]:
         ``{"mode": "studio"}``.
     """
     return {"mode": "studio"}
+
+
+@app.get("/api/agents/{agent}/models")
+async def agent_models(agent: AgentName) -> ModelList:
+    """The models an agent offers and the efforts each takes, as the agent lists them.
+
+    Args:
+        agent: The agent.
+
+    Returns:
+        The models, or why the agent could not list them.
+    """
+    try:
+        return ModelList(models=await list_models(agent))
+    except AgentError as exc:
+        return ModelList(models=[], error=str(exc))
 
 
 @app.get("/api/projects")
@@ -389,7 +413,10 @@ async def project_socket(socket: WebSocket, project_id: str) -> None:
                     except ProjectError as exc:
                         await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
                     else:
-                        await hub.broadcast(AgentSelected(agent=event.agent))
+                        model, effort = hub.session.model_choice()
+                        await hub.broadcast(
+                            AgentSelected(agent=event.agent, model=model, effort=effort)
+                        )
                 case SetWebSearch():
                     try:
                         await hub.session.set_web_search(event.enabled)
@@ -397,6 +424,13 @@ async def project_socket(socket: WebSocket, project_id: str) -> None:
                         await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
                     else:
                         await hub.broadcast(WebSearchChanged(enabled=event.enabled))
+                case SelectModel():
+                    try:
+                        await hub.session.select_model(event.model, event.effort)
+                    except ProjectError as exc:
+                        await socket.send_text(TurnEnd(error=str(exc)).model_dump_json())
+                    else:
+                        await hub.broadcast(ModelSelected(model=event.model, effort=event.effort))
     except WebSocketDisconnect:
         pass
     finally:

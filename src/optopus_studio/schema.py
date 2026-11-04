@@ -20,6 +20,7 @@ from optopus_studio.protocol import (
     CaseState,
     ClientEvent,
     EvaluateRequest,
+    ModelList,
     ProjectInfo,
     RevisionDetail,
     ServerEvent,
@@ -45,6 +46,7 @@ SCHEMAS = {
     "app-info.json": (TypeAdapter(AppInfo), "serialization"),
     "case.json": (TypeAdapter(CaseState), "serialization"),
     "bench-state.json": (TypeAdapter(BenchState), "serialization"),
+    "models.json": (TypeAdapter(ModelList), "serialization"),
 }
 
 
@@ -67,6 +69,7 @@ def render() -> dict[str, str]:
         "app-info.json": "AppInfo",
         "case.json": "CaseState",
         "bench-state.json": "BenchState",
+        "models.json": "ModelList",
     }
     out = {}
     for name, (adapter, mode) in SCHEMAS.items():

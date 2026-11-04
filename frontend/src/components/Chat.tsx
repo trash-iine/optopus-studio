@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AgentChoice, ChatEntry } from "../generated/server-event";
+import { ModelPicker } from "./ModelPicker";
 
 // A .zip is a case exported from a packaged app (docs/adr/0009).
 const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json,.zip";
@@ -47,11 +48,15 @@ interface Props {
   /** Whether the agent may search the web, and the switch for it (docs/adr/0016). */
   webSearch: boolean;
   onSetWebSearch: (enabled: boolean) => void;
+  /** The model and effort the agent runs on in this project; null for the defaults. */
+  model: string | null;
+  effort: string | null;
+  onSelectModel: (model: string | null, effort: string | null) => void;
 }
 
 export function Chat(props: Props) {
-  const { chat, streaming, busy, connected, error, agent, agents, webSearch } = props;
-  const { onSend, onStop, onUpload, onSelectAgent, onSetWebSearch } = props;
+  const { chat, streaming, busy, connected, error, agent, agents, webSearch, model, effort } = props;
+  const { onSend, onStop, onUpload, onSelectAgent, onSetWebSearch, onSelectModel } = props;
   const [draft, setDraft] = useState("");
   const [attached, setAttached] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -159,6 +164,13 @@ export function Chat(props: Props) {
               ))}
             </select>
           </label>
+          <ModelPicker
+            agent={agent}
+            model={model}
+            effort={effort}
+            disabled={busy || !connected}
+            onSelect={onSelectModel}
+          />
           <label title="Lets the agent search the web for methods that work on similar problems. What the pages say becomes the agent's input; the benchmark still judges every change.">
             <input
               type="checkbox"

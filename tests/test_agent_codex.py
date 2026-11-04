@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 
 from optopus_studio.agent import SYSTEM_PROMPT, AgentSession, Tools, agent_choices
-from optopus_studio.agent_codex import FEATURES_OFF, codex_unavailable, config_overrides
+from optopus_studio.agent_codex import (
+    FEATURES_OFF,
+    codex_unavailable,
+    config_overrides,
+    list_models,
+)
 from optopus_studio.projects import Project, ProjectError
 from optopus_studio.protocol import (
     AssistantDelta,
@@ -217,3 +222,39 @@ def test_codex_is_offered_only_where_it_can_run(codex, monkeypatch, tmp_path):
     assert "0.1.0 is too old" in codex_unavailable()
     monkeypatch.setenv("OPTOPUS_STUDIO_CODEX", str(tmp_path / "missing"))
     assert "not an executable" in codex_unavailable()
+
+
+def test_codexs_models_are_the_ones_its_app_server_lists(codex):
+    models = asyncio.run(list_models())
+
+    assert [(m.id, m.name, m.efforts, m.is_default) for m in models] == [
+        ("gpt-big", "GPT-BIG", ["low", "high"], True),
+        ("gpt-small", "GPT-SMALL", ["low"], False),
+    ]
+    assert models[0].default_effort == "low"
+    assert [c.get("cursor") for c in calls(codex, "model/list")] == [None, "2"]
+
+
+def test_the_codex_model_set_in_the_environment_is_its_default(codex, monkeypatch):
+    monkeypatch.setenv("OPTOPUS_STUDIO_CODEX_MODEL", "gpt-small")
+    models = asyncio.run(list_models())
+    assert [m.id for m in models if m.is_default] == ["gpt-small"]
+
+
+def test_codex_runs_on_the_model_and_effort_the_project_chose(home, codex):
+    project = codex_project(home, models={"codex": {"model": "gpt-small", "effort": "low"}})
+    converse(project, "hi")
+
+    (start,) = calls(codex, "thread/start")
+    assert start["model"] == "gpt-small"
+    (turn,) = calls(codex, "turn/start")
+    assert turn["effort"] == "low"
+
+
+def test_codex_runs_on_its_defaults_unless_the_project_chose(home, codex):
+    converse(codex_project(home), "hi")
+
+    (start,) = calls(codex, "thread/start")
+    assert "model" not in start
+    (turn,) = calls(codex, "turn/start")
+    assert "effort" not in turn
