@@ -4,6 +4,10 @@ uv builds optopus from a commit of optopus-py (docs/adr/0008), and the wheel lea
 A page is fetched from GitHub at that commit the first time it is read and kept under
 ``<home>/docs/<commit>/``, so the agent reads the guide of the code it runs. ``OPTOPUS_STUDIO_DOCS``
 points at a ``docs/source`` directory instead, such as an optopus-py checkout being worked on.
+
+The studio's own pages (``STUDIO_PAGES``, in ``guides/``) ship with it: what it adds to that
+guide, such as which methods the literature finds work on a kind of problem and how to compose
+them from optopus's heuristics (docs/adr/0015).
 """
 
 from __future__ import annotations
@@ -17,6 +21,8 @@ from pathlib import Path
 from optopus_studio.projects import ProjectError, studio_home
 
 RAW = "https://raw.githubusercontent.com/trash-iine/optopus-py"
+STUDIO_PAGES = ("recipes",)
+GUIDES = Path(__file__).parent / "guides"
 FETCH_TIMEOUT = 15.0
 
 
@@ -36,6 +42,8 @@ def fetch(url: str) -> str:
 
 
 def read_page(page: str) -> str:
+    if page in STUDIO_PAGES:
+        return (GUIDES / f"{page}.md").read_text()
     configured = os.environ.get("OPTOPUS_STUDIO_DOCS")
     if configured:
         path = Path(configured) / f"{page}.md"

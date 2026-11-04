@@ -111,8 +111,11 @@ agent reads them to choose its next change, and tells you when the instances wan
 settings.
 
 Before it refines one change at a time, the agent chooses the structure of the search from
-evidence ([ADR 0015](../adr/0015-profile-heuristics-before-composing-them.md)). It puts
-four to six candidates in `solve.json` and **profiles** them on the benchmark. Each
+evidence ([ADR 0015](../adr/0015-profile-heuristics-before-composing-them.md)). It names your
+problem in the literature's terms and reads the studio's **recipes**: the methods reported to work
+on that kind of problem, and how to build one that optopus has no class of from optopus's
+heuristics (iterated local search, two phases, VNS, multi-start, GRASP, a memetic algorithm). It
+puts four to six candidates in `solve.json` and **profiles** them on the benchmark. Each
 candidate solves every train instance with the benchmark's runs and budget, and the profile
 reports:
 

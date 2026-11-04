@@ -24,7 +24,8 @@ coding agents.
   `tune.py` races a heuristic's settings, or several heuristics', on the benchmark, as irace
   does, and reads the race for signs of what settings cannot fix (ADR 0014); `profiling.py` runs
   several heuristics on it and reads how each runs (who leads early, who ends best, who stalls)
-  for compositions worth racing (ADR 0015).
+  for compositions worth racing, and `guides/recipes.md`, the agent's `recipes` page, says which
+  methods work on a kind of problem and how to compose them (ADR 0015).
 - `frontend/` — React + Vite + ECharts. `src/generated/` is generated; never edit it.
   Colors come from `src/theme.ts` (the dataviz reference palette): assign categorical slots in
   order, never cycle; past eight, use the muted ink and a label.

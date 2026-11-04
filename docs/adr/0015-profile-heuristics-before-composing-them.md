@@ -14,6 +14,10 @@ optimum long before the budget ends makes an `Iterated` with a kick. Instances t
 different heuristic call for one that adapts within a run. Neither a verdict (ADR 0013) nor a
 race (ADR 0014) says any of this. Each compares where runs end, not how they got there.
 
+The agent also knows the literature only as far as its model does. It cannot tell which of
+optopus's heuristics a published method corresponds to, or how to build one optopus has no
+class of.
+
 ## Options
 
 1. Let the agent read convergence from `run_solver` on one instance, as it can now.
@@ -25,8 +29,8 @@ race (ADR 0014) says any of this. Each compares where runs end, not how they got
 
 ## Decision
 
-Option 2: `profiling.py` and the `profile` tool. The agent still writes the compositions, and
-`tune` still races them.
+Option 2: `profiling.py` and the `profile` tool, together with a page of recipes the agent reads.
+The agent still writes the compositions, and `tune` still races them.
 
 - **The candidates** are the variants of a solve.json, in the work files or a revision. A
   profile changes no file and makes no revision.
@@ -55,11 +59,19 @@ Option 2: `profiling.py` and the `profile` tool. The agent still writes the comp
     worker rather than the heuristic.
 
   Like tune's signs, the thresholds are this studio's proposals, not values from the literature.
+- **Recipes**: `guides/recipes.md`, read as the `recipes` page of `read_docs`. It says, for common
+  kinds of problem, which methods the literature reports to work, with their sources, and gives
+  each as solve.json: one of optopus's classes, or a composition when optopus has none (ILS,
+  iterated tabu, two phases, VND/VNS, multi-start, GRASP, memetic). It also lists the paths worth
+  tuning. A move that a method depends on, and that no heuristic provides, is a neighborhood to
+  write in model.py. `tests/test_recipes.py` builds every recipe and runs it on a small Python
+  problem, so a recipe that no longer fits optopus fails the tests.
 - **The prompt** adds a step before refining one change at a time:
-  1. name the problem in the literature's terms, and the methods reported to work on it;
-  2. profile four to six candidates;
-  3. write the two to four compositions the readings suggest;
-  4. race them with `tune`'s spaces, with the best single heuristics.
+  1. name the problem in the literature's terms;
+  2. read the recipes;
+  3. profile four to six candidates;
+  4. write the two to four compositions the readings suggest;
+  5. race them with `tune`'s spaces, with the best single heuristics.
 - Each profile is kept in `bench/profiles/<n>.json`, travels with an exported project, and shows
   in the Improve tab: a table per profile, the leader at each share of the budget in bold, and its
   readings.
@@ -76,5 +88,7 @@ session.
   once to choose a structure, not after every change.
 - The race still decides. A reading that suggests a composition is only a hypothesis until the
   composition wins its race and its evaluation on validation.
+- The recipes are kept by hand. They point to methods; they do not prove that one works on a given
+  problem. New methods come from the agent's own knowledge, not from this page.
 - The race still searches only the structures the agent wrote. A grammar over compositions in
   `tune` stays possible later, on top of the same records.
