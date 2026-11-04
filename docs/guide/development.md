@@ -64,6 +64,7 @@ replaces the Python worker without touching the GUI
 | `runner.py`, `worker.py`, `viewer.py` | start the solver and view processes; what runs inside them |
 | `rust.py`, `verify.py` | build a project's Rust port; check it against the Python model |
 | `bench.py`, `generator.py` | judge a change of the algorithm on the benchmark; run `generate.py` |
+| `tune.py` | tune a heuristic's settings by racing them on the benchmark |
 | `apps.py`, `appserver.py` | package a revision with its `app.json`, and serve it without the agent |
 | `image.py`, `docker/app.Dockerfile` | build a package into a Docker image |
 | `frontend.py` | serves the built frontend for both servers |
@@ -164,3 +165,4 @@ Read the ADR before changing a boundary it describes:
 | [0010](../adr/0010-deliver-an-app-as-a-docker-image.md) | a packaged app is delivered as a Docker image |
 | [0012](../adr/0012-run-the-agent-on-claude-code-or-codex.md) | the agent runs on Claude Code or Codex, chosen per project |
 | [0013](../adr/0013-improve-against-a-benchmark-of-instances.md) | a change of the algorithm is judged on a benchmark of instances |
+| [0014](../adr/0014-tune-settings-by-racing.md) | a heuristic's settings are tuned by racing them on the benchmark |

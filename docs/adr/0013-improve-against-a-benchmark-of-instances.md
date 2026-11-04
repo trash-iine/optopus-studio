@@ -77,6 +77,6 @@ smaller (see below).
   `rust/main.rs`, by hash), which is how the loop keeps one. Nothing else is logged, so the
   record cannot disagree with the revisions. `bench_list` shows them to the agent, and the GUI's
   Improve tab (`GET /api/projects/{id}/bench`, `BenchState`) to the user, fetched again on the
-  `bench_changed` event; `bench_progress` reports a running evaluation.
+  `bench_changed` event; `bench_progress` reports a running evaluation or tuning.
 - Not yet done: a common `evaluate(solution)` on every problem in optopus-py would replace the
-  worker's zero-iteration run.
+  worker's zero-iteration run. The tuner of solve.json's settings is ADR 0014.

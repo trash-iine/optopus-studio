@@ -19,7 +19,8 @@ a Gantt chart, the convergence of every run).
 - **Improving the search**: ask the agent to improve the algorithm. It builds a benchmark of
   instances, tries one change at a time, and keeps a change only when a paired test on the
   benchmark says it is better and the objective is unchanged; the result is checked on held-out
-  instances (`docs/adr/0013`).
+  instances (`docs/adr/0013`). A heuristic's settings are tuned by racing them on the benchmark
+  (`docs/adr/0014`).
 - **Speeding up with Rust**: a problem written in Python can be ported to Rust (the "Port to
   Rust" button, or just ask). The agent writes `rust/main.rs`, the studio builds it, checks it
   against the Python model with the same seeds, and switches the worker once it passes.

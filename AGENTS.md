@@ -20,7 +20,8 @@ coding agents.
   says "app". `image.py` and `docker/app.Dockerfile` build a package into a Docker image to hand
   over (ADR 0010). `frontend.py` serves the built frontend for both servers. `bench.py` judges a
   change of the algorithm on the project's benchmark of instances against a baseline revision,
-  whose model re-scores the candidate's solutions (ADR 0013); `generator.py` runs `generate.py`.
+  whose model re-scores the candidate's solutions (ADR 0013); `generator.py` runs `generate.py`;
+  `tune.py` races a heuristic's settings on the benchmark, as irace does (ADR 0014).
 - `frontend/` — React + Vite + ECharts. `src/generated/` is generated; never edit it.
   Colors come from `src/theme.ts` (the dataviz reference palette): assign categorical slots in
   order, never cycle; past eight, use the muted ink and a label.

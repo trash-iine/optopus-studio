@@ -75,13 +75,39 @@ export type MaxIteration = number | null;
  */
 export type Runs = number;
 export type Seed = number;
+/**
+ * The best settings by parameter path; null when the revision's own stayed.
+ */
+export type Best = {
+  [k: string]: unknown;
+} | null;
+export type Budget = number;
+export type Eliminated = number;
+export type Failed = number;
+export type Id1 = number;
+export type Rev1 = number;
+/**
+ * The settings raced.
+ */
+export type Settings = number;
+/**
+ * The runs made.
+ */
+export type Used = number;
+/**
+ * The evaluation that checked them on validation.
+ */
+export type Validation = number | null;
+export type Variant1 = string;
+export type Tunings = BenchTuning[];
 
 /**
- * GET /api/projects/{id}/bench: the benchmark, and every evaluation on it.
+ * GET /api/projects/{id}/bench: the benchmark, and every evaluation and tuning on it.
  */
 export interface BenchState {
   evaluations: Evaluations;
   spec: BenchSpec;
+  tunings: Tunings;
 }
 /**
  * One evaluation of a change against a baseline revision (bench.py).
@@ -129,4 +155,19 @@ export interface BenchInstance {
   sha256: Sha256;
   source: Source;
   split: Split1;
+}
+/**
+ * One tuning of a heuristic's settings by racing (tune.py).
+ */
+export interface BenchTuning {
+  best: Best;
+  budget: Budget;
+  eliminated: Eliminated;
+  failed: Failed;
+  id: Id1;
+  rev: Rev1;
+  settings: Settings;
+  used: Used;
+  validation: Validation;
+  variant: Variant1;
 }

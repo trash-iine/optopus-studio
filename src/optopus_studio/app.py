@@ -6,7 +6,7 @@ POST /api/projects/import                create one from an exported zip, the bo
 GET  /api/projects/{id}/export           the project as a zip to hand to someone
 GET  /api/projects/{id}/revisions/{rev}  one revision (RevisionDetail)
 GET  /api/projects/{id}/revisions/{rev}/package  the revision as an app package (docs/adr/0009)
-GET  /api/projects/{id}/bench            the benchmark and its evaluations (BenchState)
+GET  /api/projects/{id}/bench            the benchmark, its evaluations and tunings (BenchState)
 GET  /api/mode                           {"mode": "studio"}; an app server says "app"
 POST /api/projects/{id}/uploads?name=    attach a file; the body is its content
 POST /api/projects/{id}/cases            attach a case an app exported; the body is its zip

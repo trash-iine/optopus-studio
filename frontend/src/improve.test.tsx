@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Improve } from "./components/Improve";
 import type { BenchEvaluation, BenchState } from "./generated/bench-state";
-import { budget, outcomes, percent, verdictClass } from "./improve";
+import { budget, outcomes, percent, progressText, settings, verdictClass } from "./improve";
 import { initialState, reduce } from "./studio";
 
 afterEach(() => {
@@ -54,7 +54,21 @@ const STATE: BenchState = {
       detail: "the candidate changed the objective, not only the search",
       kept: null,
     }),
-    evaluation({ id: 3, note: "a longer tabu tenure", split: "validation", kept: null }),
+    evaluation({ id: 3, note: "tuning 1: initial_temperature=5.9", split: "validation", kept: null }),
+  ],
+  tunings: [
+    {
+      id: 1,
+      rev: 2,
+      variant: "SA",
+      used: 78,
+      budget: 80,
+      settings: 9,
+      eliminated: 5,
+      failed: 0,
+      best: { initial_temperature: 5.914476968936018 },
+      validation: 3,
+    },
   ],
 };
 
@@ -68,9 +82,15 @@ describe("the improve tab", () => {
     expect(verdictClass("mixed")).toBe("verdict-mixed");
     expect(outcomes(evaluation())).toBe("1 / 1 / 0");
     expect(outcomes(evaluation({ verdict: "failed" }))).toBe("—");
+    expect(settings({ initial_temperature: 5.914476968936018, neighbor: "TwoOpt" })).toBe(
+      'initial_temperature = 5.914, neighbor = "TwoOpt"',
+    );
+    expect(progressText({ type: "bench_progress", task: "tuning", done: 40, total: 80 })).toBe(
+      "Tuning settings by racing: 40 / 80 runs",
+    );
   });
 
-  it("follows the agent's evaluations", () => {
+  it("follows the agent's evaluations and tunings", () => {
     const running = reduce(initialState, {
       type: "event",
       event: { type: "bench_progress", task: "evaluation", done: 3, total: 8 },
@@ -88,10 +108,11 @@ describe("the improve tab", () => {
     render(<Improve project="p" version="0-2" progress={null} />);
     await screen.findByText("a cooler search");
     const rows = screen.getAllByRole("row").map((r) => r.textContent ?? "");
-    const changes = rows.filter((r) => /^\da /.test(r));
+    const changes = rows.filter((r) => /^\d(a |tuning)/.test(r));
     expect(changes.map((r) => r[0])).toEqual(["3", "2", "1"]);
     expect(rows.some((r) => r.includes("revision 2") && r.includes("+3.21%"))).toBe(true);
     expect(screen.getByText("held").getAttribute("title")).toBe("generate.py seed 2");
+    expect(screen.getByText("initial_temperature = 5.914")).toBeTruthy();
 
     fireEvent.click(screen.getByText("a penalty of 0"));
     expect(screen.getByText(/changed the objective/)).toBeTruthy();
@@ -102,7 +123,7 @@ describe("the improve tab", () => {
   });
 
   it("says how to start when there is no benchmark", async () => {
-    const empty = { ...STATE, spec: { ...STATE.spec, instances: [] }, evaluations: [] };
+    const empty = { ...STATE, spec: { ...STATE.spec, instances: [] }, evaluations: [], tunings: [] };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(empty))));
     const progress = { type: "bench_progress", task: "evaluation", done: 1, total: 4 } as const;
     render(<Improve project="p" version="0-0" progress={progress} />);

@@ -218,7 +218,7 @@ tr.best td { font-weight: 600; }
 .verdict-same { color: var(--ink-2); }
 .verdict-mixed { color: var(--ink); font-weight: 600; font-style: italic; }
 
-/* --- improve: the benchmark, and the changes judged on it --- */
+/* --- improve: the benchmark, the changes judged on it and the tunings --- */
 .bench-split { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
 .bench-split + .bench-split { margin-top: 6px; }
 .bench-split > .muted:first-child { min-width: 80px; }

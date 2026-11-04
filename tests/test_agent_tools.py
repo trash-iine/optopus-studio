@@ -389,6 +389,21 @@ def test_the_benchmark_is_built_and_a_change_evaluated_through_the_tools(home):
     assert "- a random walk" in text(call(tools.bench_list))
     assert text(call(tools.evaluate, baseline_rev=1, split="validation")).endswith("SAME")
 
+    hot = [{"name": "initial_temperature", "low": 1e4, "high": 1e6, "log": True}]
+    result = call(tools.tune, rev=1, space=hot, budget=40)
+    assert not result["is_error"], text(result)
+    assert "solve.json is unchanged" in text(result)
+    assert "tunings:\n  1: variant SimulatedAnnealing of revision 1" in text(call(tools.bench_list))
+    tools.broadcast.events.clear()
+    space = [{"name": "initial_temperature", "low": 0.1, "high": 1e5, "log": True}]
+    result = call(tools.tune, rev=1, space=space, budget=80)
+    assert "on validation" in text(result), text(result)
+    tasks = {e.task for e in tools.broadcast.events if isinstance(e, BenchProgress)}
+    assert tasks == {"tuning", "evaluation"}
+    assert any(isinstance(e, FilesChanged) for e in tools.broadcast.events)
+    with pytest.raises(ProjectError, match="nothing at 'search'"):
+        call(tools.tune, rev=1, space=[{"name": "search.x", "low": 0, "high": 1}], budget=40)
+
 
 def test_bench_add_takes_a_revision_the_instance_or_an_upload(home):
     project = example_project("knapsack", home)

@@ -114,7 +114,7 @@ revision and the one before it at first).
 
 What the agent did to improve the search
 ([Improving the algorithm](projects.md#improving-the-algorithm)); empty until it builds a
-benchmark. It updates as the agent works, with a progress bar while an evaluation
+benchmark. It updates as the agent works, with a progress bar while an evaluation or a tuning
 runs.
 
 - **Benchmark**: the runs per instance and each run's budget, and the train and validation
@@ -124,3 +124,6 @@ runs.
   instances got better, stayed and got worse, and the revision the change was solved into ("—"
   when it was undone). Click a row for each instance's mean objectives, or for why a change was
   rejected or failed.
+- **Settings tuned**: every tuning: the heuristic and revision, the runs made of the budget, the
+  settings raced, dropped and failed, the best ("the revision's own" when none beat it), and
+  the verdict of its check on validation.

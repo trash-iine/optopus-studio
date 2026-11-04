@@ -147,4 +147,5 @@ def test_the_benchmark_is_served_for_the_improve_tab(client, home):
     state = client.get(f"/api/projects/{project.id}/bench").json()
     assert [i["name"] for i in state["spec"]["instances"]] == ["given"]
     assert state["evaluations"] == []
+    assert state["tunings"] == []
     assert client.get("/api/projects/0123456789ab/bench").status_code == 404
