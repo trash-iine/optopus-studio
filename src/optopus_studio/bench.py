@@ -804,7 +804,8 @@ async def evaluate(
 ) -> Evaluation:
     """Compares a candidate with a baseline revision on a split and keeps the result.
 
-    The result is kept in ``bench/results``, whether the candidate is judged, rejected or fails.
+    Once both sides are set up, the result is kept in ``bench/results``, whether the candidate is
+    judged, rejected or fails. A failure on the baseline's side raises instead, and keeps nothing.
 
     Args:
         project: The project.

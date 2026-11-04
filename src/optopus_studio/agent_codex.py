@@ -2,9 +2,10 @@
 
 The studio speaks to it over its stdin and stdout, with the studio's tools as dynamic tools
 (docs/adr/0012). Codex calls a dynamic tool by asking the client (``item/tool/call``), so the tools
-run here, in the studio's process, as they do for Claude. Its own tools (shell, apply_patch, web
-search, MCP, images, plugins) are turned off with ``-c`` overrides, and the thread runs read-only
-with no approvals; a request for one is answered with an error.
+run here, in the studio's process, as they do for Claude. Its own tools (shell, apply_patch, MCP,
+images, plugins) are turned off with ``-c`` overrides, and the thread runs read-only with no
+approvals; a request for one is answered with an error. Its web search is the one exception: it is
+live in a project whose ``web_search`` switch is on, and disabled otherwise (docs/adr/0016).
 
 Authentication is the Codex login (``codex login``, kept in ``$CODEX_HOME``). The app-server starts
 without ``OPENAI_API_KEY`` and ``CODEX_API_KEY``, so an exported key is not used instead.

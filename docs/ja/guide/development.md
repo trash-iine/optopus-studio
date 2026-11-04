@@ -96,6 +96,7 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 - `src/` と `examples/` のモジュール、クラス、関数には Google style の docstring を書き、該当する
   `Args`、`Returns`、`Raises` を付ける。Ruff の `D` ルールが確かめる。`protocol.py` のモデルは
   docstring がそのまま schema の説明になるので、要約だけにする。
+  `examples/workload/model.py` の関数も、エージェントが見本として丸ごと読むので、要約だけにする。
 - コード、コメント、ドキュメントは英語。`docs/ja/` の日本語ガイドは `docs/guide/` の翻訳なので、両方を
   一緒に変える。
 

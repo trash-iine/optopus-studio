@@ -142,8 +142,9 @@ async def rust_binary(solve: dict[str, Any], main_rs: str | None) -> Path | None
 def solve_timeout(request: SolveRequest) -> float:
     """How long a solve may take before it is stopped.
 
-    ``OPTOPUS_STUDIO_SOLVE_TIMEOUT`` when set; otherwise every run's time limit plus 30 seconds, or
-    a default when some heuristic has no time limit.
+    ``OPTOPUS_STUDIO_SOLVE_TIMEOUT`` when set; otherwise every run's time limit plus 30 seconds,
+    capped at four times ``DEFAULT_SOLVE_TIMEOUT``, or ``DEFAULT_SOLVE_TIMEOUT`` itself when some
+    heuristic has no time limit.
 
     Args:
         request: The solve.

@@ -31,7 +31,9 @@ def generate(path: str, seed: int, params: dict[str, Any]) -> dict[str, Any]:
     Raises:
         ImportError: The file cannot be loaded.
         AttributeError: The file defines no ``generate``.
-        TypeError: ``generate`` returned something other than a dict.
+        TypeError: ``generate`` returned something other than a dict, or one JSON cannot carry.
+        ValueError: The instance holds a number JSON cannot carry.
+        Exception: Whatever the file or ``generate`` raises; it is the project's code.
     """
     spec = importlib.util.spec_from_file_location("studio_generate", path)
     if spec is None or spec.loader is None:

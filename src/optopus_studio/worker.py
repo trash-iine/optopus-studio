@@ -167,6 +167,7 @@ def load_model(path: str) -> ModuleType:
     Raises:
         ImportError: The file cannot be loaded.
         AttributeError: The file defines no ``build``.
+        Exception: Whatever the file raises as it runs; it is the project's code.
     """
     spec = importlib.util.spec_from_file_location("studio_model", path)
     if spec is None or spec.loader is None:

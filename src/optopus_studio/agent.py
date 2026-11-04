@@ -1615,10 +1615,13 @@ class Backend(Protocol):
     def turn(self, text: str) -> AsyncIterator[AgentEvent]:
         """Sends the user's message and streams the turn.
 
+        A backend implements it as an async generator (``async def`` with ``yield``), so that
+        ``async for`` iterates the call directly.
+
         Args:
             text: The user's message.
 
-        Returns:
+        Yields:
             What the chat shows of the turn, ending with the turn's result.
         """
 

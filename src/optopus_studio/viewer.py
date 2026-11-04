@@ -36,6 +36,7 @@ def render(view_path: str, instance: dict, result: dict) -> ViewSpec:
         ImportError: The file cannot be loaded.
         AttributeError: The file defines no ``to_view``.
         pydantic.ValidationError: ``to_view`` returned something that is not a ``ViewSpec``.
+        Exception: Whatever the file or ``to_view`` raises; it is the project's code.
     """
     spec = importlib.util.spec_from_file_location("studio_view", view_path)
     if spec is None or spec.loader is None:

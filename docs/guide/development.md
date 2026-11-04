@@ -95,7 +95,8 @@ replaces the Python worker without touching the GUI
 - Colors in the frontend come from `src/theme.ts`.
 - Every module, class and function in `src/` and `examples/` has a Google-style docstring, with
   `Args`, `Returns` and `Raises` where they apply; Ruff's `D` rules check it. A model in
-  `protocol.py` gets a summary only, since its docstring is the schema's description.
+  `protocol.py` gets a summary only, since its docstring is the schema's description, and so do
+  the functions in `examples/workload/model.py`, which the agent reads whole as an example.
 - English in code, comments and docs. The Japanese guide in `docs/ja/` is a translation of
   `docs/guide/`; change both together.
 

@@ -919,7 +919,7 @@ async def _race(
         The number of tasks raced.
 
     Raises:
-        ProjectError: The revision's own settings fail.
+        ProjectError: The revision's own settings fail, or the model fails on a task.
     """
     used, tasks = 0, 0
     alive = list(settings)
@@ -955,6 +955,9 @@ async def _run(tuning: Tuning, needed: list[tuple[Setting, int]]) -> None:
     Args:
         tuning: The tuning.
         needed: Each setting and the task it runs.
+
+    Raises:
+        ProjectError: The model fails on a task.
     """
     by_task: dict[int, list[Setting]] = {}
     for s, t in needed:
