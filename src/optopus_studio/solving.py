@@ -20,14 +20,35 @@ DEFAULT_SOLVE_TIMEOUT = 300.0
 
 
 def with_stop(heuristic: dict[str, Any], **stop: Any) -> dict[str, Any]:
+    """A heuristic with some of its stop condition replaced.
+
+    Args:
+        heuristic: The heuristic's dict.
+        **stop: The stop condition's arguments to set.
+
+    Returns:
+        A copy of the heuristic with the arguments set.
+    """
     return {**heuristic, "stop": {**(heuristic.get("stop") or {}), **stop}}
 
 
 def solve_request(
     solve: dict[str, Any], instance: Any, model_path: Path, overrides: dict[str, Any]
 ) -> SolveRequest:
-    """The request solve.json describes, with ``max_duration_secs``, ``runs`` or ``seed``
-    replaced by ``overrides``."""
+    """The request solve.json describes, with some of its settings replaced.
+
+    Args:
+        solve: solve.json's content.
+        instance: instance.json's content.
+        model_path: The ``model.py`` the worker imports.
+        overrides: ``max_duration_secs``, ``runs`` or ``seed`` to use instead of solve.json's.
+
+    Returns:
+        The solve request.
+
+    Raises:
+        ProjectError: solve.json does not describe a solve.
+    """
     start = initial_solution(solve, instance)
     try:
         variants = variants_of(solve)
@@ -48,8 +69,21 @@ def solve_request(
 
 
 def initial_solution(solve: dict[str, Any], instance: Any) -> InitialSolution | None:
-    """The solution solve.json's "initial_solution" names: a key of instance.json, so the data a
-    revision starts from is in its own files (docs/adr/0011)."""
+    """The solution solve.json's "initial_solution" names.
+
+    It is a key of instance.json, so the data a revision starts from is in its own files
+    (docs/adr/0011).
+
+    Args:
+        solve: solve.json's content.
+        instance: instance.json's content.
+
+    Returns:
+        The solution under that key, or None when solve.json names none.
+
+    Raises:
+        ProjectError: The name is not a string, or instance.json has no such key.
+    """
     key = solve.get("initial_solution")
     if key is None:
         return None
@@ -63,7 +97,17 @@ def initial_solution(solve: dict[str, Any], instance: Any) -> InitialSolution | 
 
 
 def worker_of(solve: dict[str, Any]) -> str:
-    """The worker solve.json asks for: "python" (the default) or "rust"."""
+    """The worker solve.json asks for: "python" (the default) or "rust".
+
+    Args:
+        solve: solve.json's content.
+
+    Returns:
+        The worker's name.
+
+    Raises:
+        ProjectError: solve.json names another worker.
+    """
     worker = solve.get("worker", "python")
     if worker not in ("python", "rust"):
         raise ProjectError(f'"worker" must be "python" or "rust", not {worker!r}')
@@ -71,7 +115,18 @@ def worker_of(solve: dict[str, Any]) -> str:
 
 
 async def rust_binary(solve: dict[str, Any], main_rs: str | None) -> Path | None:
-    """The built port when solve.json asks for the Rust worker, else None."""
+    """The built port when solve.json asks for the Rust worker, else None.
+
+    Args:
+        solve: solve.json's content.
+        main_rs: The port's source, or None when the project has none.
+
+    Returns:
+        The port's binary, or None for the Python worker.
+
+    Raises:
+        ProjectError: The Rust worker is asked for, but there is no port or it does not build.
+    """
     if worker_of(solve) != "rust":
         return None
     if main_rs is None:
@@ -85,6 +140,18 @@ async def rust_binary(solve: dict[str, Any], main_rs: str | None) -> Path | None
 
 
 def solve_timeout(request: SolveRequest) -> float:
+    """How long a solve may take before it is stopped.
+
+    ``OPTOPUS_STUDIO_SOLVE_TIMEOUT`` when set; otherwise every run's time limit plus 30 seconds,
+    capped at four times ``DEFAULT_SOLVE_TIMEOUT``, or ``DEFAULT_SOLVE_TIMEOUT`` itself when some
+    heuristic has no time limit.
+
+    Args:
+        request: The solve.
+
+    Returns:
+        The timeout in seconds.
+    """
     configured = os.environ.get("OPTOPUS_STUDIO_SOLVE_TIMEOUT")
     if configured:
         return float(configured)

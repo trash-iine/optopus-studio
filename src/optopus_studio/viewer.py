@@ -22,6 +22,22 @@ from optopus_studio.protocol import ViewSpec
 
 
 def render(view_path: str, instance: dict, result: dict) -> ViewSpec:
+    """Runs ``to_view(instance, result)`` of a ``view.py`` and checks its answer.
+
+    Args:
+        view_path: The path of the ``view.py`` to run.
+        instance: The instance the solve read.
+        result: The solve's ``RunSummary``, with ``best`` added.
+
+    Returns:
+        The view the canvas draws.
+
+    Raises:
+        ImportError: The file cannot be loaded.
+        AttributeError: The file defines no ``to_view``.
+        pydantic.ValidationError: ``to_view`` returned something that is not a ``ViewSpec``.
+        Exception: Whatever the file or ``to_view`` raises; it is the project's code.
+    """
     spec = importlib.util.spec_from_file_location("studio_view", view_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {view_path}")
@@ -34,6 +50,11 @@ def render(view_path: str, instance: dict, result: dict) -> ViewSpec:
 
 
 def main() -> int:
+    """Answers one request read from stdin with one JSON line on stdout.
+
+    Returns:
+        The exit status: 0 when a view was drawn, 1 when it failed.
+    """
     out = sys.stdout
     sys.stdout = sys.stderr
     try:

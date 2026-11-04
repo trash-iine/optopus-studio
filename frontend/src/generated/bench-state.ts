@@ -164,8 +164,7 @@ export type Variants1 = string[];
 export type Tunings = BenchTuning[];
 
 /**
- * GET /api/projects/{id}/bench: the benchmark, and every evaluation, tuning and profile on
- * it.
+ * GET /api/projects/{id}/bench: the benchmark and every evaluation, tuning and profile.
  */
 export interface BenchState {
   evaluations: Evaluations;
@@ -191,12 +190,18 @@ export interface BenchEvaluation {
   verdict: Verdict;
   worsening: Worsening;
 }
+/**
+ * One side of an evaluation: whose files, which heuristic, which worker.
+ */
 export interface BenchSide {
   rev: Rev;
   variant: Variant;
   where: Where;
   worker: Worker;
 }
+/**
+ * How the candidate did against the baseline on one instance.
+ */
 export interface BenchInstanceResult {
   baseline: Baseline;
   candidate: Candidate;
@@ -241,6 +246,9 @@ export interface BenchSpec {
   runs: Runs;
   seed: Seed;
 }
+/**
+ * One instance of the benchmark, kept under bench/instances.
+ */
 export interface BenchInstance {
   name: Name1;
   sha256: Sha256;

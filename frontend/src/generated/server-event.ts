@@ -243,11 +243,17 @@ export interface Snapshot {
   view_error: ViewError;
   web_search: WebSearch;
 }
+/**
+ * An agent a project's chat can run on, and whether it can run here.
+ */
 export interface AgentChoice {
   available: Available;
   name: Name;
   reason: Reason;
 }
+/**
+ * One entry of the conversation as the GUI shows it.
+ */
 export interface ChatEntry {
   role: Role;
   text: Text;
@@ -273,6 +279,9 @@ export interface RunSummary {
   variants: Variants;
   worker: Worker;
 }
+/**
+ * A solve failed, at the stage it failed at.
+ */
 export interface WorkerError {
   message: Message;
   stage: Stage;
@@ -300,6 +309,9 @@ export interface LiveRun {
   run: Run;
   variant: Variant1;
 }
+/**
+ * One run's outcome: its best solution, objective, and how the search went.
+ */
 export interface RunFinished {
   best_iteration: BestIteration;
   best_objective: BestObjective;
@@ -324,31 +336,49 @@ export interface RunFinished {
 export interface Solution {
   [k: string]: unknown;
 }
+/**
+ * What a project's ``view.py`` hands the GUI to draw: views, top to bottom.
+ */
 export interface ViewSpec {
   views: Views;
 }
+/**
+ * A row of headline figures.
+ */
 export interface KpiView {
   items: Items;
   title: Title;
   type: Type3;
 }
+/**
+ * One figure of a KPI view.
+ */
 export interface KpiItem {
   label: Label1;
   unit: Unit;
   value: Value;
 }
+/**
+ * A table of rows.
+ */
 export interface TableView {
   columns: Columns;
   rows: Rows;
   title: Title1;
   type: Type4;
 }
+/**
+ * A Gantt chart, such as a schedule of jobs on machines.
+ */
 export interface GanttView {
   tasks: Tasks;
   time_unit: TimeUnit;
   title: Title2;
   type: Type5;
 }
+/**
+ * One task of a Gantt chart: a bar on a lane, from its start to its end.
+ */
 export interface GanttTask {
   end: End;
   group: Group;
@@ -356,6 +386,9 @@ export interface GanttTask {
   lane: Lane;
   start: Start;
 }
+/**
+ * Points on a plane and the routes that visit them.
+ */
 export interface RouteMapView {
   closed: Closed;
   points: Points1;
@@ -363,6 +396,9 @@ export interface RouteMapView {
   title: Title3;
   type: Type6;
 }
+/**
+ * A point on a route map, such as a city or a depot.
+ */
 export interface MapPoint {
   id: Id;
   kind: Kind;
@@ -370,22 +406,34 @@ export interface MapPoint {
   x: X;
   y: Y;
 }
+/**
+ * One route on a map: the points it visits, in order.
+ */
 export interface Route {
   label: Label4;
   path: Path;
 }
+/**
+ * A graph of nodes and edges, such as a cut or a coloring.
+ */
 export interface GraphView {
   edges: Edges;
   nodes: Nodes;
   title: Title4;
   type: Type7;
 }
+/**
+ * An edge of a graph view, which may be highlighted, such as one in the solution.
+ */
 export interface GraphEdge {
   highlight: Highlight;
   source: Source;
   target: Target;
   weight: Weight;
 }
+/**
+ * A node of a graph view; without x and y, the GUI lays it out.
+ */
 export interface GraphNode {
   group: Group1;
   id: Id1;
@@ -393,6 +441,9 @@ export interface GraphNode {
   x: X1;
   y: Y1;
 }
+/**
+ * A bar chart.
+ */
 export interface BarView {
   categories: Categories;
   series: Series;
@@ -400,38 +451,62 @@ export interface BarView {
   title: Title5;
   type: Type8;
 }
+/**
+ * One series of a bar chart: a value per category.
+ */
 export interface BarSeries {
   name: Name1;
   values: Values;
 }
+/**
+ * Text in Markdown.
+ */
 export interface MarkdownView {
   text: Text1;
   title: Title6;
   type: Type9;
 }
+/**
+ * Anything the other views cannot draw, as a document in a sandboxed iframe.
+ */
 export interface CustomHtmlView {
   height: Height;
   html: Html;
   title: Title7;
   type: Type10;
 }
+/**
+ * Text of the agent's reply as it streams.
+ */
 export interface AssistantDelta {
   text: Text2;
   type: Type11;
 }
+/**
+ * A whole text of the agent's reply.
+ */
 export interface AssistantText {
   text: Text3;
   type: Type12;
 }
+/**
+ * A tool the agent called, and what it called it with, in a few words.
+ */
 export interface ToolActivity {
   name: Name2;
   summary: Summary;
   type: Type13;
 }
+/**
+ * The agent finished its turn, or failed it.
+ */
 export interface TurnEnd {
   error: Error;
   type: Type14;
 }
+/**
+ * The work files changed: all of them, as they are now.
+ */
 export interface FilesChanged {
   files: Files1;
   type: Type15;
@@ -439,16 +514,25 @@ export interface FilesChanged {
 export interface Files1 {
   [k: string]: string;
 }
+/**
+ * A solve of a new revision began.
+ */
 export interface SolveStarted {
   rev: Rev2;
   runs: Runs1;
   type: Type16;
 }
+/**
+ * How a solve stands, after each event of its worker.
+ */
 export interface SolveProgress {
   rev: Rev3;
   summary: RunSummary;
   type: Type17;
 }
+/**
+ * What a revision's ``view.py`` drew, or why it failed.
+ */
 export interface ViewUpdated {
   error: Error1;
   rev: Rev4;
@@ -479,8 +563,9 @@ export interface BenchProgress {
   type: Type21;
 }
 /**
- * The benchmark, its evaluations, tunings or profiles changed: GET
- * /api/projects/{id}/bench.
+ * The benchmark, its evaluations, tunings or profiles changed.
+ *
+ * The browser reads them again from GET /api/projects/{id}/bench.
  */
 export interface BenchChanged {
   type: Type22;

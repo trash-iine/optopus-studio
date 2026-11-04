@@ -2,6 +2,7 @@
   "$defs": {
     "AgentChoice": {
       "additionalProperties": false,
+      "description": "An agent a project's chat can run on, and whether it can run here.",
       "properties": {
         "available": {
           "title": "Available",
@@ -65,6 +66,7 @@
     },
     "AssistantDelta": {
       "additionalProperties": false,
+      "description": "Text of the agent's reply as it streams.",
       "properties": {
         "text": {
           "title": "Text",
@@ -86,6 +88,7 @@
     },
     "AssistantText": {
       "additionalProperties": false,
+      "description": "A whole text of the agent's reply.",
       "properties": {
         "text": {
           "title": "Text",
@@ -107,6 +110,7 @@
     },
     "BarSeries": {
       "additionalProperties": false,
+      "description": "One series of a bar chart: a value per category.",
       "properties": {
         "name": {
           "title": "Name",
@@ -129,6 +133,7 @@
     },
     "BarView": {
       "additionalProperties": false,
+      "description": "A bar chart.",
       "properties": {
         "categories": {
           "items": {
@@ -180,7 +185,7 @@
     },
     "BenchChanged": {
       "additionalProperties": false,
-      "description": "The benchmark, its evaluations, tunings or profiles changed: GET\n/api/projects/{id}/bench.",
+      "description": "The benchmark, its evaluations, tunings or profiles changed.\n\nThe browser reads them again from GET /api/projects/{id}/bench.",
       "properties": {
         "type": {
           "const": "bench_changed",
@@ -235,6 +240,7 @@
     },
     "ChatEntry": {
       "additionalProperties": false,
+      "description": "One entry of the conversation as the GUI shows it.",
       "properties": {
         "role": {
           "enum": [
@@ -259,6 +265,7 @@
     },
     "CustomHtmlView": {
       "additionalProperties": false,
+      "description": "Anything the other views cannot draw, as a document in a sandboxed iframe.",
       "properties": {
         "height": {
           "default": 400,
@@ -302,6 +309,7 @@
     },
     "FilesChanged": {
       "additionalProperties": false,
+      "description": "The work files changed: all of them, as they are now.",
       "properties": {
         "files": {
           "additionalProperties": {
@@ -326,6 +334,7 @@
     },
     "GanttTask": {
       "additionalProperties": false,
+      "description": "One task of a Gantt chart: a bar on a lane, from its start to its end.",
       "properties": {
         "end": {
           "title": "End",
@@ -370,6 +379,7 @@
     },
     "GanttView": {
       "additionalProperties": false,
+      "description": "A Gantt chart, such as a schedule of jobs on machines.",
       "properties": {
         "tasks": {
           "items": {
@@ -420,6 +430,7 @@
     },
     "GraphEdge": {
       "additionalProperties": false,
+      "description": "An edge of a graph view, which may be highlighted, such as one in the solution.",
       "properties": {
         "highlight": {
           "default": false,
@@ -472,6 +483,7 @@
     },
     "GraphNode": {
       "additionalProperties": false,
+      "description": "A node of a graph view; without x and y, the GUI lays it out.",
       "properties": {
         "group": {
           "anyOf": [
@@ -546,6 +558,7 @@
     },
     "GraphView": {
       "additionalProperties": false,
+      "description": "A graph of nodes and edges, such as a cut or a coloring.",
       "properties": {
         "edges": {
           "items": {
@@ -591,6 +604,7 @@
     },
     "KpiItem": {
       "additionalProperties": false,
+      "description": "One figure of a KPI view.",
       "properties": {
         "label": {
           "title": "Label",
@@ -633,6 +647,7 @@
     },
     "KpiView": {
       "additionalProperties": false,
+      "description": "A row of headline figures.",
       "properties": {
         "items": {
           "items": {
@@ -709,6 +724,7 @@
     },
     "MapPoint": {
       "additionalProperties": false,
+      "description": "A point on a route map, such as a city or a depot.",
       "properties": {
         "id": {
           "anyOf": [
@@ -763,6 +779,7 @@
     },
     "MarkdownView": {
       "additionalProperties": false,
+      "description": "Text in Markdown.",
       "properties": {
         "text": {
           "title": "Text",
@@ -797,6 +814,7 @@
     },
     "Route": {
       "additionalProperties": false,
+      "description": "One route on a map: the points it visits, in order.",
       "properties": {
         "label": {
           "anyOf": [
@@ -835,6 +853,7 @@
     },
     "RouteMapView": {
       "additionalProperties": false,
+      "description": "Points on a plane and the routes that visit them.",
       "properties": {
         "closed": {
           "default": true,
@@ -887,6 +906,7 @@
     },
     "RunFinished": {
       "additionalProperties": false,
+      "description": "One run's outcome: its best solution, objective, and how the search went.",
       "properties": {
         "best_iteration": {
           "title": "Best Iteration",
@@ -1321,6 +1341,7 @@
     },
     "SolveProgress": {
       "additionalProperties": false,
+      "description": "How a solve stands, after each event of its worker.",
       "properties": {
         "rev": {
           "title": "Rev",
@@ -1346,6 +1367,7 @@
     },
     "SolveStarted": {
       "additionalProperties": false,
+      "description": "A solve of a new revision began.",
       "properties": {
         "rev": {
           "title": "Rev",
@@ -1372,6 +1394,7 @@
     },
     "TableView": {
       "additionalProperties": false,
+      "description": "A table of rows.",
       "properties": {
         "columns": {
           "items": {
@@ -1436,6 +1459,7 @@
     },
     "ToolActivity": {
       "additionalProperties": false,
+      "description": "A tool the agent called, and what it called it with, in a few words.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1462,6 +1486,7 @@
     },
     "TurnEnd": {
       "additionalProperties": false,
+      "description": "The agent finished its turn, or failed it.",
       "properties": {
         "error": {
           "anyOf": [
@@ -1514,6 +1539,7 @@
     },
     "ViewSpec": {
       "additionalProperties": false,
+      "description": "What a project's ``view.py`` hands the GUI to draw: views, top to bottom.",
       "properties": {
         "views": {
           "items": {
@@ -1569,6 +1595,7 @@
     },
     "ViewUpdated": {
       "additionalProperties": false,
+      "description": "What a revision's ``view.py`` drew, or why it failed.",
       "properties": {
         "error": {
           "anyOf": [
@@ -1636,6 +1663,7 @@
     },
     "WorkerError": {
       "additionalProperties": false,
+      "description": "A solve failed, at the stage it failed at.",
       "properties": {
         "message": {
           "title": "Message",

@@ -93,6 +93,10 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
   読まない([ADR 0004](../../adr/0004-import-uploads-into-the-instance.md))。
 - ワーカーのプロトコルを変えるときは、`protocol.py`、`worker.py`、`workers/rust/src` を一緒に変える。
 - フロントエンドの色は `src/theme.ts` から取る。
+- `src/` と `examples/` のモジュール、クラス、関数には Google style の docstring を書き、該当する
+  `Args`、`Returns`、`Raises` を付ける。Ruff の `D` ルールが確かめる。`protocol.py` のモデルは
+  docstring がそのまま schema の説明になるので、要約だけにする。
+  `examples/workload/model.py` の関数も、エージェントが見本として丸ごと読むので、要約だけにする。
 - コード、コメント、ドキュメントは英語。`docs/ja/` の日本語ガイドは `docs/guide/` の翻訳なので、両方を
   一緒に変える。
 

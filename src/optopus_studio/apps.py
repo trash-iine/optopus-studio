@@ -79,6 +79,17 @@ IMAGE_VARIABLE = "OPTOPUS_APP_IMAGE"
 
 
 def load_spec(text: str) -> AppSpec:
+    """Reads app.json, listing every problem with it at once.
+
+    Args:
+        text: app.json's content.
+
+    Returns:
+        The app's spec.
+
+    Raises:
+        ProjectError: The content is not a valid app.
+    """
     try:
         return AppSpec.model_validate_json(text)
     except ValidationError as exc:
@@ -90,11 +101,31 @@ def load_spec(text: str) -> AppSpec:
 
 
 def _path(target: str) -> tuple[str, list[str]]:
+    """Splits a parameter's target into its file and the keys within it.
+
+    Args:
+        target: The target, such as ``instance.depot.capacity`` or ``solve.runs``.
+
+    Returns:
+        ``instance`` or ``solve``, and the keys after it.
+    """
     where, _, rest = target.partition(".")
     return where, rest.split(".")
 
 
 def _get(value: Any, path: list[str]) -> Any:
+    """The value at a path of keys.
+
+    Args:
+        value: The JSON value to look in.
+        path: The keys, outermost first.
+
+    Returns:
+        The value.
+
+    Raises:
+        KeyError: A key is missing, or a value on the way is not an object.
+    """
     for key in path:
         if not isinstance(value, dict) or key not in value:
             raise KeyError(key)
@@ -103,12 +134,28 @@ def _get(value: Any, path: list[str]) -> Any:
 
 
 def _set(value: dict[str, Any], path: list[str], new: Any) -> None:
+    """Sets the value at a path of keys that exists.
+
+    Args:
+        value: The JSON object to change.
+        path: The keys, outermost first.
+        new: The new value.
+    """
     for key in path[:-1]:
         value = value[key]
     value[path[-1]] = new
 
 
 def _solve_value(solve: dict[str, Any], name: str) -> Any:
+    """The value of a solve setting in solve.json, as a parameter shows it.
+
+    Args:
+        solve: solve.json's content.
+        name: ``runs``, ``seed`` or ``max_duration_secs``.
+
+    Returns:
+        The value; for the time limit, the one every heuristic shares, or None when they differ.
+    """
     if name == "runs":
         return solve.get("runs", 1)
     if name == "seed":
@@ -118,7 +165,16 @@ def _solve_value(solve: dict[str, Any], name: str) -> Any:
 
 
 def defaults(spec: AppSpec, instance: Any, solve: dict[str, Any]) -> dict[str, Any]:
-    """Each parameter's value in the packaged files; None where they hold none."""
+    """Each parameter's value in the packaged files; None where they hold none.
+
+    Args:
+        spec: The app's app.json.
+        instance: instance.json's content.
+        solve: solve.json's content.
+
+    Returns:
+        Each value, by the parameter's name.
+    """
     values = {}
     for p in spec.parameters:
         where, path = _path(p.target)
@@ -132,7 +188,18 @@ def defaults(spec: AppSpec, instance: Any, solve: dict[str, Any]) -> dict[str, A
 
 
 def coerce(p: AppParameter, value: Any) -> Any:
-    """The value as the parameter's type, or ValueError saying why it is not one."""
+    """The value as the parameter's type, or ValueError saying why it is not one.
+
+    Args:
+        p: The parameter.
+        value: The value the user gave; a number may come as text.
+
+    Returns:
+        The value, as the parameter's type.
+
+    Raises:
+        ValueError: The value is not of the type, out of range, or not one of the choices.
+    """
     if p.type == "boolean":
         if not isinstance(value, bool):
             raise ValueError(f"{p.label}: expected yes or no, got {value!r}")
@@ -165,12 +232,29 @@ def coerce(p: AppParameter, value: Any) -> Any:
 
 
 def _rows(numbers: list[int]) -> str:
+    """Some row numbers in words, the first few and how many more.
+
+    Args:
+        numbers: The rows' numbers.
+
+    Returns:
+        The words, such as "rows 2, 5, 9 and 3 more".
+    """
     shown = ", ".join(str(n) for n in numbers[:EXAMPLES])
     more = f" and {len(numbers) - EXAMPLES} more" if len(numbers) > EXAMPLES else ""
     return f"row{'s' if len(numbers) > 1 else ''} {shown}{more}"
 
 
 def _fits(column_type: str, value: Any) -> bool:
+    """Whether a cell holds a value of a column's type.
+
+    Args:
+        column_type: ``number``, ``integer``, ``string`` or ``boolean``.
+        value: The cell's value.
+
+    Returns:
+        True when it fits.
+    """
     if column_type == "boolean":
         return isinstance(value, bool)
     if column_type == "string":
@@ -181,8 +265,17 @@ def _fits(column_type: str, value: Any) -> bool:
 
 
 def check_table(spec_input: AppInput, data: Any) -> list[str]:
-    """What is wrong with a table for an input, in the user's terms. Rows count from 2, as in a
-    spreadsheet whose first row is the header."""
+    """What is wrong with a table for an input, in the user's terms.
+
+    Rows count from 2, as in a spreadsheet whose first row is the header.
+
+    Args:
+        spec_input: The input.
+        data: The table read from the file.
+
+    Returns:
+        The problems; empty when the table fits.
+    """
     if not spec_input.columns:
         return []
     label = spec_input.label
@@ -214,7 +307,16 @@ def check_table(spec_input: AppInput, data: Any) -> list[str]:
 
 
 def check_spec(spec: AppSpec, instance: Any, solve: dict[str, Any]) -> list[str]:
-    """What keeps app.json from working with these files."""
+    """What keeps app.json from working with these files.
+
+    Args:
+        spec: The app's app.json.
+        instance: instance.json's content.
+        solve: solve.json's content.
+
+    Returns:
+        The problems; empty when the app fits the files.
+    """
     if not isinstance(instance, dict):
         return ["instance.json must be a JSON object for an app"]
     problems = []
@@ -260,7 +362,17 @@ def check_spec(spec: AppSpec, instance: Any, solve: dict[str, Any]) -> list[str]
 def build_instance(
     spec: AppSpec, base: dict[str, Any], tables: dict[str, Any], values: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """The instance and the solve overrides a case's tables and parameter values make."""
+    """The instance and the solve overrides a case's tables and parameter values make.
+
+    Args:
+        spec: The app's app.json.
+        base: The packaged instance.
+        tables: The tables the user gave, by input key.
+        values: The parameters' values, by name; None leaves the packaged value.
+
+    Returns:
+        The instance and the overrides of solve.json.
+    """
     instance = copy.deepcopy(base)
     instance.update(tables)
     overrides = {}
@@ -280,7 +392,18 @@ def build_instance(
 
 
 def package(project: Project, rev: int) -> tuple[bytes, AppSpec]:
-    """A revision as a zip ``App.open_package`` runs."""
+    """A revision as a zip ``App.open_package`` runs.
+
+    Args:
+        project: The project.
+        rev: The revision.
+
+    Returns:
+        The zip's bytes and the app's spec.
+
+    Raises:
+        ProjectError: The revision has no app.json, or it does not fit the revision.
+    """
     files, summary, view, _ = project.load_revision(rev)
     if APP_FILE not in files:
         raise ProjectError(
@@ -326,7 +449,25 @@ _PACKAGE_MEMBER = re.compile(
 
 
 class App:
+    """A package unpacked under the studio's home, and its cases.
+
+    Attributes:
+        root: Where the package is unpacked.
+        model: The revision's files.
+        manifest: The package's manifest.
+        files: The revision's files' contents, by name.
+        spec: The app's app.json.
+        instance: The packaged instance.
+        solve: The packaged solve.json.
+        cases: The cases opened so far, by id.
+    """
+
     def __init__(self, root: Path):
+        """Opens a package unpacked at ``root``.
+
+        Args:
+            root: Where the package is unpacked.
+        """
         self.root = root
         self.model = root / "model"
         self.manifest: dict[str, Any] = json.loads((root / PACKAGE_MANIFEST).read_text())
@@ -341,8 +482,16 @@ class App:
         self.cases: dict[str, Case] = {}
 
     async def prebuild(self) -> Path | None:
-        """Checks the package's own files and builds its Rust port, if it has one, so that an
-        image of the app runs it without cargo (docs/adr/0010). Returns the binary."""
+        """Checks the package's own files and builds its Rust port, if it has one.
+
+        An image of the app then runs it without cargo (docs/adr/0010).
+
+        Returns:
+            The port's binary, or None when the app runs on the Python worker.
+
+        Raises:
+            ProjectError: The files do not fit, or the port does not build.
+        """
         problems = check_spec(self.spec, self.instance, self.solve)
         if problems:
             raise ProjectError("app.json does not fit the package:\n" + "\n".join(problems))
@@ -350,8 +499,19 @@ class App:
         return await rust_binary(self.solve, self.files.get("rust/main.rs"))
 
     async def self_test(self, seconds: float = SELF_TEST_SECONDS) -> RunSummary:
-        """Solves the packaged data once, briefly, and renders its view: what an app's image
-        checks before it is handed over."""
+        """Solves the packaged data once, briefly, and renders its view.
+
+        It is what an app's image checks before it is handed over.
+
+        Args:
+            seconds: The solve's time limit.
+
+        Returns:
+            The solve's summary.
+
+        Raises:
+            ProjectError: The packaged data does not solve, or view.py fails on it.
+        """
         request = solve_request(
             self.solve,
             self.instance,
@@ -361,7 +521,11 @@ class App:
         binary = await rust_binary(self.solve, self.files.get("rust/main.rs"))
 
         async def ignore(_: RunSummary) -> None:
-            pass
+            """Ignores a solve's progress.
+
+            Args:
+                _: The solve so far.
+            """
 
         summary = await run_solve(request, 0, self.model, ignore, solve_timeout(request), binary)
         if summary.error:
@@ -373,8 +537,21 @@ class App:
 
     @classmethod
     def open_package(cls, path: Path, home: Path | None = None) -> App:
-        """Unpacks a package and opens it. The directory is named by the model's files, so a
-        revision packaged again opens with the cases given to it before."""
+        """Unpacks a package and opens it.
+
+        The directory is named by the model's files, so a revision packaged again opens with the
+        cases given to it before.
+
+        Args:
+            path: The package's zip, or the folder it unpacked into.
+            home: The studio's home; ``studio_home()`` when None.
+
+        Returns:
+            The app.
+
+        Raises:
+            ProjectError: The file is not an app package.
+        """
         contents = _unpack(read_package(path))
         digest = hashlib.sha256()
         for name in sorted(contents):
@@ -391,6 +568,11 @@ class App:
         return cls(root)
 
     def info(self) -> AppInfo:
+        """What the package holds, for the app's page.
+
+        Returns:
+            The app's spec, origin, defaults, and the revision's own result.
+        """
         sample = view = None
         if (self.root / "sample" / "result.json").is_file():
             sample = RunSummary.model_validate_json(
@@ -409,12 +591,28 @@ class App:
         )
 
     def new_case(self) -> Case:
+        """Opens a new case on the packaged data.
+
+        Returns:
+            The case.
+        """
         case = Case(self, self.root / "cases" / uuid.uuid4().hex[:12])
         case.save()
         self.cases[case.id] = case
         return case
 
     def case(self, case_id: str) -> Case:
+        """A case of the app.
+
+        Args:
+            case_id: The case's id.
+
+        Returns:
+            The case.
+
+        Raises:
+            ProjectError: There is no such case.
+        """
         if case_id in self.cases:
             return self.cases[case_id]
         root = self.root / "cases" / case_id
@@ -425,6 +623,17 @@ class App:
 
 
 def _unpack(data: bytes) -> dict[str, bytes]:
+    """A package's files, after checking that it is one.
+
+    Args:
+        data: The zip's bytes.
+
+    Returns:
+        Each file's bytes, by its path in the zip.
+
+    Raises:
+        ProjectError: The zip is not an app package, or is too large.
+    """
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             members = [info for info in archive.infolist() if not info.is_dir()]
@@ -451,8 +660,17 @@ def _unpack(data: bytes) -> dict[str, bytes]:
 
 
 def read_package(path: Path) -> bytes:
-    """A package's zip, from the zip or from the folder it was unpacked into (Safari unpacks a
-    downloaded zip by default). A folder's hidden files, such as .DS_Store, are left out."""
+    """A package's zip, from the zip or from the folder it was unpacked into.
+
+    Safari unpacks a downloaded zip by default. A folder's hidden files, such as .DS_Store, are left
+    out.
+
+    Args:
+        path: The zip, or the folder.
+
+    Returns:
+        The zip's bytes.
+    """
     if not path.is_dir():
         return path.read_bytes()
     buffer = io.BytesIO()
@@ -465,14 +683,47 @@ def read_package(path: Path) -> bytes:
 
 
 def package_manifest(data: bytes) -> dict[str, Any]:
-    """The manifest of a package, once the package is checked as ``App.open_package`` checks it."""
+    """The manifest of a package, once the package is checked as ``App.open_package`` checks it.
+
+    Args:
+        data: The zip's bytes.
+
+    Returns:
+        The manifest.
+
+    Raises:
+        ProjectError: The zip is not an app package.
+    """
     return json.loads(_unpack(data)[PACKAGE_MANIFEST])
 
 
 class Case:
-    """One set of inputs, saved as they are given, and what solving them gave."""
+    """One set of inputs, saved as they are given, and what solving them gave.
+
+    Attributes:
+        app: The app the case belongs to.
+        root: The case's directory.
+        id: The case's id.
+        status: Whether it is a draft, being solved, solved, or failed.
+        parameters: The parameters' values of the last solve.
+        problems: Why the inputs cannot be solved, or why the solve failed.
+        note: What the user says about the case.
+        rows: The rows read from each input's file, by key.
+        summary: The solve's summary, if any.
+        view: What view.py drew, if anything.
+        view_error: Why view.py failed, if it did.
+        task: The solve under way, if any.
+    """
 
     def __init__(self, app: App, root: Path):
+        """Opens the case at ``root``, as it was saved there if it was.
+
+        A case saved while being solved is a draft again: the app stopped before the solve ended.
+
+        Args:
+            app: The app.
+            root: The case's directory.
+        """
         self.app = app
         self.root = root
         self.id = root.name
@@ -502,6 +753,7 @@ class Case:
             self.view_error = stored["error"]
 
     def save(self) -> None:
+        """Writes case.json."""
         self.root.mkdir(parents=True, exist_ok=True)
         stored = {
             "status": self.status,
@@ -513,17 +765,41 @@ class Case:
         (self.root / "case.json").write_text(json.dumps(stored, ensure_ascii=False, indent=1))
 
     def input_file(self, key: str) -> Path | None:
+        """The file the user gave for an input.
+
+        Args:
+            key: The input's key in app.json.
+
+        Returns:
+            The file, or None when the user gave none.
+        """
         directory = self.root / "inputs" / key
         files = sorted(directory.iterdir()) if directory.is_dir() else []
         return files[0] if files else None
 
     def spec_input(self, key: str) -> AppInput:
+        """An input of the app.
+
+        Args:
+            key: The input's key in app.json.
+
+        Returns:
+            The input.
+
+        Raises:
+            ProjectError: The app has no such input.
+        """
         for spec_input in self.app.spec.inputs:
             if spec_input.key == key:
                 return spec_input
         raise ProjectError(f"the app has no input {key!r}")
 
     def state(self) -> CaseState:
+        """The case as the app shows it.
+
+        Returns:
+            The case's state.
+        """
         inputs = []
         for spec_input in self.app.spec.inputs:
             path = self.input_file(spec_input.key)
@@ -543,6 +819,15 @@ class Case:
         )
 
     def _read(self, spec_input: AppInput, path: Path) -> tuple[Any, list[str]]:
+        """Reads an input's file and checks it, counting its rows.
+
+        Args:
+            spec_input: The input.
+            path: The file.
+
+        Returns:
+            The data, or None when it cannot be read, and the problems with it.
+        """
         try:
             data = read_records(path)
         except (TableError, ValueError, OSError) as exc:
@@ -551,6 +836,17 @@ class Case:
         return data, check_table(spec_input, data)
 
     def set_input(self, key: str, name: str, content: bytes) -> None:
+        """Keeps a file for an input, replacing the one given before, and checks it.
+
+        Args:
+            key: The input's key in app.json.
+            name: The file's name.
+            content: The file's content.
+
+        Raises:
+            ProjectError: There is no such input, the case is being solved, or the name or type is
+                not one the app accepts.
+        """
         spec_input = self.spec_input(key)
         self._check_editable()
         name = Path(name).name
@@ -566,6 +862,14 @@ class Case:
         self.save()
 
     def remove_input(self, key: str) -> None:
+        """Takes an input back to the packaged data.
+
+        Args:
+            key: The input's key in app.json.
+
+        Raises:
+            ProjectError: There is no such input, or the case is being solved.
+        """
         self.spec_input(key)
         self._check_editable()
         shutil.rmtree(self.root / "inputs" / key, ignore_errors=True)
@@ -574,18 +878,37 @@ class Case:
         self.save()
 
     def set_note(self, note: str) -> None:
-        """What the app's user says about the case, for whoever reads it in the studio."""
+        """What the app's user says about the case, for whoever reads it in the studio.
+
+        Args:
+            note: The note.
+
+        Raises:
+            ProjectError: The note is too long.
+        """
         if len(note) > MAX_NOTE_CHARS:
             raise ProjectError(f"the note is longer than {MAX_NOTE_CHARS} characters")
         self.note = note
         self.save()
 
     def _check_editable(self) -> None:
+        """Refuses a change while the case is being solved.
+
+        Raises:
+            ProjectError: The case is being solved.
+        """
         if self.status == "solving":
             raise ProjectError("the case is being solved")
 
     def prepare(self, values: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
-        """The instance and overrides the inputs and ``values`` make, or the problems."""
+        """The instance and overrides the inputs and ``values`` make, or the problems.
+
+        Args:
+            values: The parameters' values the user gave, by name.
+
+        Returns:
+            The instance, the overrides and no problems; or empty ones and the problems.
+        """
         problems, parameters = [], {}
         for p in self.app.spec.parameters:
             if values.get(p.name) is None:
@@ -614,7 +937,15 @@ class Case:
         return instance, overrides, []
 
     async def solve(self, values: dict[str, Any], on_update: Callable[[], None] = lambda: None):
-        """Checks the inputs and, when they are fine, solves them in the background."""
+        """Checks the inputs and, when they are fine, solves them in the background.
+
+        Args:
+            values: The parameters' values the user gave, by name.
+            on_update: Called as the solve progresses and when it ends.
+
+        Raises:
+            ProjectError: The case is being solved.
+        """
         self._check_editable()
         instance, overrides, problems = self.prepare(values)
         self.problems = problems
@@ -631,12 +962,24 @@ class Case:
         self.task = asyncio.create_task(self._solve(instance, overrides, on_update))
 
     async def _solve(self, instance: dict[str, Any], overrides: dict[str, Any], on_update) -> None:
+        """Solves the case and renders its view, keeping both; any failure fails the case.
+
+        Args:
+            instance: The instance to solve.
+            overrides: The overrides of solve.json.
+            on_update: Called as the solve progresses and when it ends.
+        """
         app = self.app
         try:
             request = solve_request(app.solve, instance, app.model / "model.py", overrides)
             binary = await rust_binary(app.solve, app.files.get("rust/main.rs"))
 
             async def progress(summary: RunSummary) -> None:
+                """Keeps a solve's progress and says so.
+
+                Args:
+                    summary: The solve so far.
+                """
                 self.summary = summary
                 on_update()
 
@@ -673,7 +1016,14 @@ _CASE_MEMBER = re.compile(
 
 
 def export_case(case: Case) -> bytes:
-    """A case as a zip the studio the app came from imports: what was given, and what it gave."""
+    """A case as a zip the studio the app came from imports: what was given, and what it gave.
+
+    Args:
+        case: The case.
+
+    Returns:
+        The zip's bytes.
+    """
     manifest = {
         "format": CASE_FORMAT,
         "case": case.id,
@@ -705,7 +1055,15 @@ def export_case(case: Case) -> bytes:
 
 
 def check_case_member(name: str, content: bytes) -> None:
-    """Rejects a file a case cannot hold, or one the studio would fail on later."""
+    """Rejects a file a case cannot hold, or one the studio would fail on later.
+
+    Args:
+        name: The file's path in the case's zip.
+        content: The file's bytes.
+
+    Raises:
+        ProjectError: The file has no place in a case, or is broken.
+    """
     match = _CASE_MEMBER.fullmatch(name)
     file = match and match["file"]
     if not match or (file and (not UPLOAD_NAME.match(file) or file.startswith("."))):
@@ -722,7 +1080,20 @@ def check_case_member(name: str, content: bytes) -> None:
 
 
 def import_case(project: Project, data: bytes) -> str:
-    """Stores a case an app exported under the project's cases/, and returns its id."""
+    """Stores a case an app exported under the project's cases/, and returns its id.
+
+    A case imported again replaces the one before.
+
+    Args:
+        project: The project.
+        data: The case's zip.
+
+    Returns:
+        The case's id.
+
+    Raises:
+        ProjectError: The zip is not a case, or is too large.
+    """
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             members = [info for info in archive.infolist() if not info.is_dir()]
@@ -748,6 +1119,14 @@ def import_case(project: Project, data: bytes) -> str:
 
 
 def project_cases(project: Project) -> list[str]:
+    """The cases attached to a project.
+
+    Args:
+        project: The project.
+
+    Returns:
+        Their ids, in order.
+    """
     base = project.root / "cases"
     return (
         sorted(p.name for p in base.iterdir() if (p / CASE_MANIFEST).is_file())
@@ -757,12 +1136,32 @@ def project_cases(project: Project) -> list[str]:
 
 
 def case_dir(project: Project, case_id: str) -> Path:
+    """Where a case attached to a project is kept.
+
+    Args:
+        project: The project.
+        case_id: The case's id.
+
+    Returns:
+        The case's directory.
+
+    Raises:
+        ProjectError: There is no such case.
+    """
     if case_id not in project_cases(project):
         raise ProjectError(f"no case {case_id!r}; the cases are {project_cases(project)}")
     return project.root / "cases" / case_id
 
 
 def case_inputs(root: Path) -> dict[str, Path]:
+    """The files a case's user gave.
+
+    Args:
+        root: The case's directory.
+
+    Returns:
+        Each file, by input key.
+    """
     inputs = root / "inputs"
     found = {}
     for directory in sorted(inputs.iterdir()) if inputs.is_dir() else []:
@@ -773,7 +1172,15 @@ def case_inputs(root: Path) -> dict[str, Path]:
 
 
 def _case_app(project: Project, manifest: dict[str, Any]) -> tuple[dict[str, str], str]:
-    """The files of the revision the case's app was packaged from, if this project has it."""
+    """The files of the revision the case's app was packaged from, if this project has it.
+
+    Args:
+        project: The project.
+        manifest: The case's manifest.
+
+    Returns:
+        The files (empty when the project does not have them), and where they came from in words.
+    """
     app = manifest["app"]
     if app.get("project") == project.id and app.get("rev") in project.revisions():
         files = project.load_revision(app["rev"])[0]
@@ -782,7 +1189,19 @@ def _case_app(project: Project, manifest: dict[str, Any]) -> tuple[dict[str, str
 
 
 def describe_case(project: Project, case_id: str, preview_file: Callable[[Path], str]) -> str:
-    """What the agent reads of a case: where it came from, what went wrong, and its data."""
+    """What the agent reads of a case: where it came from, what went wrong, and its data.
+
+    Args:
+        project: The project.
+        case_id: The case's id.
+        preview_file: Turns an input's file into what the agent reads of it.
+
+    Returns:
+        The description.
+
+    Raises:
+        ProjectError: There is no such case.
+    """
     root = case_dir(project, case_id)
     manifest = json.loads((root / CASE_MANIFEST).read_text())
     _, origin = _case_app(project, manifest)
@@ -827,7 +1246,20 @@ def describe_case(project: Project, case_id: str, preview_file: Callable[[Path],
 
 
 def load_case(project: Project, case_id: str) -> str:
-    """Writes the case's instance into the project's instance.json; says how it was made."""
+    """Writes the case's instance into the project's instance.json; says how it was made.
+
+    When the app refused the inputs it built no instance, so it is built here as the app would have.
+
+    Args:
+        project: The project.
+        case_id: The case's id.
+
+    Returns:
+        How the instance was made.
+
+    Raises:
+        ProjectError: There is no such case, or it cannot be rebuilt.
+    """
     root = case_dir(project, case_id)
     if (root / "instance.json").is_file():
         project.write_file("instance.json", (root / "instance.json").read_text())

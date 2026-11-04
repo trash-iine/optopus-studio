@@ -1,4 +1,18 @@
+"""The knapsack's packing: what is in it and how full it is."""
+
+
 def to_view(instance, result):
+    """What the canvas shows of the best run.
+
+    It shows the value and weight packed, and each item.
+
+    Args:
+        instance: instance.json's content.
+        result: The solve, with the best run as ``best``.
+
+    Returns:
+        The views; a note when the solve failed.
+    """
     items = instance["items"]
     best = result["best"]
     if best is None:

@@ -18,11 +18,18 @@ PREVIEW_ROWS = 10
 
 
 class TableError(ValueError):
-    pass
+    """An upload that cannot be read as a table."""
 
 
 def cell(value: Any) -> Any:
-    """A number when the text is one, the text otherwise; empty cells become None."""
+    """A number when the text is one, the text otherwise; empty cells become None.
+
+    Args:
+        value: A cell as the file holds it.
+
+    Returns:
+        The cell's value.
+    """
     if isinstance(value, str):
         text = value.strip()
         if text == "":
@@ -37,6 +44,21 @@ def cell(value: Any) -> Any:
 
 
 def _records(header: list[Any], rows: list[list[Any]]) -> list[dict[str, Any]]:
+    """Turns rows into records keyed by the header.
+
+    Blank header cells are named ``column_<n>``, empty rows are dropped, and short rows are padded
+    with None.
+
+    Args:
+        header: The first row.
+        rows: The rows after it.
+
+    Returns:
+        One dict per row.
+
+    Raises:
+        TableError: The header repeats a column name.
+    """
     columns = [
         str(h).strip() if h not in (None, "") else f"column_{i + 1}" for i, h in enumerate(header)
     ]
@@ -53,6 +75,15 @@ def _records(header: list[Any], rows: list[list[Any]]) -> list[dict[str, Any]]:
 
 
 def _delimited(text: str, delimiter: str | None) -> list[dict[str, Any]]:
+    """Reads delimited text, such as CSV or TSV, as records.
+
+    Args:
+        text: The file's text.
+        delimiter: The delimiter, or None to guess it among comma, tab and semicolon.
+
+    Returns:
+        One dict per row.
+    """
     if delimiter is None:
         try:
             delimiter = csv.Sniffer().sniff(text[:4096], delimiters=",\t;").delimiter
@@ -65,6 +96,14 @@ def _delimited(text: str, delimiter: str | None) -> list[dict[str, Any]]:
 
 
 def sheet_names(path: Path) -> list[str]:
+    """The sheets of an Excel workbook.
+
+    Args:
+        path: The uploaded file.
+
+    Returns:
+        The sheets' names; empty when the file is not a workbook.
+    """
     if path.suffix.lower() != ".xlsx":
         return []
     from openpyxl import load_workbook
@@ -77,7 +116,18 @@ def sheet_names(path: Path) -> list[str]:
 
 
 def read_records(path: Path, sheet: str | None = None) -> Any:
-    """The file as a list of records (one dict per row, keyed by the header), or the JSON value."""
+    """The file as a list of records (one dict per row, keyed by the header), or the JSON value.
+
+    Args:
+        path: The uploaded file.
+        sheet: The sheet to read from a workbook; the first when None.
+
+    Returns:
+        The records, or the JSON file's value.
+
+    Raises:
+        TableError: The file's type is not one the studio reads, or the sheet does not exist.
+    """
     suffix = path.suffix.lower()
     if suffix not in UPLOAD_SUFFIXES:
         raise TableError(f"cannot read {path.name}; expected one of {UPLOAD_SUFFIXES}")
@@ -100,7 +150,15 @@ def read_records(path: Path, sheet: str | None = None) -> Any:
 
 
 def preview(path: Path, sheet: str | None = None) -> str:
-    """What the agent reads before importing: shape, columns, and the first rows."""
+    """What the agent reads before importing: shape, columns, and the first rows.
+
+    Args:
+        path: The uploaded file.
+        sheet: The sheet to show from a workbook; the first when None.
+
+    Returns:
+        The preview's text.
+    """
     data = read_records(path, sheet)
     lines = [f"{path.name} ({path.stat().st_size} bytes)"]
     sheets = sheet_names(path)

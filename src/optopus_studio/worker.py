@@ -78,7 +78,16 @@ UNFIT_START = "'initial_solution' does not fit the problem"
 
 
 class StageError(Exception):
+    """A failure at one stage of a solve: build, heuristic, start, run or encode."""
+
     def __init__(self, stage: str, message: str, tb: str | None = None):
+        """Records where the solve failed and why.
+
+        Args:
+            stage: The stage that failed.
+            message: The exception's type and message.
+            tb: The traceback, if any.
+        """
         super().__init__(message)
         self.stage = stage
         self.message = message
@@ -86,7 +95,17 @@ class StageError(Exception):
 
 
 def build_heuristic(spec: dict[str, Any]) -> Any:
-    """Builds an optopus heuristic from ``{'kind': <class name>, **constructor arguments}``."""
+    """Builds an optopus heuristic from ``{'kind': <class name>, **constructor arguments}``.
+
+    Args:
+        spec: The heuristic's dict; a nested heuristic is another such dict.
+
+    Returns:
+        The heuristic.
+
+    Raises:
+        ValueError: The kind is not an optopus heuristic.
+    """
     spec = dict(spec)
     kind = spec.pop("kind", None)
     if kind not in HEURISTICS:
@@ -96,6 +115,18 @@ def build_heuristic(spec: dict[str, Any]) -> Any:
 
 
 def _argument(key: str, value: Any) -> Any:
+    """A heuristic's argument as the binding takes it.
+
+    Stop conditions become ``StopCondition``, nested heuristics and argument classes are built, and
+    lists become tuples where the binding wants a tuple.
+
+    Args:
+        key: The argument's name; empty for an item of a list.
+        value: The argument's value as JSON holds it.
+
+    Returns:
+        The value to pass.
+    """
     if key in STOP_ARGUMENTS and isinstance(value, dict):
         return optopus.StopCondition(**value)
     if isinstance(value, dict) and value.get("kind") in ARGUMENT_CLASSES.get(key, ()):
@@ -110,12 +141,34 @@ def _argument(key: str, value: Any) -> Any:
 
 
 def derive_seed(master: int, run_index: int) -> int:
-    """The per-run seed optopus derives from a master seed, so that run ``i`` here matches run
-    ``i`` of ``run(problem, runs=N, seed=master)``."""
+    """The per-run seed optopus derives from a master seed.
+
+    Run ``i`` here thus matches run ``i`` of ``run(problem, runs=N, seed=master)``.
+
+    Args:
+        master: The solve's seed.
+        run_index: The run's index among a heuristic's runs.
+
+    Returns:
+        The run's seed.
+    """
     return (master + run_index * 0x9E37_79B9_7F4A_7C15) & MASK_64
 
 
 def load_model(path: str) -> ModuleType:
+    """Imports a project's ``model.py``.
+
+    Args:
+        path: The file's path.
+
+    Returns:
+        The module.
+
+    Raises:
+        ImportError: The file cannot be loaded.
+        AttributeError: The file defines no ``build``.
+        Exception: Whatever the file raises as it runs; it is the project's code.
+    """
     spec = importlib.util.spec_from_file_location("studio_model", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")
@@ -127,11 +180,27 @@ def load_model(path: str) -> ModuleType:
 
 
 def is_builtin(problem: Any) -> bool:
+    """Whether a problem is one of optopus's built-in classes rather than written in Python.
+
+    Args:
+        problem: The problem ``build`` returned.
+
+    Returns:
+        True for a built-in problem.
+    """
     name = type(problem).__name__
     return type(problem) is getattr(optopus, name, None)
 
 
 def higher_is_better(problem: Any) -> bool:
+    """Whether the problem's report ranks higher objectives first.
+
+    Args:
+        problem: The problem ``build`` returned.
+
+    Returns:
+        True when higher is better.
+    """
     name = type(problem).__name__
     if type(problem) is getattr(optopus, name, None):
         return name in HIGHER_IS_BETTER
@@ -139,6 +208,20 @@ def higher_is_better(problem: Any) -> bool:
 
 
 def encode(model: ModuleType, instance: dict[str, Any], solution: Any) -> Any:
+    """A solution as JSON can carry it: through the model's ``encode_solution``, if it has one.
+
+    Args:
+        model: The project's model module.
+        instance: The instance the problem was built from.
+        solution: The problem's own solution.
+
+    Returns:
+        The solution as a JSON value.
+
+    Raises:
+        ValueError: The value holds a number JSON cannot carry.
+        TypeError: The value is not JSON.
+    """
     encoder = getattr(model, "encode_solution", None)
     value = encoder(instance, solution) if callable(encoder) else solution
     if isinstance(value, tuple):
@@ -148,23 +231,69 @@ def encode(model: ModuleType, instance: dict[str, Any], solution: Any) -> Any:
 
 
 def decode(model: ModuleType, instance: dict[str, Any], value: Any) -> Any:
-    """The problem's own solution for ``value``, which is in the form ``encode`` gives."""
+    """The problem's own solution for ``value``, which is in the form ``encode`` gives.
+
+    Args:
+        model: The project's model module.
+        instance: The instance the problem was built from.
+        value: The solution as JSON holds it.
+
+    Returns:
+        The solution, through the model's ``decode_solution`` if it has one.
+    """
     decoder = getattr(model, "decode_solution", None)
     return decoder(instance, value) if callable(decoder) else value
 
 
 def finite(value: float | None) -> float | None:
-    """``value``, or None when it is not a finite number, which JSON cannot carry."""
+    """``value``, or None when it is not a finite number, which JSON cannot carry.
+
+    Args:
+        value: A number, or None.
+
+    Returns:
+        The number when it is finite, else None.
+    """
     return value if value is not None and math.isfinite(value) else None
 
 
 def watches_runs(heuristic: Any) -> bool:
-    """Whether this optopus reports improvements during a run (``on_improvement``)."""
+    """Whether this optopus reports improvements during a run (``on_improvement``).
+
+    Args:
+        heuristic: A built heuristic.
+
+    Returns:
+        True when its ``run`` takes ``on_improvement``.
+    """
     return "on_improvement" in (getattr(heuristic.run, "__text_signature__", None) or "")
 
 
 def solve(request: SolveRequest, emit) -> None:
+    """Runs every variant's heuristic ``runs`` times and emits the events of the solve.
+
+    Args:
+        request: The solve.
+        emit: Called with each event, in order: started, progress, run_finished, done.
+
+    Raises:
+        StageError: A stage failed.
+    """
+
     def stage(name: str, fn, *args):
+        """Runs one step of a stage, turning any failure into the stage's error.
+
+        Args:
+            name: The stage.
+            fn: The step.
+            *args: The step's arguments.
+
+        Returns:
+            What the step returned.
+
+        Raises:
+            StageError: The step failed, a panic in optopus included.
+        """
         try:
             return fn(*args)
         except (KeyboardInterrupt, SystemExit):
@@ -202,6 +331,15 @@ def solve(request: SolveRequest, emit) -> None:
             if watches_runs(heuristic):
 
                 def progress(_run, elapsed, objective, index=index, variant=variant):
+                    """Emits a run's new best as it is found.
+
+                    Args:
+                        _run: The run's index within the call, always 0.
+                        elapsed: The seconds since the run began.
+                        objective: The new best objective.
+                        index: The run's index in the solve.
+                        variant: The run's heuristic.
+                    """
                     emit(
                         Progress(
                             run=index, variant=variant, elapsed_secs=elapsed, objective=objective
@@ -248,7 +386,14 @@ def solve(request: SolveRequest, emit) -> None:
 
 
 def evaluate(request: EvaluateRequest) -> list[float]:
-    """Each solution's objective, as a run starting from it reports it before its first move."""
+    """Each solution's objective, as a run starting from it reports it before its first move.
+
+    Args:
+        request: The model, the instance, the solutions, and a heuristic to run them through.
+
+    Returns:
+        Each solution's objective, in order.
+    """
     model = load_model(request.model_path)
     problem = model.build(request.instance)
     heuristic = build_heuristic({**request.heuristic, "stop": {"max_iteration": 0}})
@@ -261,6 +406,15 @@ def evaluate(request: EvaluateRequest) -> list[float]:
 
 
 def main_evaluate(stdin: TextIO, out: TextIO) -> int:
+    """Answers one ``EvaluateRequest`` read from stdin with one JSON line.
+
+    Args:
+        stdin: Where the request is read from.
+        out: Where the answer is written.
+
+    Returns:
+        The exit status: 0 when the solutions were scored, 1 when it failed.
+    """
     try:
         request = EvaluateRequest.model_validate_json(stdin.readline())
         answer: dict[str, Any] = {"objectives": evaluate(request)}
@@ -277,6 +431,16 @@ def main_evaluate(stdin: TextIO, out: TextIO) -> int:
 def main(
     stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout, args: list[str] | None = None
 ) -> int:
+    """Answers one request from stdin: the solve's events, or with ``--evaluate`` the scores.
+
+    Args:
+        stdin: Where the request is read from.
+        stdout: Where the events are written.
+        args: The command line's arguments; ``sys.argv[1:]`` when None.
+
+    Returns:
+        The exit status: 0 on success, 1 when a stage failed, 2 for a bad request.
+    """
     out = stdout
     sys.stdout = sys.stderr
     if "--evaluate" in (sys.argv[1:] if args is None else args):
@@ -288,6 +452,11 @@ def main(
     lock = threading.Lock()
 
     def emit(event) -> None:
+        """Writes one event as a JSON line, one thread at a time.
+
+        Args:
+            event: The event.
+        """
         line = event.model_dump_json() + "\n"
         with lock:
             out.write(line)

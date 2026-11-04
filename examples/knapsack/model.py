@@ -4,6 +4,17 @@ import optopus
 
 
 def build(instance):
+    """Builds the Formula: the items' value, with a penalty for each unit over the capacity.
+
+    Args:
+        instance: instance.json's content.
+
+    Returns:
+        The problem.
+
+    Raises:
+        ValueError: There are no items, or an item's weight is not positive.
+    """
     items = instance["items"]
     # An app's user gives their own items (app.json), so say what is wrong in their terms. Rows
     # count from 2, as in the spreadsheet whose first row is the header.

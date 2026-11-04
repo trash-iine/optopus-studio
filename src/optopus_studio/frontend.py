@@ -15,7 +15,11 @@ FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 def mount_frontend(server: FastAPI) -> None:
-    """Serves the built frontend at ``/``, when it has been built."""
+    """Serves the built frontend at ``/``, when it has been built.
+
+    Args:
+        server: The application to mount the frontend on.
+    """
     if FRONTEND.is_dir():
         with contextlib.suppress(RuntimeError):
             server.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")

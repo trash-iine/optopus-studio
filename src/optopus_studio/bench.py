@@ -83,14 +83,39 @@ ALGORITHM_FILES = ("model.py", "solve.json", "rust/main.rs")
 
 
 def spec_path(project: Project) -> Path:
+    """Where the benchmark's spec is kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The path of ``bench/bench.json``.
+    """
     return project.bench / "bench.json"
 
 
 def instance_path(project: Project, name: str) -> Path:
+    """Where a benchmark instance is kept.
+
+    Args:
+        project: The project.
+        name: The instance's name.
+
+    Returns:
+        The path of ``bench/instances/<name>.json``.
+    """
     return project.bench / "instances" / f"{name}.json"
 
 
 def load_spec(project: Project) -> BenchSpec:
+    """The benchmark's spec; an empty one before anything was added.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The spec.
+    """
     path = spec_path(project)
     if not path.is_file():
         return BenchSpec()
@@ -98,12 +123,29 @@ def load_spec(project: Project) -> BenchSpec:
 
 
 def save_spec(project: Project, spec: BenchSpec) -> None:
+    """Writes the benchmark's spec.
+
+    Args:
+        project: The project.
+        spec: The benchmark's spec.
+    """
     project.bench.mkdir(exist_ok=True)
     spec_path(project).write_text(spec.model_dump_json(indent=2))
 
 
 def configure(project: Project, **settings: Any) -> BenchSpec:
-    """Changes the runs, seed or budget of every later evaluation."""
+    """Changes the runs, seed or budget of every later evaluation.
+
+    Args:
+        project: The project.
+        **settings: The spec's fields to set: runs, seed, max_duration_secs, max_iteration.
+
+    Returns:
+        The new spec.
+
+    Raises:
+        ProjectError: A setting is invalid, or the runs would have no budget.
+    """
     spec = load_spec(project)
     try:
         spec = BenchSpec.model_validate({**spec.model_dump(), **settings})
@@ -118,7 +160,21 @@ def configure(project: Project, **settings: Any) -> BenchSpec:
 def add_instance(
     project: Project, name: str, split: str, source: str, instance: Any
 ) -> BenchInstance:
-    """Stores ``instance`` under ``name``, replacing an instance of that name."""
+    """Stores ``instance`` under ``name``, replacing an instance of that name.
+
+    Args:
+        project: The project.
+        name: The instance's name.
+        split: ``train`` or ``validation``.
+        source: Where the instance came from, such as "revision 3".
+        instance: The instance, in instance.json's form.
+
+    Returns:
+        The instance's entry in the spec, with its hash.
+
+    Raises:
+        ProjectError: The instance is not a JSON object, or the name or split is invalid.
+    """
     if not isinstance(instance, dict):
         raise ProjectError("an instance must be a JSON object, as instance.json is")
     text = json.dumps(instance, ensure_ascii=False, indent=1)
@@ -136,6 +192,15 @@ def add_instance(
 
 
 def remove_instance(project: Project, name: str) -> None:
+    """Removes an instance from the benchmark, and its file.
+
+    Args:
+        project: The project.
+        name: The instance's name.
+
+    Raises:
+        ProjectError: There is no such instance.
+    """
     spec = load_spec(project)
     if not any(i.name == name for i in spec.instances):
         raise ProjectError(f"no benchmark instance {name!r}")
@@ -145,6 +210,18 @@ def remove_instance(project: Project, name: str) -> None:
 
 
 def read_instance(project: Project, entry: BenchInstance) -> dict[str, Any]:
+    """Reads a benchmark instance, after checking it is what was added.
+
+    Args:
+        project: The project.
+        entry: The instance's entry in the spec.
+
+    Returns:
+        The instance.
+
+    Raises:
+        ProjectError: The file is missing, or changed since it was added.
+    """
     path = instance_path(project, entry.name)
     if not path.is_file():
         raise ProjectError(f"the file of benchmark instance {entry.name!r} is missing")
@@ -155,10 +232,27 @@ def read_instance(project: Project, entry: BenchInstance) -> dict[str, Any]:
 
 
 def instances_of(spec: BenchSpec, split: Split) -> list[BenchInstance]:
+    """The instances of a split.
+
+    Args:
+        spec: The benchmark's spec.
+        split: ``train``, ``validation``, or ``all``.
+
+    Returns:
+        Their entries, in the spec's order.
+    """
     return [i for i in spec.instances if split == "all" or i.split == split]
 
 
 def _sha256(text: str) -> str:
+    """The SHA-256 of a text.
+
+    Args:
+        text: The text.
+
+    Returns:
+        The hash, in hex.
+    """
     return hashlib.sha256(text.encode()).hexdigest()
 
 
@@ -167,7 +261,14 @@ def _sha256(text: str) -> str:
 
 @dataclass
 class Side:
-    """What one side of an evaluation solves with."""
+    """What one side of an evaluation solves with.
+
+    Attributes:
+        root: The directory of its files: the work files, or a revision's.
+        solve: Its solve.json.
+        variant: The heuristic it runs.
+        binary: Its built Rust port, or None for the Python worker.
+    """
 
     root: Path
     solve: dict[str, Any]
@@ -176,10 +277,24 @@ class Side:
 
     @property
     def worker(self) -> str:
+        """The worker the side runs on: python or rust."""
         return "rust" if self.binary else "python"
 
 
 def pick_variant(solve: dict[str, Any], label: str | None, where: str) -> Variant:
+    """A variant of solve.json by its label.
+
+    Args:
+        solve: solve.json's content.
+        label: The variant's label; None when solve.json has only one.
+        where: Whose solve.json it is, in words, for the errors.
+
+    Returns:
+        The variant.
+
+    Raises:
+        ProjectError: There is no such variant, or no label is given and there are several.
+    """
     variants = variants_of(solve)
     if label is None:
         if len(variants) > 1:
@@ -193,6 +308,19 @@ def pick_variant(solve: dict[str, Any], label: str | None, where: str) -> Varian
 
 
 async def side(root: Path, label: str | None, where: str) -> Side:
+    """Gets a side ready: reads its solve.json, picks its variant and builds its port.
+
+    Args:
+        root: The directory of its files.
+        label: The variant to run; None when solve.json has only one.
+        where: Whose files they are, in words.
+
+    Returns:
+        The side.
+
+    Raises:
+        ProjectError: The files are missing or broken, or the port does not build.
+    """
     if not (root / "solve.json").is_file() or not (root / "model.py").is_file():
         raise ProjectError(f"{where} has no model.py and solve.json to evaluate")
     try:
@@ -205,13 +333,28 @@ async def side(root: Path, label: str | None, where: str) -> Side:
 
 
 def stop_of(spec: BenchSpec) -> dict[str, Any]:
-    """The benchmark's budget as a heuristic's stop."""
+    """The benchmark's budget as a heuristic's stop.
+
+    Args:
+        spec: The benchmark's spec.
+
+    Returns:
+        The stop condition's arguments.
+    """
     limits = (("max_duration_secs", spec.max_duration_secs), ("max_iteration", spec.max_iteration))
     return {key: value for key, value in limits if value is not None}
 
 
 def budgeted(variant: Variant, spec: BenchSpec) -> Variant:
-    """The variant with the benchmark's budget as its stop, whatever stop it had."""
+    """The variant with the benchmark's budget as its stop, whatever stop it had.
+
+    Args:
+        variant: The variant.
+        spec: The benchmark's spec.
+
+    Returns:
+        A copy of the variant with that stop.
+    """
     return Variant(label=variant.label, heuristic={**variant.heuristic, "stop": stop_of(spec)})
 
 
@@ -223,8 +366,24 @@ def request_for(
     runs: int | None = None,
     seed: int | None = None,
 ) -> SolveRequest:
-    """A solve of ``instance`` with the side's variant, or ``variants``, on the benchmark's
-    budget, runs and seed unless given others."""
+    """A solve of ``instance`` with the side's variant, or ``variants``, on the benchmark's budget.
+
+    The benchmark's runs and seed apply unless others are given.
+
+    Args:
+        s: The side.
+        instance: The instance.
+        spec: The benchmark's spec.
+        variants: The variants to run instead of the side's.
+        runs: The runs, instead of the benchmark's.
+        seed: The seed, instead of the benchmark's.
+
+    Returns:
+        The request.
+
+    Raises:
+        ProjectError: The side's solve.json starts from a solution the instance does not hold.
+    """
     return SolveRequest(
         model_path=str(s.root / "model.py"),
         instance=instance,
@@ -236,6 +395,11 @@ def request_for(
 
 
 def parallelism() -> int:
+    """How many solves run at once: ``OPTOPUS_STUDIO_BENCH_PARALLEL``, or half the cores.
+
+    Returns:
+        The number, at least 1.
+    """
     configured = os.environ.get("OPTOPUS_STUDIO_BENCH_PARALLEL")
     if configured:
         return max(1, int(configured))
@@ -246,14 +410,36 @@ def parallelism() -> int:
 async def solve_all(
     jobs: list[tuple[Side, SolveRequest]], task: BenchTask, progress: Progress | None = None
 ) -> list[RunSummary]:
-    """Solves each request with its side, ``parallelism()`` at a time, in the order given."""
+    """Solves each request with its side, ``parallelism()`` at a time, in the order given.
+
+    Args:
+        jobs: Each side and the request it solves.
+        task: The task the solves belong to, as the progress says.
+        progress: Called as each solve finishes, if given.
+
+    Returns:
+        Each solve's summary, in the order of ``jobs``.
+    """
     gate = asyncio.Semaphore(parallelism())
     done = 0
 
     async def ignore(_: RunSummary) -> None:
-        pass
+        """Ignores a solve's progress.
+
+        Args:
+            _: The solve so far.
+        """
 
     async def solve(s: Side, request: SolveRequest) -> RunSummary:
+        """Solves one request when a slot is free, and reports the progress.
+
+        Args:
+            s: The side.
+            request: The request.
+
+        Returns:
+            The solve's summary.
+        """
         nonlocal done
         async with gate:
             summary = await run_solve(
@@ -268,8 +454,17 @@ async def solve_all(
 
 
 async def all_of[T](coroutines: list[Coroutine[Any, Any, T]]) -> list[T]:
-    """Their results in order. One that raises cancels the others, solves and their workers
-    with them, and its exception is raised as it is."""
+    """Runs coroutines together and returns their results in order.
+
+    One that raises cancels the others, solves and their workers with them, and its exception is
+    raised as it is.
+
+    Args:
+        coroutines: The coroutines.
+
+    Returns:
+        Their results, in order.
+    """
     try:
         async with asyncio.TaskGroup() as group:
             tasks = [group.create_task(c) for c in coroutines]
@@ -282,7 +477,14 @@ async def all_of[T](coroutines: list[Coroutine[Any, Any, T]]) -> list[T]:
 
 
 def ranks(values: list[float]) -> list[float]:
-    """Ranks from 1 for the lowest, ties sharing the mean of their ranks."""
+    """Ranks from 1 for the lowest, ties sharing the mean of their ranks.
+
+    Args:
+        values: The values.
+
+    Returns:
+        Each value's rank, in the values' order.
+    """
     order = sorted(range(len(values)), key=values.__getitem__)
     result = [0.0] * len(values)
     i = 0
@@ -299,8 +501,17 @@ def ranks(values: list[float]) -> list[float]:
 
 
 def wilcoxon(diffs: list[float]) -> tuple[float, float]:
-    """One-sided p-values of the Wilcoxon signed-rank test that the differences center on 0,
-    against "greater" and against "less". Zeros are dropped; tied magnitudes share a rank."""
+    """One-sided p-values of the Wilcoxon signed-rank test that the differences center on 0.
+
+    The test is against "greater" and against "less". Zeros are dropped; tied magnitudes share a
+    rank. Up to ``EXACT_PAIRS`` differences the distribution is exact, beyond it normal.
+
+    Args:
+        diffs: The paired differences.
+
+    Returns:
+        The p-value against "greater" and the one against "less".
+    """
     d = [x for x in diffs if abs(x) > TIE]
     n = len(d)
     if n == 0:
@@ -334,6 +545,17 @@ def wilcoxon(diffs: list[float]) -> tuple[float, float]:
 
 @dataclass
 class InstanceResult:
+    """Both sides' runs on one instance, and the gains they pair into.
+
+    Attributes:
+        name: The instance's name.
+        sha256: The hash of the instance's file.
+        baseline: The baseline's runs.
+        candidate: The candidate's runs, paired with the baseline's by seed.
+        higher_is_better: The direction the objectives are ranked in.
+        gains: Each pair's gain relative to the baseline's mean; positive is better.
+    """
+
     name: str
     sha256: str
     baseline: list[RunFinished]
@@ -342,6 +564,7 @@ class InstanceResult:
     gains: list[float] = field(init=False)
 
     def __post_init__(self) -> None:
+        """Pairs the runs into gains."""
         sign = -1.0 if self.higher_is_better else 1.0
         base = [r.best_objective for r in self.baseline]
         scale = max(abs(statistics.fmean(base)), TIE)
@@ -352,10 +575,12 @@ class InstanceResult:
 
     @property
     def gain(self) -> float:
+        """The mean gain over the pairs."""
         return statistics.fmean(self.gains)
 
     @property
     def outcome(self) -> Literal["better", "same", "worse"]:
+        """Whether the candidate did better, the same or worse on the instance."""
         if self.gain > TIE:
             return "better"
         return "worse" if self.gain < -TIE else "same"
@@ -363,6 +588,22 @@ class InstanceResult:
 
 @dataclass
 class Evaluation:
+    """One evaluation of a candidate against a baseline revision, and its verdict.
+
+    Attributes:
+        id: The evaluation's number among the project's; 0 until it is kept.
+        split: The instances it ran on.
+        spec: The benchmark's runs, seed and budget.
+        candidate: The candidate side, as its record describes it.
+        baseline: The baseline side, as its record describes it.
+        instances: The results on each instance.
+        reference: What the baseline's model said of the candidate's solutions.
+        error: Why the candidate failed, if it did.
+        verdict: The verdict.
+        p_better: The p-value against "better".
+        p_worse: The p-value against "worse".
+    """
+
     id: int
     split: Split
     spec: BenchSpec
@@ -377,19 +618,23 @@ class Evaluation:
 
     @property
     def gains(self) -> list[float]:
+        """Every pair's gain, over all the instances."""
         return [g for i in self.instances for g in i.gains]
 
     @property
     def judged(self) -> bool:
+        """Whether the candidate was compared, rather than rejected or failed."""
         return self.verdict not in ("rejected", "failed")
 
     @property
     def worsening(self) -> float:
+        """The mean worsening over the instances, counted one way only."""
         if not self.instances:
             return 0.0
         return statistics.fmean(max(0.0, -i.gain) for i in self.instances)
 
     def judge(self) -> None:
+        """Sets the p-values and the verdict from the gains."""
         self.p_better, self.p_worse = wilcoxon(self.gains)
         if self.p_better < ALPHA:
             self.verdict = "better" if self.worsening <= WORSENING_LIMIT else "mixed"
@@ -399,6 +644,11 @@ class Evaluation:
             self.verdict = "same"
 
     def to_json(self) -> dict[str, Any]:
+        """The evaluation's record, as kept in ``bench/results``.
+
+        Returns:
+            The record, its runs without their solutions and trajectories.
+        """
         return {
             "id": self.id,
             "split": self.split,
@@ -431,33 +681,86 @@ UNKEPT = {"solution", "trajectory"}
 
 
 def results_dir(project: Project) -> Path:
+    """Where the evaluations' records are kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
     return project.bench / "results"
 
 
 def tunings_dir(project: Project) -> Path:
+    """Where the tunings' records are kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
     return project.bench / "tunings"
 
 
 def profiles_dir(project: Project) -> Path:
+    """Where the profiles' records are kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
     return project.bench / "profiles"
 
 
 def history(project: Project) -> list[dict[str, Any]]:
-    """Every evaluation's result, oldest first."""
+    """Every evaluation's result, oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
     return _records(results_dir(project))
 
 
 def profiles(project: Project) -> list[dict[str, Any]]:
-    """Every profile's record (profiling.py), oldest first."""
+    """Every profile's record (profiling.py), oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
     return _records(profiles_dir(project))
 
 
 def tunings(project: Project) -> list[dict[str, Any]]:
-    """Every tuning's record (tune.py), oldest first."""
+    """Every tuning's record (tune.py), oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
     return _records(tunings_dir(project))
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
+    """The records in a directory, by number.
+
+    Args:
+        path: The directory.
+
+    Returns:
+        The records, the lowest number first; empty when there is no directory.
+    """
     if not path.is_dir():
         return []
     files = sorted((p for p in path.glob("*.json") if p.stem.isdigit()), key=lambda p: int(p.stem))
@@ -465,12 +768,26 @@ def _records(path: Path) -> list[dict[str, Any]]:
 
 
 def next_id(path: Path) -> int:
+    """The number the next record in a directory takes.
+
+    Args:
+        path: The directory.
+
+    Returns:
+        One more than the highest number there, or 1.
+    """
     ids = [int(p.stem) for p in path.glob("*.json") if p.stem.isdigit()] if path.is_dir() else []
     return max(ids, default=0) + 1
 
 
 def keep_record(path: Path, id: int, record: dict[str, Any]) -> None:
-    """Writes a record as ``<id>.json`` in ``path``, which ``_records`` reads back."""
+    """Writes a record as ``<id>.json`` in ``path``, which ``_records`` reads back.
+
+    Args:
+        path: The directory.
+        id: The record's number.
+        record: The record.
+    """
     path.mkdir(parents=True, exist_ok=True)
     (path / f"{id}.json").write_text(json.dumps(record, indent=1))
 
@@ -485,8 +802,27 @@ async def evaluate(
     note: str = "",
     progress: Progress | None = None,
 ) -> Evaluation:
-    """Compares a candidate with a baseline revision on a split of the benchmark, and keeps the
-    result in ``bench/results``."""
+    """Compares a candidate with a baseline revision on a split and keeps the result.
+
+    Once both sides are set up, the result is kept in ``bench/results``, whether the candidate is
+    judged, rejected or fails. A failure on the baseline's side raises instead, and keeps nothing.
+
+    Args:
+        project: The project.
+        baseline_rev: The baseline revision.
+        split: The instances to compare on.
+        candidate_rev: The candidate revision, or None for the work files.
+        variant: The candidate's variant; None when its solve.json has only one.
+        baseline_variant: The baseline's variant; None when its solve.json has only one.
+        note: What the candidate changes, in the agent's words.
+        progress: Called as solves finish, if given.
+
+    Returns:
+        The evaluation.
+
+    Raises:
+        ProjectError: The split has no instances, a side cannot be set up, or the baseline fails.
+    """
     spec = load_spec(project)
     entries = instances_of(spec, split)
     if not entries:
@@ -551,11 +887,30 @@ async def evaluate(
 async def _check_reference(
     base: Side, data: list[tuple[BenchInstance, dict[str, Any]]], evaluation: Evaluation
 ) -> str | None:
-    """Why the baseline's model does not agree with the candidate's objectives, if it does not."""
+    """Why the baseline's model does not agree with the candidate's objectives, if it does not.
+
+    Args:
+        base: The baseline side.
+        data: Each instance's entry and content.
+        evaluation: The evaluation, with the candidate's runs.
+
+    Returns:
+        The disagreement in words, or None when the model scores every solution as the candidate
+        did.
+    """
     command = [str(base.binary)] if base.binary else worker_command()
     gate = asyncio.Semaphore(parallelism())
 
     async def score(instance: dict[str, Any], result: InstanceResult) -> list[float] | Exception:
+        """Scores the candidate's solutions on one instance with the baseline's model.
+
+        Args:
+            instance: The instance.
+            result: The runs on it.
+
+        Returns:
+            Each solution's objective, or the exception the scoring raised.
+        """
         request = EvaluateRequest(
             model_path=str(base.root / "model.py"),
             instance=instance,
@@ -588,6 +943,14 @@ async def _check_reference(
 
 
 def _file_hashes(root: Path) -> dict[str, str]:
+    """The hashes of the files that make an algorithm.
+
+    Args:
+        root: The directory of the files.
+
+    Returns:
+        Each file's hash, by name, for the files there are.
+    """
     return {
         name: _sha256((root / name).read_text())
         for name in ALGORITHM_FILES
@@ -596,6 +959,16 @@ def _file_hashes(root: Path) -> dict[str, str]:
 
 
 def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
+    """A side as the evaluation's record describes it.
+
+    Args:
+        s: The side.
+        where: Whose files they are, in words.
+        rev: The side's revision, or None for the work files.
+
+    Returns:
+        The description, with its files' hashes.
+    """
     return {
         "where": where,
         "rev": rev,
@@ -606,6 +979,15 @@ def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
 
 
 def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
+    """Numbers the evaluation and keeps its record.
+
+    Args:
+        project: The project.
+        evaluation: The evaluation.
+
+    Returns:
+        The evaluation, with its number.
+    """
     # The id is taken when the record is written, so evaluations that overlap get their own.
     evaluation.id = next_id(results_dir(project))
     keep_record(results_dir(project), evaluation.id, evaluation.to_json())
@@ -616,15 +998,28 @@ def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
 
 
 def speed(runs: Iterable[RunFinished]) -> float:
-    """Iterations per second over the runs."""
+    """Iterations per second over the runs.
+
+    Args:
+        runs: The runs.
+
+    Returns:
+        The iterations per second; 0 when the runs took no time.
+    """
     runs = list(runs)
     seconds = sum(r.total_time_secs for r in runs)
     return sum(r.iterations for r in runs) / seconds if seconds > 0 else 0.0
 
 
 def acceptance(runs: Iterable[RunFinished]) -> float | None:
-    """The share of moves accepted over the runs; None when a run did not count them, or none
-    was made."""
+    """The share of moves accepted over the runs.
+
+    Args:
+        runs: The runs.
+
+    Returns:
+        The share; None when a run did not count them, or none was made.
+    """
     runs = list(runs)
     if any(r.n_accepted is None or r.n_rejected is None for r in runs):
         return None
@@ -634,6 +1029,14 @@ def acceptance(runs: Iterable[RunFinished]) -> float | None:
 
 
 def share(value: float | None) -> str:
+    """A share as a whole percentage.
+
+    Args:
+        value: The share, or None.
+
+    Returns:
+        The percentage, or "?" when there is none.
+    """
     return "?" if value is None else f"{value:.0%}"
 
 
@@ -642,6 +1045,14 @@ METRICS = ("mean objective", "iterations/s", "time to best", "accepted")
 
 
 def _side_line(runs: list[RunFinished]) -> tuple[str, ...]:
+    """What one side's runs on an instance show: ``METRICS`` in words.
+
+    Args:
+        runs: The runs.
+
+    Returns:
+        Each metric's value, in ``METRICS``' order.
+    """
     values = [r.best_objective for r in runs]
     return (
         f"{statistics.fmean(values):g}",
@@ -652,6 +1063,14 @@ def _side_line(runs: list[RunFinished]) -> tuple[str, ...]:
 
 
 def describe_budget(spec: BenchSpec) -> str:
+    """Each run's budget in words: the time, the iterations, or both.
+
+    Args:
+        spec: The benchmark's spec.
+
+    Returns:
+        The words, such as "1s or 3000 iterations".
+    """
     return " or ".join(
         part
         for part in (
@@ -663,6 +1082,14 @@ def describe_budget(spec: BenchSpec) -> str:
 
 
 def report(evaluation: Evaluation) -> str:
+    """What the agent reads of an evaluation.
+
+    Args:
+        evaluation: The evaluation.
+
+    Returns:
+        The report's text: the setup, the failure or rejection, or each instance and the verdict.
+    """
     e = evaluation
     head = (
         f"evaluation {e.id}: {e.candidate['where']} (variant {e.candidate['variant']}, "
@@ -703,6 +1130,14 @@ def report(evaluation: Evaluation) -> str:
 
 
 def describe_bench(project: Project) -> str:
+    """What bench_list shows: the budget, the instances, and the latest evaluations.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The text.
+    """
     spec = load_spec(project)
     lines = [f"runs {spec.runs} per instance, seed {spec.seed}, budget per run {stop_of(spec)}"]
     for split in ("train", "validation"):
@@ -726,8 +1161,18 @@ def describe_bench(project: Project) -> str:
 
 
 def kept_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int, int]:
-    """For each evaluation of the work files, the first revision after its baseline whose files
-    are the candidate's: the change was solved into it, as the agent does with a better one."""
+    """The later revision each evaluation of the work files was kept as, if any.
+
+    That is the first revision after its baseline whose files are the candidate's: the change was
+    solved into it, as the agent does with a better one.
+
+    Args:
+        project: The project.
+        records: The evaluations' records.
+
+    Returns:
+        The revision, by evaluation number, for the evaluations kept as one.
+    """
     hashes = {rev: _file_hashes(project.rev_dir(rev)) for rev in project.revisions()}
     kept = {}
     for r in records:
@@ -742,7 +1187,14 @@ def kept_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int,
 
 
 def state(project: Project) -> BenchState:
-    """What the GUI's Improve tab shows."""
+    """What the GUI's Improve tab shows.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The benchmark and every evaluation, tuning and profile on it.
+    """
     past = history(project)
     kept = kept_revisions(project, past)
     evaluations = [
@@ -780,6 +1232,14 @@ def state(project: Project) -> BenchState:
 
 
 def _tuning(record: dict[str, Any]) -> BenchTuning:
+    """A tuning's record as the Improve tab shows it.
+
+    Args:
+        record: The record as kept on disk.
+
+    Returns:
+        The tuning.
+    """
     settings = record["settings"]
     best = next((s for s in settings if s["id"] == record["best"]), None)
     changed = best is not None and best["id"] != 0
@@ -800,6 +1260,14 @@ def _tuning(record: dict[str, Any]) -> BenchTuning:
 
 
 def _profile(record: dict[str, Any]) -> BenchProfile:
+    """A profile's record as the Improve tab shows it.
+
+    Args:
+        record: The record as kept on disk.
+
+    Returns:
+        The profile.
+    """
     return BenchProfile(
         id=record["id"],
         rev=record["rev"],
@@ -826,6 +1294,14 @@ def _profile(record: dict[str, Any]) -> BenchProfile:
 
 
 def _side_of(record: dict[str, Any]) -> BenchSide:
+    """A side of an evaluation's record as the Improve tab shows it.
+
+    Args:
+        record: The record as kept on disk.
+
+    Returns:
+        The side.
+    """
     return BenchSide(
         where=record["where"], rev=record["rev"], variant=record["variant"], worker=record["worker"]
     )

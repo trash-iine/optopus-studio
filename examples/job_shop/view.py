@@ -1,5 +1,16 @@
+"""The job shop's schedule, machine by machine."""
+
+
 def schedule(instance, sequence):
-    """Starts each operation as early as its job and its machine allow, in sequence order."""
+    """Starts each operation as early as its job and its machine allow, in sequence order.
+
+    Args:
+        instance: instance.json's content.
+        sequence: The solution: each job's index once per operation, in sequence order.
+
+    Returns:
+        A Gantt task per operation.
+    """
     jobs = instance["jobs"]
     next_op = [0] * len(jobs)
     job_ready = [0] * len(jobs)
@@ -24,6 +35,17 @@ def schedule(instance, sequence):
 
 
 def to_view(instance, result):
+    """What the canvas shows of the best run.
+
+    It shows the makespan, the schedule, and each machine's utilization.
+
+    Args:
+        instance: instance.json's content.
+        result: The solve, with the best run as ``best``.
+
+    Returns:
+        The views; a note when the solve failed.
+    """
     best = result["best"]
     if best is None:
         return {"views": [{"type": "markdown", "text": "No schedule: the solve failed."}]}

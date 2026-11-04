@@ -73,15 +73,31 @@ ARCHIVE_MEMBER = re.compile(
 
 
 def studio_home() -> Path:
+    """Where the studio keeps its projects: ``OPTOPUS_STUDIO_HOME``, or ``~/.optopus-studio``.
+
+    Returns:
+        The directory's path.
+    """
     return Path(os.environ.get("OPTOPUS_STUDIO_HOME", Path.home() / ".optopus-studio"))
 
 
 class ProjectError(ValueError):
-    pass
+    """Something the user or the agent asked of a project that cannot be done."""
 
 
 def variants_of(solve: dict[str, Any]) -> list[Variant]:
-    """The heuristics of solve.json: one under "heuristic", or labeled ones under "heuristics"."""
+    """The heuristics of solve.json: one under "heuristic", or labeled ones under "heuristics".
+
+    Args:
+        solve: solve.json's content.
+
+    Returns:
+        The heuristics, each under its label; a lone heuristic is labeled by its kind.
+
+    Raises:
+        ProjectError: solve.json has neither, or "heuristics" is not a list.
+        pydantic.ValidationError: An entry of "heuristics" is not a labeled heuristic.
+    """
     if "heuristics" in solve:
         entries = solve["heuristics"]
         if not isinstance(entries, list):
@@ -94,7 +110,23 @@ def variants_of(solve: dict[str, Any]) -> list[Variant]:
 
 
 class Project:
+    """A project on disk, laid out as this module's docstring shows.
+
+    Attributes:
+        root: The project's directory.
+        id: The project's id, the directory's name.
+        work: The files the agent edits.
+        revs: The revisions.
+        uploads_dir: The files the user attached.
+        bench: The benchmark and its records.
+    """
+
     def __init__(self, root: Path):
+        """Opens the project at ``root`` without checking it; ``open`` checks.
+
+        Args:
+            root: The project's directory.
+        """
         self.root = root
         self.id = root.name
         self.work = root / "work"
@@ -106,6 +138,14 @@ class Project:
 
     @classmethod
     def create(cls, home: Path | None = None) -> Project:
+        """Creates an empty project with a new id.
+
+        Args:
+            home: The studio's home; ``studio_home()`` when None.
+
+        Returns:
+            The project.
+        """
         root = (home or studio_home()) / "projects" / uuid.uuid4().hex[:12]
         (root / "work").mkdir(parents=True)
         (root / "revs").mkdir()
@@ -115,6 +155,18 @@ class Project:
 
     @classmethod
     def open(cls, project_id: str, home: Path | None = None) -> Project:
+        """Opens an existing project.
+
+        Args:
+            project_id: The project's id.
+            home: The studio's home; ``studio_home()`` when None.
+
+        Returns:
+            The project.
+
+        Raises:
+            ProjectError: The id is malformed, or there is no such project.
+        """
         if not PROJECT_ID.match(project_id):
             raise ProjectError(f"invalid project id {project_id!r}")
         root = (home or studio_home()) / "projects" / project_id
@@ -124,6 +176,14 @@ class Project:
 
     @staticmethod
     def list(home: Path | None = None) -> list[str]:
+        """The projects' ids, the most recently changed first.
+
+        Args:
+            home: The studio's home; ``studio_home()`` when None.
+
+        Returns:
+            The ids.
+        """
         base = (home or studio_home()) / "projects"
         if not base.is_dir():
             return []
@@ -131,11 +191,21 @@ class Project:
         return [p.name for p in sorted(roots, key=lambda p: p.stat().st_mtime, reverse=True)]
 
     def info(self) -> ProjectInfo:
+        """What the project list shows of the project.
+
+        Returns:
+            The project's id, title, and the project it was imported from.
+        """
         return ProjectInfo(
             id=self.id, title=self.title(), imported_from=self.meta().get("imported_from")
         )
 
     def title(self) -> str | None:
+        """The project's title: the user's first message, on one line and cut short.
+
+        Returns:
+            The title, or None before the user has said anything.
+        """
         first = next((entry.text for entry in self.chat() if entry.role == "user"), None)
         if first is None:
             return None
@@ -147,23 +217,54 @@ class Project:
     # --- meta ----------------------------------------------------------------------------------
 
     def meta(self) -> dict[str, Any]:
+        """meta.json's content: the agent, its session, and whether it may search the web.
+
+        Returns:
+            The content.
+        """
         return json.loads((self.root / "meta.json").read_text())
 
     def _write_meta(self, meta: dict[str, Any]) -> None:
+        """Replaces meta.json's content.
+
+        Args:
+            meta: The new content.
+        """
         (self.root / "meta.json").write_text(json.dumps(meta, indent=2))
 
     def set_meta(self, **values: Any) -> None:
+        """Sets some of meta.json's values, keeping the rest.
+
+        Args:
+            **values: The values to set.
+        """
         self._write_meta({**self.meta(), **values})
 
     # --- files ---------------------------------------------------------------------------------
 
     @staticmethod
     def check_name(name: str) -> str:
+        """Checks that a name is one of a project's files.
+
+        Args:
+            name: The file's name, such as ``model.py`` or ``rust/main.rs``.
+
+        Returns:
+            The name.
+
+        Raises:
+            ProjectError: The name is not a project file.
+        """
         if name not in ALL_FILES:
             raise ProjectError(f"{name!r} is not a project file; expected one of {ALL_FILES}")
         return name
 
     def files(self) -> dict[str, str]:
+        """The work files that have been written.
+
+        Returns:
+            Each file's content, by its name.
+        """
         return {
             name: (self.work / name).read_text()
             for name in ALL_FILES
@@ -171,12 +272,32 @@ class Project:
         }
 
     def read_file(self, name: str) -> str:
+        """One work file's content.
+
+        Args:
+            name: The file's name.
+
+        Returns:
+            The content.
+
+        Raises:
+            ProjectError: The name is not a project file, or the file has not been written.
+        """
         path = self.work / self.check_name(name)
         if not path.is_file():
             raise ProjectError(f"{name} has not been written yet")
         return path.read_text()
 
     def write_file(self, name: str, content: str) -> None:
+        """Writes a work file, after checking that a JSON file is JSON and app.json is an app.
+
+        Args:
+            name: The file's name.
+            content: The file's new content.
+
+        Raises:
+            ProjectError: The name is not a project file, or the content does not fit it.
+        """
         if self.check_name(name).endswith(".json"):
             try:
                 json.loads(content)
@@ -193,10 +314,22 @@ class Project:
     # --- revisions -----------------------------------------------------------------------------
 
     def revisions(self) -> list[int]:
+        """The revisions' numbers.
+
+        Returns:
+            The numbers, in order.
+        """
         return sorted(int(p.name) for p in self.revs.iterdir() if p.name.isdigit())
 
     def snapshot(self) -> int:
-        """Copies work/ into a new revision and returns its number."""
+        """Copies work/ into a new revision and returns its number.
+
+        Returns:
+            The new revision's number.
+
+        Raises:
+            ProjectError: A file every revision needs has not been written.
+        """
         missing = [name for name in PROJECT_FILES if not (self.work / name).is_file()]
         if missing:
             raise ProjectError(f"write {', '.join(missing)} first")
@@ -210,8 +343,16 @@ class Project:
         return rev
 
     def restore(self, rev: int) -> None:
-        """Makes work/ the files of revision ``rev`` again, without the ones it did not have. The
-        benchmark's generator stays as it is: it makes instances, it is not the algorithm."""
+        """Makes work/ the files of revision ``rev`` again, without the ones it did not have.
+
+        The benchmark's generator stays as it is: it makes instances, it is not the algorithm.
+
+        Args:
+            rev: The revision.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
         source = self.rev_dir(rev)
         for name in ALL_FILES:
             if name in BENCH_FILES:
@@ -223,21 +364,58 @@ class Project:
                 (self.work / name).unlink(missing_ok=True)
 
     def rev_dir(self, rev: int) -> Path:
+        """A revision's directory.
+
+        Args:
+            rev: The revision.
+
+        Returns:
+            The directory's path.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
         path = self.revs / str(rev)
         if not path.is_dir():
             raise ProjectError(f"no revision {rev}")
         return path
 
     def save_result(self, rev: int, summary: RunSummary) -> None:
+        """Keeps a revision's solve.
+
+        Args:
+            rev: The revision.
+            summary: The solve's summary.
+        """
         (self.rev_dir(rev) / "result.json").write_text(summary.model_dump_json())
 
     def save_view(self, rev: int, view: ViewSpec | None, error: str | None) -> None:
+        """Keeps what a revision's ``view.py`` drew, or why it failed.
+
+        Args:
+            rev: The revision.
+            view: The view, or None when it failed.
+            error: Why it failed, or None.
+        """
         payload = {"view": view.model_dump(mode="json") if view else None, "error": error}
         (self.rev_dir(rev) / "view.json").write_text(json.dumps(payload))
 
     def load_revision(
         self, rev: int
     ) -> tuple[dict[str, str], RunSummary | None, ViewSpec | None, str | None]:
+        """A revision's files, solve and view.
+
+        Args:
+            rev: The revision.
+
+        Returns:
+            The files, the solve's summary, the view, and the view's error; each of the last three
+                is
+            None when the revision has none.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
         path = self.rev_dir(rev)
         files = {name: (path / name).read_text() for name in ALL_FILES if (path / name).is_file()}
         result = path / "result.json"
@@ -260,6 +438,18 @@ class Project:
     # --- uploads -------------------------------------------------------------------------------
 
     def save_upload(self, name: str, data: bytes) -> str:
+        """Keeps a file the user attached.
+
+        Args:
+            name: The file's name; only its last part is used.
+            data: The file's content.
+
+        Returns:
+            The name the file is kept under.
+
+        Raises:
+            ProjectError: The name, type or size is not one the studio accepts.
+        """
         from optopus_studio.tables import UPLOAD_SUFFIXES
 
         name = Path(name).name
@@ -274,11 +464,27 @@ class Project:
         return name
 
     def uploads(self) -> list[str]:
+        """The files the user attached.
+
+        Returns:
+            Their names, in order.
+        """
         if not self.uploads_dir.is_dir():
             return []
         return sorted(p.name for p in self.uploads_dir.iterdir() if p.is_file())
 
     def upload_path(self, name: str) -> Path:
+        """Where an attached file is kept.
+
+        Args:
+            name: The file's name.
+
+        Returns:
+            The file's path.
+
+        Raises:
+            ProjectError: No file of that name was attached.
+        """
         if name not in self.uploads():
             raise ProjectError(f"no upload {name!r}; the uploads are {self.uploads()}")
         return self.uploads_dir / name
@@ -286,10 +492,20 @@ class Project:
     # --- chat ----------------------------------------------------------------------------------
 
     def append_chat(self, entry: ChatEntry) -> None:
+        """Adds an entry to the conversation the GUI shows.
+
+        Args:
+            entry: The entry.
+        """
         with (self.root / "chat.jsonl").open("a") as f:
             f.write(entry.model_dump_json() + "\n")
 
     def chat(self) -> list[ChatEntry]:
+        """The conversation as the GUI shows it.
+
+        Returns:
+            Its entries, in order.
+        """
         path = self.root / "chat.jsonl"
         if not path.is_file():
             return []
@@ -298,9 +514,15 @@ class Project:
     # --- sharing -------------------------------------------------------------------------------
 
     def export(self) -> bytes:
-        """The project as a zip another studio imports: the chat, the files, every revision with
-        its result, and the uploads. Not the agent's session, which this machine's Claude Code or
-        Codex keeps; the importing studio's agent reads the chat instead."""
+        """The project as a zip another studio imports.
+
+        It holds the chat, the files, every revision with its result, and the uploads. Not the
+        agent's session, which this machine's Claude Code or Codex keeps; the importing studio's
+        agent reads the chat instead.
+
+        Returns:
+            The zip's bytes.
+        """
         manifest = {
             "format": ARCHIVE_FORMAT,
             "project": self.id,
@@ -317,7 +539,18 @@ class Project:
 
     @classmethod
     def import_archive(cls, data: bytes, home: Path | None = None) -> Project:
-        """Creates a project from what ``export`` wrote, after checking all of it."""
+        """Creates a project from what ``export`` wrote, after checking all of it.
+
+        Args:
+            data: The zip's bytes.
+            home: The studio's home; ``studio_home()`` when None.
+
+        Returns:
+            The new project.
+
+        Raises:
+            ProjectError: The zip is not an exported project, is too large, or holds a broken file.
+        """
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 members = [info for info in archive.infolist() if not info.is_dir()]
@@ -342,6 +575,17 @@ class Project:
 
 
 def _manifest(content: bytes | None) -> dict[str, Any]:
+    """Reads an archive's manifest and checks its format.
+
+    Args:
+        content: The manifest's bytes, or None when the archive has none.
+
+    Returns:
+        The manifest.
+
+    Raises:
+        ProjectError: The manifest is missing, not JSON, or of another format.
+    """
     if content is None:
         raise ProjectError(f"not an exported studio project: {ARCHIVE_MANIFEST} is missing")
     try:
@@ -356,7 +600,15 @@ def _manifest(content: bytes | None) -> dict[str, Any]:
 
 
 def _check_member(name: str, content: bytes) -> None:
-    """Rejects a file the archive may not hold, or one the studio would fail on later."""
+    """Rejects a file the archive may not hold, or one the studio would fail on later.
+
+    Args:
+        name: The file's path in the archive.
+        content: The file's bytes.
+
+    Raises:
+        ProjectError: The file has no place in a project, or is broken.
+    """
     match = ARCHIVE_MEMBER.match(name)
     upload = match and match["upload"]
     if not match or (upload and (not UPLOAD_NAME.match(upload) or upload.startswith("."))):

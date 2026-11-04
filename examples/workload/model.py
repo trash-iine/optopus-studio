@@ -13,6 +13,7 @@ SPREAD = 1e-3
 
 
 def cost(loads):
+    """The objective of some loads: the maximum, and a little of their spread."""
     return max(loads) + SPREAD * sum(load * load for load in loads)
 
 
@@ -20,6 +21,7 @@ class Move:
     """Give one task to another worker who has its skill."""
 
     def neighbors(self, problem, solution):
+        """Every move from a solution: each task to each other worker with its skill."""
         assignment, _ = solution
         return [
             (task, worker)
@@ -29,6 +31,7 @@ class Move:
         ]
 
     def random_neighbor(self, problem, solution, rng):
+        """A move drawn at random from a solution."""
         assignment, _ = solution
         movable = problem.movable
         if not movable:
@@ -38,6 +41,7 @@ class Move:
         return (task, rng.choice(options))
 
     def apply(self, problem, solution, move):
+        """The solution a move leads to, its loads updated from the two workers it touches."""
         assignment, loads = solution
         task, worker = move
         hours = problem.hours[task]
@@ -48,17 +52,22 @@ class Move:
         return (new_assignment, tuple(new_loads))
 
     def delta(self, problem, solution, move):
+        """How much a move changes the objective."""
         _, loads = solution
         return cost(self.apply(problem, solution, move)[1]) - cost(loads)
 
     def tabu_keys(self, problem, move):
+        """What a tabu search forbids for a while after a move: moving the same task again."""
         return move[0]
 
 
 class Workload:
+    """The workload problem, written in Python; it minimizes ``cost`` of the workers' loads."""
+
     minimize = True
 
     def __init__(self, instance):
+        """Reads the instance."""
         self.workers = [w["name"] for w in instance["workers"]]
         self.hours = [float(t["hours"]) for t in instance["tasks"]]
         self.eligible = [
@@ -73,24 +82,29 @@ class Workload:
         self.neighborhoods = {"Move": Move()}
 
     def loads(self, assignment):
+        """Each worker's hours under an assignment."""
         loads = [0.0] * len(self.workers)
         for task, worker in enumerate(assignment):
             loads[worker] += self.hours[task]
         return tuple(loads)
 
     def new_solution(self, rng: random.Random):
+        """A random solution: each task to a worker with its skill."""
         assignment = tuple(rng.choice(e) for e in self.eligible)
         return (assignment, self.loads(assignment))
 
     def objective(self, solution):
+        """A solution's objective."""
         return cost(solution[1])
 
 
 def build(instance):
+    """Builds the workload problem from the instance."""
     return Workload(instance)
 
 
 def encode_solution(instance, solution):
+    """The solution as JSON: each task's worker, and each worker's hours."""
     assignment, loads = solution
     return {"assignment": list(assignment), "loads": list(loads)}
 

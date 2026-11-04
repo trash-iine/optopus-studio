@@ -45,7 +45,13 @@ LEAD = 1e-3
 
 @dataclass
 class Profiled:
-    """One heuristic's runs, by instance name, or why it failed."""
+    """One heuristic's runs, by instance name, or why it failed.
+
+    Attributes:
+        label: The heuristic's label in solve.json.
+        runs: Its runs on each instance.
+        error: Why its runs failed, or None.
+    """
 
     label: str
     runs: dict[str, list[RunFinished]] = field(default_factory=dict)
@@ -54,6 +60,21 @@ class Profiled:
 
 @dataclass
 class Profile:
+    """A profile of several heuristics on the benchmark, and what it reads from their runs.
+
+    Attributes:
+        id: The profile's number among the project's profiles; 0 until it is kept.
+        rev: The revision profiled, or None for the work files.
+        split: The instances it ran on.
+        spec: The benchmark's runs, seed and budget.
+        worker: The worker that ran it.
+        where: Whose files ran, in words.
+        instances: The instances' names.
+        profiled: Each heuristic's runs.
+        higher_is_better: The direction the objectives are ranked in.
+        readings: The compositions the profile suggests.
+    """
+
     id: int
     rev: int | None
     split: bench.Split
@@ -67,20 +88,44 @@ class Profile:
 
     @property
     def alive(self) -> list[Profiled]:
+        """The heuristics whose runs did not fail."""
         return [p for p in self.profiled if p.error is None]
 
     def score(self, objective: float) -> float:
+        """An objective on a scale where lower is better.
+
+        Args:
+            objective: The objective.
+
+        Returns:
+            The objective, negated when higher is better.
+        """
         return -objective if self.higher_is_better else objective
 
     def reference(self, instance: str) -> float:
-        """The best score any heuristic reached on ``instance``."""
+        """The best score any heuristic reached on ``instance``.
+
+        Args:
+            instance: The instance's name.
+
+        Returns:
+            The score.
+        """
         return min(self.score(r.best_objective) for p in self.alive for r in p.runs[instance])
 
     def budget_of(self, run: RunFinished) -> tuple[int, float]:
-        """The budget a run is measured against, as the trajectory's coordinate (0 time, 1
-        iterations) and its limit: the iterations when the run spent them or the budget has no
-        time, the time otherwise. A run that stopped on its own, as a descent does, is measured
-        against the time it had."""
+        """The budget a run is measured against, as the trajectory's coordinate and its limit.
+
+        The coordinate is 0 for time, 1 for iterations: the iterations when the run spent them or
+        the budget has no time, the time otherwise. A run that stopped on its own, as a descent
+        does, is measured against the time it had.
+
+        Args:
+            run: The run.
+
+        Returns:
+            The coordinate and the limit.
+        """
         iterations, seconds = self.spec.max_iteration, self.spec.max_duration_secs
         if iterations is not None and (seconds is None or run.iterations >= iterations):
             return 1, iterations
@@ -88,7 +133,15 @@ class Profile:
         return 0, seconds
 
     def best_so_far(self, run: RunFinished, fraction: float) -> float:
-        """The run's best score once ``fraction`` of its budget was spent."""
+        """The run's best score once ``fraction`` of its budget was spent.
+
+        Args:
+            run: The run.
+            fraction: The share of the budget.
+
+        Returns:
+            The score.
+        """
         at, budget = self.budget_of(run)
         limit = fraction * budget
         best = self.score(run.initial_objective)
@@ -100,7 +153,16 @@ class Profile:
         return best
 
     def gap(self, p: Profiled, instance: str, fraction: float) -> float:
-        """The mean distance of ``p``'s best so far from the instance's best, relative to it."""
+        """The mean distance of ``p``'s best so far from the instance's best, relative to it.
+
+        Args:
+            p: The heuristic.
+            instance: The instance's name.
+            fraction: The share of the budget.
+
+        Returns:
+            The mean gap; 0 when the heuristic reached the best in every run.
+        """
         ref = self.reference(instance)
         scale = max(abs(ref), bench.TIE)
         return statistics.fmean(
@@ -108,14 +170,26 @@ class Profile:
         )
 
     def anytime(self, p: Profiled) -> list[float]:
+        """``p``'s mean gap to the best at each of the profile's fractions of the budget.
+
+        Args:
+            p: The heuristic.
+
+        Returns:
+            The gaps, one per fraction in ``FRACTIONS``.
+        """
         return [
             statistics.fmean(self.gap(p, i, fraction) for i in self.instances)
             for fraction in FRACTIONS
         ]
 
     def ranks(self) -> tuple[float, dict[str, float], dict[str, float]]:
-        """The Friedman p-value over the runs (an instance and a seed each), each heuristic's mean
-        rank, and its p-value against the best by Conover's comparison."""
+        """The heuristics' ranks over the runs, an instance and a seed each.
+
+        Returns:
+            The Friedman p-value, each heuristic's mean rank, and its p-value against the best by
+            Conover's comparison.
+        """
         alive = self.alive
         blocks = [
             [self.score(p.runs[i][k].best_objective) for p in alive]
@@ -130,7 +204,14 @@ class Profile:
         )
 
     def found_at(self, p: Profiled) -> float | None:
-        """The mean share of its budget a run of ``p`` had spent when it found its best."""
+        """The mean share of its budget a run of ``p`` had spent when it found its best.
+
+        Args:
+            p: The heuristic.
+
+        Returns:
+            The share, or None when it has no runs.
+        """
         shares = []
         for r in (r for i in self.instances for r in p.runs[i]):
             at, budget = self.budget_of(r)
@@ -138,15 +219,33 @@ class Profile:
         return statistics.fmean(shares) if shares else None
 
     def mean(self, p: Profiled, instance: str) -> float:
+        """``p``'s mean score on one instance.
+
+        Args:
+            p: The heuristic.
+            instance: The instance's name.
+
+        Returns:
+            The mean score.
+        """
         return statistics.fmean(self.score(r.best_objective) for r in p.runs[instance])
 
     def winners(self) -> dict[str, str]:
-        """The heuristic with the best mean on each instance."""
+        """The heuristic with the best mean on each instance.
+
+        Returns:
+            The winner's label, by instance name.
+        """
         return {
             i: min(self.alive, key=lambda p, i=i: self.mean(p, i)).label for i in self.instances
         }
 
     def to_json(self) -> dict[str, Any]:
+        """The profile's record, as kept in ``bench/profiles``.
+
+        Returns:
+            The record, with each heuristic's statistics unless every one failed.
+        """
         record: dict[str, Any] = {
             "id": self.id,
             "rev": self.rev,
@@ -193,8 +292,22 @@ async def profile(
     split: bench.Split = "train",
     progress: bench.Progress | None = None,
 ) -> Profile:
-    """Runs each of ``variants`` (every variant by default) of revision ``rev``, or of the work
-    files, on the instances of ``split``, and keeps the record in ``bench/profiles``."""
+    """Runs several heuristics on a split's instances and keeps the record in ``bench/profiles``.
+
+    Args:
+        project: The project.
+        rev: The revision whose heuristics run, or None for the work files.
+        variants: The labels of the heuristics to run; every variant of solve.json when None.
+        split: The instances to run on.
+        progress: Called as solves finish, if given.
+
+    Returns:
+        The profile.
+
+    Raises:
+        ProjectError: The split has no instances, there are fewer than two heuristics, the model
+            fails, or every heuristic failed.
+    """
     spec = bench.load_spec(project)
     entries = bench.instances_of(spec, split)
     if not entries:
@@ -257,8 +370,16 @@ async def profile(
 
 
 def readings(t: Profile) -> list[str]:
-    """Compositions the profile suggests, each with what in the runs suggests it: hints for the
-    agent's next variants, not verdicts."""
+    """Compositions the profile suggests, each with what in the runs suggests it.
+
+    They are hints for the agent's next variants, not verdicts.
+
+    Args:
+        t: The profile.
+
+    Returns:
+        The readings, as sentences.
+    """
     alive = t.alive
     if len(alive) < 2:
         return []
@@ -323,15 +444,40 @@ def readings(t: Profile) -> list[str]:
 
 
 def gap_text(gap: float) -> str:
-    """A gap as a percentage, to three significant digits: the gaps that matter can be tiny."""
+    """A gap as a percentage, to three significant digits: the gaps that matter can be tiny.
+
+    Args:
+        gap: The gap, as a fraction.
+
+    Returns:
+        The percentage.
+    """
     return f"{gap * 100:.3g}%"
 
 
 def _mean_gap(t: Profile, v: Profiled, fraction: float) -> float:
+    """A heuristic's gap at a fraction of the budget, averaged over the instances.
+
+    Args:
+        t: The profile.
+        v: The heuristic.
+        fraction: The share of the budget.
+
+    Returns:
+        The mean gap.
+    """
     return statistics.fmean(t.gap(v, i, fraction) for i in t.instances)
 
 
 def report(t: Profile) -> str:
+    """What the agent reads of a profile.
+
+    Args:
+        t: The profile.
+
+    Returns:
+        The report's text: the test, each heuristic best first, the failures and the readings.
+    """
     budget = bench.describe_budget(t.spec)
     lines = [
         f"profile {t.id}: {len(t.profiled)} heuristics of {t.where} ({t.worker} worker) on "
@@ -370,7 +516,14 @@ def report(t: Profile) -> str:
 
 
 def describe(project: Project) -> list[str]:
-    """A line per profile, for bench_list."""
+    """A line per profile, for bench_list.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The lines of the last ten profiles.
+    """
     lines = []
     for r in bench.profiles(project)[-10:]:
         ranked = sorted(

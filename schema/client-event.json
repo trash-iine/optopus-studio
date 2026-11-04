@@ -2,6 +2,7 @@
   "$defs": {
     "Interrupt": {
       "additionalProperties": false,
+      "description": "The user stopped the agent's turn.",
       "properties": {
         "type": {
           "const": "interrupt",
@@ -15,6 +16,7 @@
     },
     "SelectAgent": {
       "additionalProperties": false,
+      "description": "The user chose another agent for the project's chat.",
       "properties": {
         "agent": {
           "enum": [
@@ -39,6 +41,7 @@
     },
     "SelectRevision": {
       "additionalProperties": false,
+      "description": "The user chose a revision to show.",
       "properties": {
         "rev": {
           "title": "Rev",
@@ -59,6 +62,7 @@
     },
     "SetWebSearch": {
       "additionalProperties": false,
+      "description": "The user let the agent search the web, or stopped it.",
       "properties": {
         "enabled": {
           "title": "Enabled",
@@ -79,6 +83,7 @@
     },
     "UserMessage": {
       "additionalProperties": false,
+      "description": "A message the user sent to the agent.",
       "properties": {
         "text": {
           "minLength": 1,

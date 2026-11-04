@@ -45,6 +45,15 @@ _lock = asyncio.Lock()
 
 @dataclass
 class Build:
+    """The outcome of building a port.
+
+    Attributes:
+        binary: The worker binary, or None when the build failed.
+        log: The tail of cargo's output.
+        seconds: How long the build took.
+        cached: Whether an identical port had been built before, so nothing was built.
+    """
+
     binary: Path | None
     log: str
     seconds: float
@@ -52,19 +61,38 @@ class Build:
 
     @property
     def ok(self) -> bool:
+        """Whether the port built."""
         return self.binary is not None
 
 
 def cargo() -> str | None:
+    """Finds cargo on the PATH.
+
+    Returns:
+        cargo's path, or None when it is not installed.
+    """
     return shutil.which("cargo")
 
 
 def rust_dir() -> Path:
+    """The directory builds go to: ``OPTOPUS_STUDIO_RUST_DIR``, or ``rust/`` in the studio's home.
+
+    Returns:
+        The directory's path.
+    """
     configured = os.environ.get("OPTOPUS_STUDIO_RUST_DIR")
     return Path(configured) if configured else studio_home() / "rust"
 
 
 def _fingerprint(main_rs: str) -> str:
+    """A hash of everything that goes into a port's binary.
+
+    Args:
+        main_rs: The port's source.
+
+    Returns:
+        The hash's first 16 hex digits, which name the binary.
+    """
     digest = hashlib.sha256()
     digest.update(CARGO_TOML.encode())
     digest.update(main_rs.encode())
@@ -76,13 +104,29 @@ def _fingerprint(main_rs: str) -> str:
 
 
 def cached_binary(main_rs: str) -> Path | None:
+    """The binary an identical port was built into before, if there is one.
+
+    Args:
+        main_rs: The port's source.
+
+    Returns:
+        The binary's path, or None when this port has not been built.
+    """
     binary = rust_dir() / "bin" / _fingerprint(main_rs)
     return binary if binary.is_file() else None
 
 
 async def build(main_rs: str) -> Build:
-    """Builds the port, or returns the binary an identical port was built into before. An app's
-    image holds that binary and no cargo (docs/adr/0010)."""
+    """Builds the port, or returns the binary an identical port was built into before.
+
+    An app's image holds that binary and no cargo (docs/adr/0010). Builds run one at a time.
+
+    Args:
+        main_rs: The port's source.
+
+    Returns:
+        The build, with its binary unless cargo is missing or the port does not compile.
+    """
     key = _fingerprint(main_rs)
     binary = rust_dir() / "bin" / key
     if binary.is_file():
