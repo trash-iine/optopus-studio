@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sendsMessage, withAttachments } from "./components/Chat";
 import { bound } from "./components/Canvas";
-import { change, kpiRows } from "./components/Compare";
+import { change, defaultBaseline, kpiRows, skipped } from "./components/Compare";
 import { proof } from "./components/SolveResult";
 import { diffLines } from "./diff";
 import type { RevisionDetail } from "./generated/revision";
@@ -72,6 +72,7 @@ describe("compare", () => {
       files: {},
       summary: null,
       view_error: null,
+      baseline: null,
       view: {
         views: [
           { type: "kpi", title: null, items: items.map(([label, value]) => ({ label, value, unit: null })) },
@@ -83,6 +84,28 @@ describe("compare", () => {
       ["Cost", 5, 7],
       ["Trucks", 3, undefined],
     ]);
+  });
+});
+
+describe("the revision compared with first", () => {
+  const detail = (rev: number, baseline: number | null): RevisionDetail => ({
+    rev,
+    files: {},
+    summary: null,
+    view: null,
+    view_error: null,
+    baseline,
+  });
+
+  it("skips the revisions that only change what is shown", () => {
+    expect(defaultBaseline([1, 2, 3, 4], 4, detail(4, 2))).toBe(2);
+    expect(skipped([1, 2, 3, 4], 4, 2)).toEqual([3, 4]);
+  });
+
+  it("falls back to the revision before when every earlier one is solved the same", () => {
+    expect(defaultBaseline([1, 2, 3], 3, detail(3, null))).toBe(2);
+    expect(defaultBaseline([1], 1, detail(1, null))).toBeNull();
+    expect(skipped([1, 2, 3], 3, 2)).toEqual([]);
   });
 });
 

@@ -1,5 +1,9 @@
 // Generated from schema/revision.json by `npm run gen:types`. Do not edit.
 
+/**
+ * The latest earlier revision solved from other files or settings, which Compare sets this one against first: a revision that changes only view.py or app.json solves the same as the one before it. None when every earlier one is solved the same.
+ */
+export type Baseline = number | null;
 export type Rev = number;
 export type BestRun = number | null;
 export type Message = string;
@@ -160,6 +164,7 @@ export type ViewError = string | null;
  * GET /api/projects/{id}/revisions/{rev}: one revision, for comparing two side by side.
  */
 export interface RevisionDetail {
+  baseline: Baseline;
   files: Files;
   rev: Rev;
   summary: RunSummary | null;

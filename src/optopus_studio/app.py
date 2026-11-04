@@ -243,7 +243,7 @@ def get_revision(project_id: str, rev: int) -> RevisionDetail:
         rev: The revision.
 
     Returns:
-        The revision's files, solve and view.
+        The revision's files, solve and view, and the revision Compare sets it against first.
 
     Raises:
         HTTPException: There is no such project or revision.
@@ -251,9 +251,17 @@ def get_revision(project_id: str, rev: int) -> RevisionDetail:
     project = open_project(project_id)
     try:
         files, summary, view, view_error = project.load_revision(rev)
+        baseline = project.baseline(rev)
     except ProjectError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return RevisionDetail(rev=rev, files=files, summary=summary, view=view, view_error=view_error)
+    return RevisionDetail(
+        rev=rev,
+        files=files,
+        summary=summary,
+        view=view,
+        view_error=view_error,
+        baseline=baseline,
+    )
 
 
 @app.get("/api/projects/{project_id}/bench")

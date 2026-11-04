@@ -53,6 +53,8 @@ OPTIONAL_FILES = ("rust/main.rs", "app.json", "generate.py")
 ALL_FILES = PROJECT_FILES + OPTIONAL_FILES
 # What builds the benchmark rather than the algorithm, which restoring a revision leaves alone.
 BENCH_FILES = ("generate.py",)
+# What a revision's result depends on; view.py and app.json only show it or package it.
+SOLVE_FILES = ("instance.json", "model.py", "solve.json", "rust/main.rs")
 PROJECT_ID = re.compile(r"\A[0-9a-f]{12}\Z")
 UPLOAD_NAME = re.compile(r"\A[\w.\- ]{1,100}\Z")
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -380,6 +382,49 @@ class Project:
             raise ProjectError(f"no revision {rev}")
         return path
 
+    def baseline(self, rev: int) -> int | None:
+        """The latest earlier revision solved from other files or settings than ``rev``.
+
+        A revision that changes only ``view.py`` or ``app.json`` solves again what the one before
+        it solved, so its result is compared with the last revision before the model, the data or
+        the settings changed (the Compare tab's first choice).
+
+        Args:
+            rev: The revision.
+
+        Returns:
+            The revision's number, or None when every earlier revision is solved the same.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
+        solved = self._solved(rev)
+        earlier = [r for r in self.revisions() if r < rev]
+        return next((r for r in reversed(earlier) if self._solved(r) != solved), None)
+
+    def _solved(self, rev: int) -> tuple[Any, ...]:
+        """What a revision's solve ran: its ``SOLVE_FILES``, and the heuristics and seed it used.
+
+        The heuristics and the seed tell apart two solves of the same files whose ``run_solver``
+        overrode the stop condition or the seed.
+
+        Args:
+            rev: The revision.
+
+        Returns:
+            Something equal for two revisions solved the same.
+
+        Raises:
+            ProjectError: There is no such revision.
+        """
+        path = self.rev_dir(rev)
+        files = tuple((path / n).read_text() if (path / n).is_file() else None for n in SOLVE_FILES)
+        result = path / "result.json"
+        if not result.is_file():
+            return (files, None)
+        summary = RunSummary.model_validate_json(result.read_text())
+        return (files, [v.model_dump() for v in summary.heuristics], summary.seed)
+
     def save_result(self, rev: int, summary: RunSummary) -> None:
         """Keeps a revision's solve.
 
@@ -410,8 +455,7 @@ class Project:
 
         Returns:
             The files, the solve's summary, the view, and the view's error; each of the last three
-                is
-            None when the revision has none.
+                is None when the revision has none.
 
         Raises:
             ProjectError: There is no such revision.

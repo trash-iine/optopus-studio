@@ -525,6 +525,12 @@ class RevisionDetail(Strict):
     summary: RunSummary | None
     view: ViewSpec | None
     view_error: str | None = None
+    baseline: int | None = Field(
+        None,
+        description="The latest earlier revision solved from other files or settings, which "
+        "Compare sets this one against first: a revision that changes only view.py or app.json "
+        "solves the same as the one before it. None when every earlier one is solved the same.",
+    )
 
 
 class ProjectInfo(Strict):

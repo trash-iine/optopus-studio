@@ -104,8 +104,11 @@ best, mean and worst result and mean times.
 
 ### Compare
 
-Two revisions side by side; it needs at least two. The menus at the top choose them (the selected
-revision and the one before it at first).
+Two revisions side by side; it needs at least two. The menus at the top choose them. At first
+the selected revision is compared with the last earlier one solved from another model, data or
+settings: a revision that changes only `view.py` or `app.json` solves the same as the one before
+it, so it is compared past it, and a line above the cards names the revisions skipped. When
+every earlier revision is solved the same, it is the one before.
 
 - **Best objective**: the change between them, marked better, worse or the same, with what a
   `BranchAndBound` revision proved next to its value.

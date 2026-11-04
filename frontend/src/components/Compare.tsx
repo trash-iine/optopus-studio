@@ -30,6 +30,25 @@ export function change(before: number, after: number, higherIsBetter: boolean | 
   return { delta, verdict: better ? ("better" as const) : ("worse" as const) };
 }
 
+/**
+ * The revision `a` is compared with until another is picked: the last one solved from other
+ * files or settings (a revision that changes only view.py solves the same as the one before it),
+ * else the one before `a`.
+ */
+export function defaultBaseline(revisions: number[], a: number, detail: RevisionDetail) {
+  if (detail.baseline != null) return detail.baseline;
+  return revisions.filter((r) => r < a).at(-1) ?? null;
+}
+
+/**
+ * The revisions after `b` up to `a` that solve the same as `a`, when `b` is not right before `a`:
+ * the ones Compare skips. Empty otherwise.
+ */
+export function skipped(revisions: number[], a: number, b: number) {
+  const between = revisions.filter((r) => r > b && r <= a);
+  return between.length > 1 ? between : [];
+}
+
 export function kpiRows(a: RevisionDetail, b: RevisionDetail) {
   const items = (d: RevisionDetail) =>
     new Map(
@@ -52,12 +71,12 @@ interface Props {
 export function Compare({ project, revisions, current, mode }: Props) {
   const latest = revisions.at(-1) ?? null;
   const [revA, setRevA] = useState<number | null>(current ?? latest);
-  const [revB, setRevB] = useState<number | null>(() => {
-    const a = current ?? latest;
-    const earlier = revisions.filter((r) => a != null && r < a);
-    return earlier.at(-1) ?? null;
-  });
+  // Null until the user picks one: then B follows A's baseline.
+  const [pickedB, setRevB] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, RevisionDetail>>({});
+  const detailA = revA != null ? details[revA] : undefined;
+  const automatic = pickedB == null;
+  const revB = pickedB ?? (revA != null && detailA ? defaultBaseline(revisions, revA, detailA) : null);
   const [error, setError] = useState<string | null>(null);
   const [by, setBy] = useState<Axis>("iteration");
 
@@ -92,9 +111,23 @@ export function Compare({ project, revisions, current, mode }: Props) {
         <span className="muted">compared with</span>
         {picker(revB, setRevB)}
       </div>
+      {automatic && revA != null && revB != null && (
+        <Skipped revs={skipped(revisions, revA, revB)} b={revB} />
+      )}
       {error && <div className="banner critical">{error}</div>}
       {a && b && <CompareBody a={a} b={b} by={by} setBy={setBy} mode={mode} />}
     </div>
+  );
+}
+
+function Skipped({ revs, b }: { revs: number[]; b: number }) {
+  if (revs.length === 0) return null;
+  const [first, last] = [revs[0], revs.at(-1)];
+  return (
+    <p className="muted compare-note">
+      Revisions {first}–{last} solve the same model, data and settings; only view.py or app.json
+      differs. So revision {last} is compared with revision {b}, the last one solved otherwise.
+    </p>
   );
 }
 
