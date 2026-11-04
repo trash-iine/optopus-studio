@@ -111,6 +111,7 @@ def test_a_revision_is_served_for_comparison(client, home):
     assert detail["summary"]["variants"] == ["SimulatedAnnealing"]
     assert detail["summary"]["heuristics"][0]["heuristic"]["kind"] == "SimulatedAnnealing"
     assert detail["summary"]["seed"] == 0
+    assert detail["baseline"] is None
     assert set(detail["files"]) == {
         "instance.json",
         "model.py",

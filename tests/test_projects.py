@@ -55,6 +55,31 @@ def test_revisions_freeze_the_files_with_their_result(home):
     assert error is None
 
 
+def test_a_revision_that_changes_only_what_is_shown_is_compared_past_its_twins(home):
+    project = example_project("knapsack", home)
+
+    def solve(**overrides):
+        rev = project.snapshot()
+        heuristics = one({"kind": "LocalSearch", **overrides})
+        project.save_result(rev, RunSummary(rev=rev, heuristics=heuristics, seed=0))
+        return rev
+
+    first = solve()
+    assert project.baseline(first) is None
+    project.write_file("view.py", "def to_view(instance, result):\n    return {'views': []}\n")
+    second = solve()
+    assert project.baseline(second) is None
+    project.write_file("solve.json", '{"heuristic": {"kind": "LocalSearch"}, "runs": 9}')
+    third = solve()
+    project.write_file("view.py", "def to_view(instance, result):\n    return {'views': [1]}\n")
+    fourth = solve()
+    assert project.baseline(third) == second
+    assert project.baseline(fourth) == second
+    # The same files solved with run_solver's overrides are another solve.
+    fifth = solve(stop={"max_duration_secs": 30})
+    assert project.baseline(fifth) == fourth
+
+
 def test_the_chat_is_kept_in_order(home):
     project = Project.create(home)
     entries = [ChatEntry(role="user", text="hi"), ChatEntry(role="assistant", text="hello")]

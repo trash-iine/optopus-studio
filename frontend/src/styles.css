@@ -212,6 +212,7 @@ tr.best td { font-weight: 600; }
 
 /* --- compare --- */
 .compare-bar { display: flex; align-items: center; gap: 10px; }
+.compare-note { margin: 0; }
 .verdict { display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap; }
 .verdict strong { font-size: 20px; }
 .verdict-better { color: var(--good-ink); font-weight: 600; }

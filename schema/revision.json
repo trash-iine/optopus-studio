@@ -1198,6 +1198,19 @@
   "additionalProperties": false,
   "description": "GET /api/projects/{id}/revisions/{rev}: one revision, for comparing two side by side.",
   "properties": {
+    "baseline": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The latest earlier revision solved from other files or settings, which Compare sets this one against first: a revision that changes only view.py or app.json solves the same as the one before it. None when every earlier one is solved the same.",
+      "title": "Baseline"
+    },
     "files": {
       "additionalProperties": {
         "type": "string"
@@ -1247,7 +1260,8 @@
     "files",
     "summary",
     "view",
-    "view_error"
+    "view_error",
+    "baseline"
   ],
   "title": "RevisionDetail",
   "type": "object"
