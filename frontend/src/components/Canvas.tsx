@@ -4,6 +4,7 @@ import { download } from "../download";
 import type { StudioState } from "../studio";
 import { compact, type Mode } from "../theme";
 import { runLabel, variantStats } from "../views/Convergence";
+import { CodeBlock } from "./Code";
 import { Compare } from "./Compare";
 import { Improve } from "./Improve";
 import { Search } from "./Search";
@@ -162,7 +163,7 @@ function Files({ files }: { files: Record<string, string> }) {
           </button>
         ))}
       </div>
-      <pre className="code">{files[open] ?? ""}</pre>
+      <CodeBlock name={open} text={files[open] ?? ""} />
     </div>
   );
 }

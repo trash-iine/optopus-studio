@@ -1,7 +1,11 @@
 // A line diff for comparing a revision's files: the longest common subsequence, then the lines
 // either side adds, with unchanged runs folded down to a little context.
 
-export type DiffLine = { kind: "same" | "added" | "removed"; text: string } | { kind: "skip"; count: number };
+/** A line and where it is: `at` indexes the after side's lines for "same" and "added", the
+ * before side's for "removed", so a caller can draw it from that side's colored lines. */
+export type DiffLine =
+  | { kind: "same" | "added" | "removed"; text: string; at: number }
+  | { kind: "skip"; count: number };
 
 const MAX_CELLS = 4_000_000;
 const CONTEXT = 2;
@@ -22,13 +26,15 @@ export function diffLines(before: string, after: string): DiffLine[] | null {
   let j = 0;
   while (i < a.length || j < b.length) {
     if (i < a.length && j < b.length && a[i] === b[j]) {
-      lines.push({ kind: "same", text: a[i] });
+      lines.push({ kind: "same", text: a[i], at: j });
       i++;
       j++;
     } else if (j < b.length && (i === a.length || lcs[i][j + 1] >= lcs[i + 1][j])) {
-      lines.push({ kind: "added", text: b[j++] });
+      lines.push({ kind: "added", text: b[j], at: j });
+      j++;
     } else {
-      lines.push({ kind: "removed", text: a[i++] });
+      lines.push({ kind: "removed", text: a[i], at: i });
+      i++;
     }
   }
   return fold(lines);
