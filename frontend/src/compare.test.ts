@@ -92,8 +92,9 @@ describe("diffLines", () => {
     const after = ["a", "b", "c", "d", "e", "F", "g", "h"].join("\n");
     const lines = diffLines(before, after)!;
     expect(lines[0]).toEqual({ kind: "skip", count: 3 });
-    expect(lines.filter((l) => l.kind === "removed")).toEqual([{ kind: "removed", text: "f" }]);
-    expect(lines.filter((l) => l.kind === "added")).toEqual([{ kind: "added", text: "F" }]);
+    expect(lines.filter((l) => l.kind === "removed")).toEqual([{ kind: "removed", text: "f", at: 5 }]);
+    expect(lines.filter((l) => l.kind === "added")).toEqual([{ kind: "added", text: "F", at: 5 }]);
+    expect(lines[1]).toEqual({ kind: "same", text: "d", at: 3 });
   });
 
   it("gives up on files too large to compare", () => {

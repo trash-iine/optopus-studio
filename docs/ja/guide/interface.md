@@ -92,7 +92,9 @@
 ### Model
 
 選んでいるリビジョンのファイル: `model.py`、`view.py`、`instance.json`、`solve.json`、あれば
-`app.json` と `rust/main.rs`。ここでは読むだけで、変更はエージェントに頼みます。各ファイルの説明は
+`app.json` と `rust/main.rs`。Python、JSON、Rust はシンタックスに色が付きます(20 万文字を超える
+ファイル、たとえば大きなアップロードから作った instance.json は色なしで表示)。ここでは読むだけで、
+変更はエージェントに頼みます。各ファイルの説明は
 [プロジェクト・リビジョン・ファイル](projects.md)にあります。
 
 ### Runs

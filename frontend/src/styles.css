@@ -18,6 +18,13 @@
   --good-ink: #006300;
   --added: rgba(12, 163, 12, 0.12);
   --removed: rgba(208, 59, 59, 0.12);
+  /* Syntax colors of the files shown (highlight.ts), each at least 4.5:1 on --surface. */
+  --code-keyword: #6250d6;
+  --code-string: #0a7a1f;
+  --code-number: #b54708;
+  --code-comment: #75736e;
+  --code-title: #1f63b8;
+  --code-builtin: #a3337a;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
   color: var(--ink);
@@ -38,6 +45,12 @@
   --good-ink: #0ca30c;
   --added: rgba(12, 163, 12, 0.2);
   --removed: rgba(208, 59, 59, 0.22);
+  --code-keyword: #a499ee;
+  --code-string: #4cc38a;
+  --code-number: #e8a05c;
+  --code-comment: #94928b;
+  --code-title: #6aa8f0;
+  --code-builtin: #e88bbd;
 }
 
 * { box-sizing: border-box; }
@@ -242,6 +255,14 @@ tr.best td { font-weight: 600; }
 .diff-added { background: var(--added); }
 .diff-removed { background: var(--removed); }
 .diff-skip { color: var(--muted); font-style: italic; }
+/* highlight.js token classes (highlight.ts); anything else keeps the ink. */
+.code .hljs-keyword, .code .hljs-operator.hljs-keyword { color: var(--code-keyword); }
+.code .hljs-string, .code .hljs-regexp { color: var(--code-string); }
+.code .hljs-number, .code .hljs-literal, .code .hljs-meta, .code .hljs-symbol { color: var(--code-number); }
+.code .hljs-comment, .code .hljs-doctag { color: var(--code-comment); font-style: italic; }
+.code .hljs-title, .code .hljs-attr, .code .hljs-section { color: var(--code-title); }
+.code .hljs-built_in, .code .hljs-type { color: var(--code-builtin); }
+.code .hljs-subst { color: var(--ink); }
 .banner.info { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink-2); }
 
 /* How a solve searched: heuristics, their arguments and the ones nested in them. */

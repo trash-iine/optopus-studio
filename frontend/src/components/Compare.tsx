@@ -2,10 +2,12 @@
 // what changed in the files between them.
 import { useEffect, useMemo, useState } from "react";
 import { diffLines } from "../diff";
+import { highlightLines, languageOf } from "../highlight";
 import type { RevisionDetail } from "../generated/revision";
 import type { KpiView } from "../generated/server-event";
 import { compact, type Mode, slotColor } from "../theme";
 import { Legend } from "../views/Legend";
+import { CodeLine } from "./Code";
 import { proof } from "./SolveResult";
 import { type Axis, AxisToggle, ConvergenceChart, curve } from "../views/Convergence";
 
@@ -243,6 +245,11 @@ function Verdict({
 
 function FileDiff({ name, before, after }: { name: string; before: string; after: string }) {
   const lines = useMemo(() => diffLines(before, after), [before, after]);
+  // Each side colored whole, so a token that spans lines (a docstring) is colored on all of them.
+  const colored = useMemo(() => {
+    const language = languageOf(name);
+    return { before: highlightLines(before, language), after: highlightLines(after, language) };
+  }, [name, before, after]);
   return (
     <details className="file-diff" open={name !== "instance.json"}>
       <summary>{name}</summary>
@@ -258,7 +265,7 @@ function FileDiff({ name, before, after }: { name: string; before: string; after
             ) : (
               <div key={k} className={`diff-${line.kind}`}>
                 {{ same: "  ", added: "+ ", removed: "- " }[line.kind]}
-                {line.text}
+                <CodeLine segments={(line.kind === "removed" ? colored.before : colored.after)[line.at] ?? []} />
               </div>
             ),
           )}

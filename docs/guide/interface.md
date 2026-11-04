@@ -90,7 +90,9 @@ What the selected revision gave, from top to bottom:
 ### Model
 
 The files of the selected revision: `model.py`, `view.py`, `instance.json`, `solve.json`, and
-`app.json` and `rust/main.rs` when they exist. They are read-only here; ask the agent for changes.
+`app.json` and `rust/main.rs` when they exist, with Python, JSON and Rust in syntax colors (a file
+over 200,000 characters, such as a large uploaded instance, is shown plain). They are read-only
+here; ask the agent for changes.
 [Projects, revisions and files](projects.md) explains each.
 
 ### Runs
