@@ -1,8 +1,9 @@
 """Projects on disk: the files the agent edits, and one revision per solve.
 
     <home>/projects/<id>/
-        meta.json       the agent (Claude or Codex), its session to resume, and whether it may
-                        search the web (docs/adr/0016)
+        meta.json       the agent (Claude or Codex), its session to resume, whether it may
+                        search the web (docs/adr/0016), and the model and effort chosen for each
+                        agent (docs/adr/0017)
         chat.jsonl      the conversation as shown in the GUI
         work/           the files the agent edits (PROJECT_FILES, and OPTIONAL_FILES once written)
         uploads/        files the user attached in the chat, imported into instance.json

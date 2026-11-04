@@ -354,6 +354,69 @@ def test_the_agent_on_claude_searches_the_web_only_where_the_project_lets_it(hom
     ]
 
 
+def test_the_agent_on_claude_runs_on_the_model_and_effort_chosen(home, monkeypatch):
+    from optopus_studio.agent_claude import options
+
+    project = Project.create(home)
+    specs = Tools(project, lambda event: asyncio.sleep(0)).specs()
+    monkeypatch.delenv("OPTOPUS_STUDIO_CLAUDE_MODEL", raising=False)
+    monkeypatch.setenv("OPTOPUS_STUDIO_MODEL", "sonnet")
+    default = options(specs, project.work, None)
+    assert (default.model, default.effort) == ("sonnet", None)
+    chosen = options(specs, project.work, None, model="opus", effort="high")
+    assert (chosen.model, chosen.effort) == ("opus", "high")
+
+
+def test_claudes_models_are_the_ones_its_cli_lists(monkeypatch):
+    from optopus_studio.agent_claude import model_choice
+
+    entry = {
+        "value": "opus",
+        "displayName": "Opus",
+        "description": "For complex work",
+        "supportsEffort": True,
+        "supportedEffortLevels": ["low", "high"],
+    }
+    opus = model_choice(entry, "default")
+    assert (opus.id, opus.name, opus.efforts, opus.is_default) == (
+        "opus",
+        "Opus",
+        ["low", "high"],
+        False,
+    )
+    assert model_choice(entry, "opus").is_default
+    # A model without effort levels offers none, whatever else the entry says.
+    plain = model_choice({"value": "old", "supportedEffortLevels": ["low"]}, "default")
+    assert (plain.name, plain.efforts) == ("old", [])
+
+
+@pytest.mark.parametrize(
+    ("model", "effort", "problem"),
+    [
+        (None, None, None),
+        ("small", "low", None),
+        (None, "max", None),
+        ("small", None, None),
+        ("gone", None, "no model 'gone'"),
+        ("small", "max", "takes no effort 'max'"),
+        ("old", "low", "it takes: none"),
+    ],
+)
+def test_a_model_and_effort_are_checked_against_the_agents_list(model, effort, problem):
+    from optopus_studio.agent import check_model_choice
+    from optopus_studio.protocol import ModelChoice
+
+    models = [
+        ModelChoice(id="big", name="Big", efforts=["low", "max"], is_default=True),
+        ModelChoice(id="small", name="Small", efforts=["low"]),
+        ModelChoice(id="old", name="Old", efforts=[]),
+    ]
+    said = check_model_choice(models, model, effort)
+    assert said == problem if problem is None else problem in said
+    no_default = [ModelChoice(id="a", name="A", efforts=["low"])]
+    assert "choose a model" in check_model_choice(no_default, None, "low")
+
+
 def test_the_web_search_setting_is_kept_per_project_and_not_changed_mid_turn(home):
     from optopus_studio.agent import AgentSession
 

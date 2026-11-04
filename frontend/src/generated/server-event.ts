@@ -11,6 +11,7 @@ export type ServerEvent =
   | SolveProgress
   | ViewUpdated
   | AgentSelected
+  | ModelSelected
   | WebSearchChanged
   | BenchProgress
   | BenchChanged;
@@ -32,6 +33,14 @@ export type Busy = boolean;
 export type Role = "user" | "assistant" | "tool";
 export type Text = string;
 export type Chat = ChatEntry[];
+/**
+ * The reasoning effort the agent runs at; None for the model's default.
+ */
+export type Effort = string | null;
+/**
+ * The model the agent runs on in this project; None for its default.
+ */
+export type Model = string | null;
 export type Project = string;
 export type Rev = number | null;
 export type Revisions = number[];
@@ -213,17 +222,28 @@ export type Error1 = string | null;
 export type Rev4 = number;
 export type Type18 = "view";
 export type Agent1 = "claude" | "codex";
+/**
+ * The effort chosen for that agent, if any.
+ */
+export type Effort1 = string | null;
+/**
+ * The model chosen for that agent, if any.
+ */
+export type Model1 = string | null;
 export type Type19 = "agent_selected";
+export type Effort2 = string | null;
+export type Model2 = string | null;
+export type Type20 = "model_selected";
 export type Enabled = boolean;
-export type Type20 = "web_search_changed";
+export type Type21 = "web_search_changed";
 /**
  * Solves finished in an evaluation or a profile, runs in a tuning.
  */
 export type Done = number;
 export type Task = "evaluation" | "tuning" | "profile";
 export type Total = number;
-export type Type21 = "bench_progress";
-export type Type22 = "bench_changed";
+export type Type22 = "bench_progress";
+export type Type23 = "bench_changed";
 
 /**
  * Everything the GUI shows, sent when a browser connects.
@@ -233,7 +253,9 @@ export interface Snapshot {
   agents: Agents;
   busy: Busy;
   chat: Chat;
+  effort: Effort;
   files: Files;
+  model: Model;
   project: Project;
   rev: Rev;
   revisions: Revisions;
@@ -544,14 +566,24 @@ export interface ViewUpdated {
  */
 export interface AgentSelected {
   agent: Agent1;
+  effort: Effort1;
+  model: Model1;
   type: Type19;
+}
+/**
+ * The agent runs on another model or effort from the next message, in the same session.
+ */
+export interface ModelSelected {
+  effort: Effort2;
+  model: Model2;
+  type: Type20;
 }
 /**
  * The agent may now search the web, or no longer, from the next message.
  */
 export interface WebSearchChanged {
   enabled: Enabled;
-  type: Type20;
+  type: Type21;
 }
 /**
  * How far the evaluation or tuning on the benchmark the agent is running has got.
@@ -560,7 +592,7 @@ export interface BenchProgress {
   done: Done;
   task: Task;
   total: Total;
-  type: Type21;
+  type: Type22;
 }
 /**
  * The benchmark, its evaluations, tunings or profiles changed.
@@ -568,5 +600,5 @@ export interface BenchProgress {
  * The browser reads them again from GET /api/projects/{id}/bench.
  */
 export interface BenchChanged {
-  type: Type22;
+  type: Type23;
 }

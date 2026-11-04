@@ -13,7 +13,8 @@ coding agents.
 - `worker.py` (solver process), `viewer.py` (runs a project's `view.py`), `runner.py` (starts
   both), `projects.py` (files, revisions and uploads on disk), `tables.py` (reading uploaded
   CSV/TSV/Excel/JSON), `agent.py` (the agent's tools, system prompt and conversation),
-  `agent_claude.py` / `agent_codex.py` (its session on Claude or Codex, ADR 0012), `app.py` (FastAPI +
+  `agent_claude.py` / `agent_codex.py` (its session on Claude or Codex, ADR 0012, on the model
+  and effort chosen from the agent's own list, ADR 0017), `app.py` (FastAPI +
   WebSocket), `cli.py` (entry point). `solving.py` turns a model's files into a solve for both the
   agent and apps; `apps.py` and `appserver.py` package a revision with its `app.json` and run it
   without the agent (ADR 0009); the frontend shows `components/AppMode.tsx` when `/api/mode`

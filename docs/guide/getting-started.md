@@ -95,8 +95,8 @@ uv run optopus-studio --agent codex            # new projects start on Codex (ea
 |---|---|---|
 | `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | where projects and their revisions are stored |
 | `OPTOPUS_STUDIO_AGENT` | the first that can run, Claude first | the agent a new project starts on: `claude` or `codex` (as `--agent`) |
-| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code's default | the model the agent runs on with Claude (`OPTOPUS_STUDIO_MODEL` also works) |
-| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex's default | the model the agent runs on with Codex |
+| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code's default | the model the agent runs on with Claude when the project chose none in the chat's **Model** menu (`OPTOPUS_STUDIO_MODEL` also works) |
+| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex's default | the model the agent runs on with Codex when the project chose none in the chat's **Model** menu |
 | `OPTOPUS_STUDIO_CODEX` | `codex` on `PATH` | the Codex executable |
 | `OPTOPUS_STUDIO_DOCS` | fetched from GitHub | a `docs/source` of optopus-py for the agent to read instead |
 | `OPTOPUS_STUDIO_WORKER` | the Python worker | the solver command, e.g. a Rust worker |

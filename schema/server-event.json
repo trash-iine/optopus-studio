@@ -50,6 +50,32 @@
           "title": "Agent",
           "type": "string"
         },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The effort chosen for that agent, if any.",
+          "title": "Effort"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The model chosen for that agent, if any.",
+          "title": "Model"
+        },
         "type": {
           "const": "agent_selected",
           "default": "agent_selected",
@@ -59,7 +85,9 @@
       },
       "required": [
         "type",
-        "agent"
+        "agent",
+        "model",
+        "effort"
       ],
       "title": "AgentSelected",
       "type": "object"
@@ -812,6 +840,47 @@
       "title": "MarkdownView",
       "type": "object"
     },
+    "ModelSelected": {
+      "additionalProperties": false,
+      "description": "The agent runs on another model or effort from the next message, in the same session.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Effort"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model"
+        },
+        "type": {
+          "const": "model_selected",
+          "default": "model_selected",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "model",
+        "effort"
+      ],
+      "title": "ModelSelected",
+      "type": "object"
+    },
     "Route": {
       "additionalProperties": false,
       "description": "One route on a map: the points it visits, in order.",
@@ -1247,12 +1316,38 @@
           "title": "Chat",
           "type": "array"
         },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The reasoning effort the agent runs at; None for the model's default.",
+          "title": "Effort"
+        },
         "files": {
           "additionalProperties": {
             "type": "string"
           },
           "title": "Files",
           "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The model the agent runs on in this project; None for its default.",
+          "title": "Model"
         },
         "project": {
           "title": "Project",
@@ -1334,7 +1429,9 @@
         "busy",
         "agent",
         "agents",
-        "web_search"
+        "web_search",
+        "model",
+        "effort"
       ],
       "title": "Snapshot",
       "type": "object"
@@ -1718,6 +1815,7 @@
       "bench_changed": "#/$defs/BenchChanged",
       "bench_progress": "#/$defs/BenchProgress",
       "files": "#/$defs/FilesChanged",
+      "model_selected": "#/$defs/ModelSelected",
       "snapshot": "#/$defs/Snapshot",
       "solve_progress": "#/$defs/SolveProgress",
       "solve_started": "#/$defs/SolveStarted",
@@ -1758,6 +1856,9 @@
     },
     {
       "$ref": "#/$defs/AgentSelected"
+    },
+    {
+      "$ref": "#/$defs/ModelSelected"
     },
     {
       "$ref": "#/$defs/WebSearchChanged"

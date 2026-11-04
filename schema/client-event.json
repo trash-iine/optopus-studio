@@ -39,6 +39,46 @@
       "title": "SelectAgent",
       "type": "object"
     },
+    "SelectModel": {
+      "additionalProperties": false,
+      "description": "The user chose the model and effort the agent runs on; None for the default.",
+      "properties": {
+        "effort": {
+          "anyOf": [
+            {
+              "maxLength": 50,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "type": {
+          "const": "select_model",
+          "default": "select_model",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "SelectModel",
+      "type": "object"
+    },
     "SelectRevision": {
       "additionalProperties": false,
       "description": "The user chose a revision to show.",
@@ -108,6 +148,7 @@
     "mapping": {
       "interrupt": "#/$defs/Interrupt",
       "select_agent": "#/$defs/SelectAgent",
+      "select_model": "#/$defs/SelectModel",
       "select_revision": "#/$defs/SelectRevision",
       "set_web_search": "#/$defs/SetWebSearch",
       "user_message": "#/$defs/UserMessage"
@@ -129,6 +170,9 @@
     },
     {
       "$ref": "#/$defs/SetWebSearch"
+    },
+    {
+      "$ref": "#/$defs/SelectModel"
     }
   ],
   "title": "ClientEvent"

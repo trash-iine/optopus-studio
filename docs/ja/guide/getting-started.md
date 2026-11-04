@@ -99,8 +99,8 @@ uv run optopus-studio --agent codex            # 新しいプロジェクトを 
 |---|---|---|
 | `OPTOPUS_STUDIO_HOME` | `~/.optopus-studio` | プロジェクトとリビジョンの保存先 |
 | `OPTOPUS_STUDIO_AGENT` | 動くもののうち先のもの(Claude が先) | 新しいプロジェクトのエージェント: `claude` か `codex`(`--agent` と同じ) |
-| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code の既定 | Claude で動くときにエージェントが使うモデル(`OPTOPUS_STUDIO_MODEL` も可) |
-| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex の既定 | Codex で動くときにエージェントが使うモデル |
+| `OPTOPUS_STUDIO_CLAUDE_MODEL` | Claude Code の既定 | Claude で動くときに、プロジェクトがチャットの **Model** で選んでいなければ使うモデル(`OPTOPUS_STUDIO_MODEL` も可) |
+| `OPTOPUS_STUDIO_CODEX_MODEL` | Codex の既定 | Codex で動くときに、プロジェクトがチャットの **Model** で選んでいなければ使うモデル |
 | `OPTOPUS_STUDIO_CODEX` | `PATH` 上の `codex` | Codex の実行ファイル |
 | `OPTOPUS_STUDIO_DOCS` | GitHub から取得 | 代わりにエージェントに読ませる optopus-py の `docs/source` |
 | `OPTOPUS_STUDIO_WORKER` | Python ワーカー | ソルバーのコマンド(例: Rust ワーカー) |

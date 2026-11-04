@@ -6,11 +6,11 @@ import pytest
 from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
+from optopus_studio import agent, bench
 from optopus_studio import app as app_module
-from optopus_studio import bench
 from optopus_studio.agent import Tools
 from optopus_studio.projects import Project
-from optopus_studio.protocol import ChatEntry
+from optopus_studio.protocol import ChatEntry, ModelChoice
 from tests.conftest import example_project
 
 
@@ -50,7 +50,12 @@ def test_a_project_switches_to_an_agent_that_can_run(client, home, monkeypatch, 
         codex.chmod(0o755)
         monkeypatch.setenv("OPTOPUS_STUDIO_CODEX", str(codex))
         ws.send_json({"type": "select_agent", "agent": "codex"})
-        assert ws.receive_json() == {"type": "agent_selected", "agent": "codex"}
+        assert ws.receive_json() == {
+            "type": "agent_selected",
+            "agent": "codex",
+            "model": None,
+            "effort": None,
+        }
     assert Project.open(project_id, home).meta()["agent"] == "codex"
     with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
         assert ws.receive_json()["agent"] == "codex"
@@ -65,6 +70,47 @@ def test_the_agent_is_let_search_the_web_per_project(client, home):
     assert Project.open(project_id, home).meta()["web_search"] is True
     with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
         assert ws.receive_json()["web_search"] is True
+
+
+MODELS = [
+    ModelChoice(id="big", name="Big", efforts=["low", "high"], is_default=True),
+    ModelChoice(id="small", name="Small", efforts=[]),
+]
+
+
+def test_an_agents_models_are_served_as_it_lists_them(client, monkeypatch):
+    monkeypatch.setitem(agent._model_lists, "claude", MODELS)
+    listed = client.get("/api/agents/claude/models").json()
+    assert [m["id"] for m in listed["models"]] == ["big", "small"]
+    assert listed["error"] is None
+    assert client.get("/api/agents/nobody/models").status_code == 422
+
+
+def test_an_agent_that_cannot_list_its_models_says_why(client, monkeypatch):
+    monkeypatch.setenv("OPTOPUS_STUDIO_CODEX", "/nonexistent/codex")
+    listed = client.get("/api/agents/codex/models").json()
+    assert listed["models"] == []
+    assert "codex cannot run here" in listed["error"]
+
+
+def test_the_model_and_effort_are_chosen_per_project_and_agent(client, home, monkeypatch):
+    monkeypatch.setitem(agent._model_lists, "claude", MODELS)
+    project_id = client.post("/api/projects").json()["id"]
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        snapshot = ws.receive_json()
+        assert (snapshot["model"], snapshot["effort"]) == (None, None)
+        ws.send_json({"type": "select_model", "model": "big", "effort": "high"})
+        assert ws.receive_json() == {"type": "model_selected", "model": "big", "effort": "high"}
+        ws.send_json({"type": "select_model", "model": "small", "effort": "high"})
+        refused = ws.receive_json()
+        assert refused["type"] == "turn_end"
+        assert "takes no effort 'high'" in refused["error"]
+    assert Project.open(project_id, home).meta()["models"] == {
+        "claude": {"model": "big", "effort": "high"}
+    }
+    with client.websocket_connect(f"/api/projects/{project_id}/ws") as ws:
+        snapshot = ws.receive_json()
+        assert (snapshot["model"], snapshot["effort"]) == ("big", "high")
 
 
 def test_an_unknown_project_closes_the_socket(client):

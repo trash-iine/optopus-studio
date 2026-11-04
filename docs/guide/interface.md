@@ -44,6 +44,14 @@
   the agent is idle; the other agent reads the conversation so far with its next message, and
   continues from the project's files. An agent that cannot run on this machine is marked
   "(unavailable)"; hover over it for the reason.
+- **Model** and **Effort**: the model the agent runs on in this project, and how much it
+  reasons, chosen from the list the agent itself gives
+  ([ADR 0017](../adr/0017-choose-the-model-from-the-agents-own-list.md)), so a model it adds shows
+  up after a restart. **Default** runs on the model set by `OPTOPUS_STUDIO_CLAUDE_MODEL` /
+  `OPTOPUS_STUDIO_CODEX_MODEL`, else the agent's own default. Effort is shown only for a model
+  that takes one. Each agent keeps its own choice; it can be changed while the agent is idle, and
+  the session carries on. When the agent cannot list its models, "Model: default" stands instead;
+  hover over it for the reason.
 - **Web search**: lets the agent search and read the web, for methods that work on problems like
   yours ([ADR 0016](../adr/0016-let-the-agent-search-the-web-when-allowed.md)). It is off for a new
   or imported project, and can be changed while the agent is idle. Searches show as

@@ -103,14 +103,21 @@ describe("reduce", () => {
       agent: "claude" as const,
       agents,
       web_search: true,
+      model: "opus",
+      effort: "high",
     };
     let state = event(initialState, { type: "event", event: snapshot });
     expect(state.agent).toBe("claude");
     expect(state.agents).toEqual(agents);
+    expect([state.model, state.effort]).toEqual(["opus", "high"]);
     state = { ...state, error: "the agent is still working" };
-    state = event(state, { type: "event", event: { type: "agent_selected", agent: "codex" } });
+    const selected = { type: "agent_selected" as const, agent: "codex" as const, model: null, effort: null };
+    state = event(state, { type: "event", event: selected });
     expect(state.agent).toBe("codex");
+    expect([state.model, state.effort]).toEqual([null, null]);
     expect(state.error).toBeNull();
+    state = event(state, { type: "event", event: { type: "model_selected", model: "gpt-x", effort: "low" } });
+    expect([state.model, state.effort]).toEqual(["gpt-x", "low"]);
     expect(state.webSearch).toBe(true);
     state = event(state, { type: "event", event: { type: "web_search_changed", enabled: false } });
     expect(state.webSearch).toBe(false);

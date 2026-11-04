@@ -9,6 +9,9 @@ live in a project whose ``web_search`` switch is on, and disabled otherwise (doc
 
 Authentication is the Codex login (``codex login``, kept in ``$CODEX_HOME``). The app-server starts
 without ``OPENAI_API_KEY`` and ``CODEX_API_KEY``, so an exported key is not used instead.
+
+The models to choose from are the ones the app-server lists (``model/list``), so a model Codex adds
+is offered without a change here.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import tomllib
 from collections import deque
 from collections.abc import AsyncIterator
@@ -39,7 +43,7 @@ from optopus_studio.agent import (
     text_result,
     tool_activity,
 )
-from optopus_studio.protocol import AssistantDelta, AssistantText
+from optopus_studio.protocol import AssistantDelta, AssistantText, ModelChoice
 
 log = logging.getLogger(__name__)
 
@@ -190,14 +194,16 @@ def dynamic_tool(spec: ToolSpec) -> dict[str, Any]:
     }
 
 
-def thread_params(cwd: Path) -> dict[str, Any]:
+def thread_params(cwd: Path, model: str | None = None) -> dict[str, Any]:
     """The parameters a thread starts or resumes with: the system prompt, read-only, no approvals.
 
     Args:
         cwd: The project's directory.
+        model: The model the project chose, if any.
 
     Returns:
-        The parameters, with ``OPTOPUS_STUDIO_CODEX_MODEL`` as the model when it is set.
+        The parameters, with the project's model, else ``OPTOPUS_STUDIO_CODEX_MODEL``, when there
+        is one.
     """
     params: dict[str, Any] = {
         "baseInstructions": SYSTEM_PROMPT,
@@ -205,7 +211,7 @@ def thread_params(cwd: Path) -> dict[str, Any]:
         "sandbox": "read-only",
         "approvalPolicy": "never",
     }
-    if model := os.environ.get("OPTOPUS_STUDIO_CODEX_MODEL"):
+    if model := model or os.environ.get("OPTOPUS_STUDIO_CODEX_MODEL"):
         params["model"] = model
     return params
 
@@ -229,7 +235,15 @@ class RpcError(Exception):
 class CodexBackend:
     """The agent's session on Codex: one app-server and its thread."""
 
-    def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False):
+    def __init__(
+        self,
+        specs: list[ToolSpec],
+        cwd: Path,
+        resume: str | None,
+        web: bool = False,
+        model: str | None = None,
+        effort: str | None = None,
+    ):
         """Prepares a session; ``open`` starts it.
 
         Args:
@@ -237,10 +251,14 @@ class CodexBackend:
             cwd: The project's directory.
             resume: The thread to resume, if any.
             web: Whether Codex's web search is on (docs/adr/0016).
+            model: The model the project chose, if any.
+            effort: The reasoning effort the project chose, if any; each turn asks for it.
         """
         self.specs = {spec.name: spec for spec in specs}
         self.cwd = cwd
         self.web = web
+        self.model = model
+        self.effort = effort
         self.thread_id = resume
         self.process: asyncio.subprocess.Process | None = None
         self.pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
@@ -257,6 +275,34 @@ class CodexBackend:
         Raises:
             AgentError: Codex is missing, too old, or not signed in.
             SessionLost: The thread to resume is gone.
+        """
+        await self.start()
+        account = await self.request("account/read", {})
+        if account.get("account") is None and account.get("requiresOpenaiAuth", True):
+            raise AgentError(
+                "Codex is not signed in: run `codex login` in a terminal, then send the message "
+                "again"
+            )
+        params = thread_params(self.cwd, self.model)
+        if self.thread_id:
+            try:
+                await self.request(
+                    "thread/resume", {**params, "threadId": self.thread_id, "excludeTurns": True}
+                )
+            except RpcError as exc:
+                raise SessionLost(f"the Codex session cannot be resumed: {exc}") from exc
+        else:
+            started = await self.request(
+                "thread/start",
+                {**params, "dynamicTools": [dynamic_tool(s) for s in self.specs.values()]},
+            )
+            self.thread_id = started["thread"]["id"]
+
+    async def start(self) -> None:
+        """Starts the app-server and introduces the studio to it.
+
+        Raises:
+            AgentError: Codex is missing or too old.
         """
         reason = codex_unavailable()
         binary = codex_binary()
@@ -285,26 +331,6 @@ class CodexBackend:
             },
         )
         await self.send({"method": "initialized"})
-        account = await self.request("account/read", {})
-        if account.get("account") is None and account.get("requiresOpenaiAuth", True):
-            raise AgentError(
-                "Codex is not signed in: run `codex login` in a terminal, then send the message "
-                "again"
-            )
-        params = thread_params(self.cwd)
-        if self.thread_id:
-            try:
-                await self.request(
-                    "thread/resume", {**params, "threadId": self.thread_id, "excludeTurns": True}
-                )
-            except RpcError as exc:
-                raise SessionLost(f"the Codex session cannot be resumed: {exc}") from exc
-        else:
-            started = await self.request(
-                "thread/start",
-                {**params, "dynamicTools": [dynamic_tool(s) for s in self.specs.values()]},
-            )
-            self.thread_id = started["thread"]["id"]
 
     async def close(self) -> None:
         """Stops the app-server and the tasks that read it."""
@@ -344,10 +370,13 @@ class CodexBackend:
             if isinstance(event, Exception):
                 self.events.put_nowait(event)
         self.turn_error = None
-        started = await self.request(
-            "turn/start",
-            {"threadId": self.thread_id, "input": [{"type": "text", "text": text}]},
-        )
+        params: dict[str, Any] = {
+            "threadId": self.thread_id,
+            "input": [{"type": "text", "text": text}],
+        }
+        if self.effort:
+            params["effort"] = self.effort
+        started = await self.request("turn/start", params)
         self.turn_id = started["turn"]["id"]
         try:
             while True:
@@ -525,3 +554,54 @@ class CodexBackend:
                     },
                 }
             )
+
+
+async def list_models() -> list[ModelChoice]:
+    """The models Codex offers, as its app-server lists them, without the hidden ones.
+
+    Returns:
+        The models, in the app-server's order.
+
+    Raises:
+        AgentError: Codex is missing or too old, or stopped before answering.
+        RpcError: The app-server refused to list them.
+    """
+    entries: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory() as cwd:
+        backend = CodexBackend([], Path(cwd), None)
+        try:
+            await backend.start()
+            cursor = None
+            while True:
+                page = await backend.request("model/list", {"cursor": cursor} if cursor else {})
+                entries += page.get("data") or []
+                cursor = page.get("nextCursor")
+                if not cursor:
+                    break
+        finally:
+            await backend.close()
+    default = os.environ.get("OPTOPUS_STUDIO_CODEX_MODEL")
+    return [model_choice(e, default) for e in entries if not e.get("hidden")]
+
+
+def model_choice(entry: dict[str, Any], default: str | None) -> ModelChoice:
+    """One entry of the app-server's list of models, as the studio offers it.
+
+    Args:
+        entry: The entry: ``model``, ``displayName``, ``description``, ``isDefault``,
+            ``supportedReasoningEfforts`` and ``defaultReasoningEffort``.
+        default: ``OPTOPUS_STUDIO_CODEX_MODEL``, which replaces Codex's default, if set.
+
+    Returns:
+        The model.
+    """
+    model = entry["model"]
+    efforts = [e["reasoningEffort"] for e in entry.get("supportedReasoningEfforts") or []]
+    return ModelChoice(
+        id=model,
+        name=entry.get("displayName") or model,
+        description=entry.get("description") or None,
+        efforts=efforts,
+        default_effort=entry.get("defaultReasoningEffort") or None,
+        is_default=model == default if default else bool(entry.get("isDefault")),
+    )

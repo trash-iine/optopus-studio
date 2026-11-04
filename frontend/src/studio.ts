@@ -28,6 +28,9 @@ export interface StudioState {
   agents: AgentChoice[];
   /** Whether the agent may search and read the web (docs/adr/0016). */
   webSearch: boolean;
+  /** The model and effort the project chose for the agent; null for the defaults. */
+  model: string | null;
+  effort: string | null;
   /** Counts the changes to the benchmark, its evaluations, tunings and profiles, to fetch it
    * again. */
   benchVersion: number;
@@ -51,6 +54,8 @@ export const initialState: StudioState = {
   agent: null,
   agents: [],
   webSearch: false,
+  model: null,
+  effort: null,
   benchVersion: 0,
   benchProgress: null,
 };
@@ -87,9 +92,13 @@ export function reduce(state: StudioState, action: Action): StudioState {
         agent: e.agent,
         agents: e.agents,
         webSearch: e.web_search,
+        model: e.model,
+        effort: e.effort,
       };
     case "agent_selected":
-      return { ...state, agent: e.agent, error: null };
+      return { ...state, agent: e.agent, model: e.model, effort: e.effort, error: null };
+    case "model_selected":
+      return { ...state, model: e.model, effort: e.effort, error: null };
     case "web_search_changed":
       return { ...state, webSearch: e.enabled, error: null };
     case "assistant_delta":
