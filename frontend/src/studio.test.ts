@@ -102,6 +102,7 @@ describe("reduce", () => {
       busy: false,
       agent: "claude" as const,
       agents,
+      web_search: true,
     };
     let state = event(initialState, { type: "event", event: snapshot });
     expect(state.agent).toBe("claude");
@@ -110,6 +111,9 @@ describe("reduce", () => {
     state = event(state, { type: "event", event: { type: "agent_selected", agent: "codex" } });
     expect(state.agent).toBe("codex");
     expect(state.error).toBeNull();
+    expect(state.webSearch).toBe(true);
+    state = event(state, { type: "event", event: { type: "web_search_changed", enabled: false } });
+    expect(state.webSearch).toBe(false);
   });
 });
 

@@ -35,19 +35,25 @@ from optopus_studio.agent import (
 from optopus_studio.protocol import AssistantDelta, AssistantText
 
 SERVER = "studio"
+# Claude Code's own tools the agent gets when the project lets it search the web (docs/adr/0016),
+# and the names the chat shows their calls under.
+WEB_TOOLS = {"WebSearch": "web_search", "WebFetch": "web_fetch"}
 
 
-def options(specs: list[ToolSpec], cwd: Path, resume: str | None) -> ClaudeAgentOptions:
+def options(
+    specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False
+) -> ClaudeAgentOptions:
     tools = [tool(s.name, s.description, s.input_schema)(s.call) for s in specs]
+    web_tools = list(WEB_TOOLS) if web else []
     return ClaudeAgentOptions(
         system_prompt=SYSTEM_PROMPT,
-        tools=[],
+        tools=web_tools,
         mcp_servers={SERVER: create_sdk_mcp_server(SERVER, tools=tools)},
         # Only the studio's tools: without this, the CLI also connects the MCP servers of the
         # Claude account it signs in with (claude.ai connectors), and the agent mentions them to
         # the user.
         strict_mcp_config=True,
-        allowed_tools=[f"mcp__{SERVER}__{s.name}" for s in specs],
+        allowed_tools=[f"mcp__{SERVER}__{s.name}" for s in specs] + web_tools,
         setting_sources=[],
         cwd=str(cwd),
         model=os.environ.get("OPTOPUS_STUDIO_CLAUDE_MODEL")
@@ -59,8 +65,8 @@ def options(specs: list[ToolSpec], cwd: Path, resume: str | None) -> ClaudeAgent
 
 
 class ClaudeBackend:
-    def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None):
-        self.client = ClaudeSDKClient(options(specs, cwd, resume))
+    def __init__(self, specs: list[ToolSpec], cwd: Path, resume: str | None, web: bool = False):
+        self.client = ClaudeSDKClient(options(specs, cwd, resume, web))
 
     async def open(self) -> None:
         await self.client.connect()
@@ -90,9 +96,8 @@ def events(message: Any) -> list[AgentEvent]:
             if isinstance(block, TextBlock) and block.text.strip():
                 shown.append(AssistantText(text=block.text))
             elif isinstance(block, ToolUseBlock):
-                shown.append(
-                    tool_activity(block.name.removeprefix(f"mcp__{SERVER}__"), block.input)
-                )
+                name = WEB_TOOLS.get(block.name) or block.name.removeprefix(f"mcp__{SERVER}__")
+                shown.append(tool_activity(name, block.input))
         return shown
     elif isinstance(message, ResultMessage):
         error = (message.result or message.subtype) if message.is_error else None

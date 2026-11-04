@@ -118,6 +118,20 @@ def test_codex_is_given_only_the_studios_tools(home, codex):
     assert launch["openai_key"] is False
 
 
+def test_codex_searches_the_web_only_where_the_project_lets_it(home, codex):
+    project = codex_project(home, web_search=True)
+    events = converse(project, "hi")
+
+    launch = received(codex)[0]
+    assert 'web_search="live"' in launch["argv"]
+    assert 'web_search="disabled"' not in launch["argv"]
+    # Its other tools stay off.
+    assert "features.shell_tool=false" in launch["argv"]
+    searches = [e for e in events if isinstance(e, ToolActivity) and e.name == "web_search"]
+    assert searches == [ToolActivity(name="web_search", summary="gap tabu")]
+    assert config_overrides(home, web=False).count('web_search="disabled"') == 1
+
+
 def test_the_mcp_servers_in_codexs_config_are_turned_off(tmp_path):
     (tmp_path / "config.toml").write_text(
         '[mcp_servers.docs]\ncommand = "x"\n\n[mcp_servers."my.server"]\nurl = "http://x"\n'

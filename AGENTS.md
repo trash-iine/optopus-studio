@@ -44,7 +44,8 @@ coding agents.
 - Generated code (a project's `model.py` / `view.py`) only ever runs in a subprocess with a
   timeout, never in the server process.
 - The agent has no built-in Claude Code or Codex tools; it acts only through the tools in
-  `agent.py`, which both backends get from `Tools.specs()`.
+  `agent.py`, which both backends get from `Tools.specs()`. The one exception is the backends'
+  web search, and only in a project whose `web_search` switch is on (ADR 0016).
 - The agent signs in with the Claude Code or Codex login; do not add API-key handling (ADR 0003,
   ADR 0012).
 - The Agent SDK is in the `studio` dependency group, which an app's image leaves out: nothing an

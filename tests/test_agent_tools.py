@@ -24,6 +24,7 @@ from optopus_studio.protocol import (
     RunSummary,
     SolveProgress,
     SolveStarted,
+    ToolActivity,
     ViewUpdated,
 )
 from tests.conftest import example_project
@@ -322,6 +323,49 @@ def test_the_agent_on_claude_sees_only_the_studios_tools(home):
     assert claude.allowed_tools == [f"mcp__{SERVER}__{spec.name}" for spec in specs]
     # Not the MCP servers of the Claude account it signs in with, such as claude.ai connectors.
     assert claude.strict_mcp_config
+
+
+def test_the_agent_on_claude_searches_the_web_only_where_the_project_lets_it(home):
+    from claude_agent_sdk import AssistantMessage, ToolUseBlock
+
+    from optopus_studio.agent_claude import SERVER, events, options
+
+    project = Project.create(home)
+    specs = Tools(project, Recorder()).specs()
+    claude = options(specs, project.work, None, web=True)
+    assert claude.tools == ["WebSearch", "WebFetch"]
+    assert claude.allowed_tools[-2:] == ["WebSearch", "WebFetch"]
+    assert claude.strict_mcp_config
+    assert claude.setting_sources == []
+    message = AssistantMessage(
+        content=[
+            ToolUseBlock(id="1", name="WebSearch", input={"query": "gap tabu search"}),
+            ToolUseBlock(
+                id="2", name="WebFetch", input={"url": "https://example.org", "prompt": "x"}
+            ),
+            ToolUseBlock(id="3", name=f"mcp__{SERVER}__profile", input={}),
+        ],
+        model="m",
+    )
+    assert events(message) == [
+        ToolActivity(name="web_search", summary="gap tabu search"),
+        ToolActivity(name="web_fetch", summary="https://example.org"),
+        ToolActivity(name="profile", summary=""),
+    ]
+
+
+def test_the_web_search_setting_is_kept_per_project_and_not_changed_mid_turn(home):
+    from optopus_studio.agent import AgentSession
+
+    project = Project.create(home)
+    session = AgentSession(project, Recorder())
+    assert not session.web_search
+    asyncio.run(session.set_web_search(True))
+    assert project.meta()["web_search"] is True
+    assert AgentSession(project, Recorder()).web_search
+    session.busy = True
+    with pytest.raises(ProjectError, match="still working"):
+        asyncio.run(session.set_web_search(False))
 
 
 def test_a_new_project_starts_on_the_agent_named_or_the_first_that_can_run(home, monkeypatch):

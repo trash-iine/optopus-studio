@@ -57,6 +57,26 @@
       "title": "SelectRevision",
       "type": "object"
     },
+    "SetWebSearch": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "set_web_search",
+          "default": "set_web_search",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "SetWebSearch",
+      "type": "object"
+    },
     "UserMessage": {
       "additionalProperties": false,
       "properties": {
@@ -84,6 +104,7 @@
       "interrupt": "#/$defs/Interrupt",
       "select_agent": "#/$defs/SelectAgent",
       "select_revision": "#/$defs/SelectRevision",
+      "set_web_search": "#/$defs/SetWebSearch",
       "user_message": "#/$defs/UserMessage"
     },
     "propertyName": "type"
@@ -100,6 +121,9 @@
     },
     {
       "$ref": "#/$defs/SelectAgent"
+    },
+    {
+      "$ref": "#/$defs/SetWebSearch"
     }
   ],
   "title": "ClientEvent"
