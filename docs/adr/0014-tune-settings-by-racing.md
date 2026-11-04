@@ -27,6 +27,15 @@ Option 2 (`tune.py`), the `tune` tool, a simplified irace:
   path in the heuristic (`cooling_rate`, `search.tabu_tenure`, `steps.0.cooling_rate`), each a
   float or an int in a range, on a log scale or not, or a categorical. The revision's own settings
   are always raced too.
+- **Choosing the heuristic too**: the agent may give several variants of solve.json instead, each
+  with its parameters (none for one raced as it is), the incumbent first. The variant is then one
+  more categorical parameter and each variant's parameters hang on it, as irace's conditional
+  parameters do, and as AutoML's CASH joins algorithm selection and tuning. The first iteration
+  races every variant's own settings and shares the Latin hypercube among the variants with
+  parameters; a setting drawn around an elite switches variant with the probability of the
+  iteration's spread, its parameters then drawn anew. The agent's choice of heuristics narrows the
+  candidates; the race decides. The winner becomes solve.json's only heuristic, and is checked
+  against the incumbent variant of the revision on validation.
 - **Iterated racing**: `2 + log2(d)` iterations for `d` parameters, each given an even share of
   what is left of the budget, counted in runs. The first races the revision's settings against a
   Latin hypercube sample; each later one the elites of the last against settings drawn around
@@ -43,7 +52,18 @@ Option 2 (`tune.py`), the `tune` tool, a simplified irace:
   project files, which become the revision's with that solve.json, and evaluated against the
   revision on validation (ADR 0013). The agent keeps it only on "better" there, as with any other
   change. The test statistics need only the standard library.
-- Each tuning, every setting's results per task included, is kept in `bench/tunings/<n>.json`.
+- **Signs**: the report ends with what the race shows that settings cannot fix, each with the
+  change of structure it suggests: every elite at the outer 10% of a range (widen it, or a
+  mechanism is missing); a last race that cannot tell settings apart with under a quarter of them
+  dropped (the settings do not matter; change the neighborhood, the delta or the worker);
+  instances whose best elite differs and beats the best overall by the evaluation's 1% (one
+  setting may not fit all); the best setting finding its best in the first quarter of its runs
+  (it stalls; diversify); and it accepting under 1% or over 99% of its moves. The thresholds are
+  this studio's proposals, not values from the literature. They are hints for the agent's next
+  hypothesis, not verdicts; known best objectives to measure the remaining gap against are not
+  available, so that sign is left out.
+- Each tuning, every setting's results and run statistics per task and its signs included, is
+  kept in `bench/tunings/<n>.json`.
 
 The first option spends far more of the budget on settings that are clearly worse, and an agent
 turn on each. The third cannot run a Python problem or a project's Rust port, knows nothing of

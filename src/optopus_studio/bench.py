@@ -28,7 +28,7 @@ import math
 import os
 import statistics
 from collections import Counter
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -604,17 +604,26 @@ def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
 # --- what the agent reads ----------------------------------------------------------------------
 
 
-def _rate(runs: list[RunFinished]) -> float:
+def speed(runs: Iterable[RunFinished]) -> float:
+    """Iterations per second over the runs."""
+    runs = list(runs)
     seconds = sum(r.total_time_secs for r in runs)
     return sum(r.iterations for r in runs) / seconds if seconds > 0 else 0.0
 
 
-def _accepted(runs: list[RunFinished]) -> str:
-    counts = [(r.n_accepted, r.n_rejected) for r in runs]
-    if any(a is None or b is None for a, b in counts):
-        return "?"
-    moves = sum(a + b for a, b in counts)  # type: ignore[operator]
-    return f"{sum(a for a, _ in counts) / moves:.0%}" if moves else "?"  # type: ignore[misc]
+def acceptance(runs: Iterable[RunFinished]) -> float | None:
+    """The share of moves accepted over the runs; None when a run did not count them, or none
+    was made."""
+    runs = list(runs)
+    if any(r.n_accepted is None or r.n_rejected is None for r in runs):
+        return None
+    accepted = sum(r.n_accepted or 0 for r in runs)
+    moves = accepted + sum(r.n_rejected or 0 for r in runs)
+    return accepted / moves if moves else None
+
+
+def share(value: float | None) -> str:
+    return "?" if value is None else f"{value:.0%}"
 
 
 # What each side's runs on an instance show, baseline -> candidate.
@@ -625,9 +634,9 @@ def _side_line(runs: list[RunFinished]) -> tuple[str, ...]:
     values = [r.best_objective for r in runs]
     return (
         f"{statistics.fmean(values):g}",
-        f"{_rate(runs):,.0f}",
+        f"{speed(runs):,.0f}",
         f"{statistics.fmean(r.time_to_best_secs for r in runs):.3g}s",
-        _accepted(runs),
+        share(acceptance(runs)),
     )
 
 
@@ -752,25 +761,28 @@ def state(project: Project) -> BenchState:
         )
         for r in past
     ]
-    raced = [
-        BenchTuning(
-            id=t["id"],
-            rev=t["rev"],
-            variant=t["variant"],
-            used=t["used"],
-            budget=t["budget"],
-            settings=len(t["settings"]),
-            eliminated=sum(1 for s in t["settings"] if s["eliminated"]),
-            failed=sum(1 for s in t["settings"] if s["error"]),
-            best=next(
-                (s["values"] for s in t["settings"] if s["id"] == t["best"] and s["id"] != 0),
-                None,
-            ),
-            validation=t["validation"],
-        )
-        for t in tunings(project)
-    ]
+    raced = [_tuning(t) for t in tunings(project)]
     return BenchState(spec=load_spec(project), evaluations=evaluations, tunings=raced)
+
+
+def _tuning(record: dict[str, Any]) -> BenchTuning:
+    settings = record["settings"]
+    best = next((s for s in settings if s["id"] == record["best"]), None)
+    changed = best is not None and best["id"] != 0
+    return BenchTuning(
+        id=record["id"],
+        rev=record["rev"],
+        variants=record["variants"],
+        used=record["used"],
+        budget=record["budget"],
+        settings=len(settings),
+        eliminated=sum(1 for s in settings if s["eliminated"]),
+        failed=sum(1 for s in settings if s["error"]),
+        best=best["values"] if changed else None,
+        best_variant=best["variant"] if changed and len(record["variants"]) > 1 else None,
+        validation=record["validation"],
+        signs=record["signs"],
+    )
 
 
 def _side_of(record: dict[str, Any]) -> BenchSide:

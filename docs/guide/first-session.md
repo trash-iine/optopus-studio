@@ -106,7 +106,7 @@ When the result is good but the search could be better, ask:
 
 The agent builds a benchmark of instances like yours, then tries one change at a time and keeps
 only those that evaluate better on it, each as a new revision. A heuristic's settings it tunes in
-one step, racing many of them on the benchmark. It ends by checking the result on
+one step, racing many of them on the benchmark, and which heuristic too when several could suit. It ends by checking the result on
 instances none of its choices were made on. The **Improve** tab lists every change it judged. [Improving the
 algorithm](projects.md#improving-the-algorithm) explains the verdicts.
 

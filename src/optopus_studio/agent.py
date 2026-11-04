@@ -212,12 +212,18 @@ neighbor), call tune instead of trying settings one at a time: give the paramete
 each with the range worth searching ('log' when it spans orders of magnitude), and a budget of \
 runs, about 30 per parameter or more; it takes about budget x the run's budget / the cores in \
 use. It races sampled settings on train without you, writes the best into solve.json and \
-evaluates it on validation: on BETTER there, run_solver; otherwise restore_revision. Tune again \
-after a change to model.py or another heuristic, since the best settings move with them.
+evaluates it on validation: on BETTER there, run_solver; otherwise restore_revision. When \
+several heuristics could suit, do not pick one: put them all as variants in solve.json, \
+run_solver, and tune with 'spaces', the incumbent first, so the race chooses. Tune again after \
+a change to model.py or another heuristic, since the best settings move with them: compare \
+structures each with its settings tuned, or an untuned constant sinks a good idea.
 5. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
 long before the budget ends wants diversification (a perturbation, restarts, another \
 heuristic); a low rate of iterations a cheaper delta or Rust; almost no accepted moves a \
-higher temperature or a larger neighborhood; almost all accepted a cooler search.
+higher temperature or a larger neighborhood; almost all accepted a cooler search. Read tune's \
+signs the same way: an elite at the edge of a range wants the range widened; settings that \
+barely matter want a change of structure, not more tuning; instances that prefer different \
+settings are worth telling the user.
 6. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
 nothing. bench_list recalls every change judged so far, with its note and verdict and the \
 revision it was solved into, so do not try one twice; the user follows the same in the \
@@ -390,6 +396,21 @@ def text_result(text: str, is_error: bool = False) -> dict[str, Any]:
 
 def object_schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {"type": "object", "properties": properties, "required": required}
+
+
+# A parameter of tune's space.
+PARAMETER = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "type": {"type": "string", "enum": ["float", "int", "categorical"]},
+        "low": {"type": "number"},
+        "high": {"type": "number"},
+        "log": {"type": "boolean"},
+        "choices": {"type": "array", "minItems": 2},
+    },
+    "required": ["name"],
+}
 
 
 Broadcast = Callable[[BaseModel], Awaitable[None]]
@@ -730,12 +751,14 @@ class Tools:
 
     async def tune(self, args: dict[str, Any]) -> dict[str, Any]:
         seed = args.get("seed")
+        if ("space" in args) == ("spaces" in args):
+            raise ProjectError("give either 'space' (one variant) or 'spaces' (to choose among)")
         before = self.project.files()
         try:
             tuning, evaluation = await tune.tune_and_check(
                 self.project,
                 int(args["rev"]),
-                args.get("space"),
+                args["space"] if "space" in args else args["spaces"],
                 int(args["budget"]),
                 variant=args.get("variant"),
                 seed=int(seed) if seed is not None else None,
@@ -990,34 +1013,24 @@ class Tools:
                 "is its path in the heuristic ('cooling_rate', 'search.tabu_tenure', "
                 "'steps.0.cooling_rate'); a float or int has 'low' and 'high' ('log' to sample "
                 "a range over orders of magnitude evenly), a categorical has 'choices'. With "
-                "several heuristics in solve.json, 'variant' picks one by label.",
+                "several heuristics in solve.json, 'variant' picks one by label. To choose among "
+                "them as well, give 'spaces' instead of 'space': each variant's label with its "
+                "parameters ([] for none), the incumbent first; the winner becomes solve.json's "
+                "only heuristic. The report ends with signs: what the race shows that settings "
+                "cannot fix.",
                 object_schema(
                     {
                         "rev": {"type": "integer", "minimum": 1},
-                        "space": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "type": {
-                                        "type": "string",
-                                        "enum": ["float", "int", "categorical"],
-                                    },
-                                    "low": {"type": "number"},
-                                    "high": {"type": "number"},
-                                    "log": {"type": "boolean"},
-                                    "choices": {"type": "array", "minItems": 2},
-                                },
-                                "required": ["name"],
-                            },
+                        "space": {"type": "array", "minItems": 1, "items": PARAMETER},
+                        "spaces": {
+                            "type": "object",
+                            "additionalProperties": {"type": "array", "items": PARAMETER},
                         },
                         "budget": {"type": "integer", "minimum": 1},
                         "variant": {"type": "string"},
                         "seed": {"type": "integer", "minimum": 0},
                     },
-                    ["rev", "space", "budget"],
+                    ["rev", "budget"],
                 ),
                 guarded(self.tune),
             ),

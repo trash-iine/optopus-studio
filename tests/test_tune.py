@@ -8,6 +8,7 @@ import pytest
 
 from optopus_studio import bench, tune
 from optopus_studio.projects import Project, ProjectError
+from optopus_studio.protocol import RunFinished
 from tests.test_bench import SA, tsp_bench
 
 TEMPERATURE = [{"name": "initial_temperature", "low": 0.1, "high": 1e5, "log": True}]
@@ -110,6 +111,9 @@ def test_a_race_drops_bad_temperatures_and_checks_the_best_on_validation(home):
     assert record["best"] == tuning.best.id
     assert record["validation"] == evaluation.id
     assert "best #" in tune.describe(project)[0]
+    assert f"#{tuning.best.id}'s runs: " in text
+    assert record["signs"] == tuning.signs
+    assert set(record["settings"][1]["stats"]) == set(record["settings"][1]["results"])
     assert bench.history(project)[0]["candidate"]["note"].startswith("tuning 1: ")
 
 
@@ -177,6 +181,148 @@ def test_a_variant_is_tuned_among_several(home):
     assert variants[1] == {"label": "RW", "heuristic": walk}
     assert variants[0]["heuristic"]["initial_temperature"] != SA["initial_temperature"]
     assert "no validation instances" in tune.report(tuning, evaluation)
+
+
+WALK = {"kind": "RandomWalk", "neighbor": "TwoOpt", "stop": {}}
+
+
+def with_variants(project, *variants) -> int:
+    heuristics = [{"label": label, "heuristic": h} for label, h in variants]
+    project.write_file("solve.json", json.dumps({"heuristics": heuristics, "runs": 1, "seed": 0}))
+    return project.snapshot()
+
+
+def test_a_race_chooses_among_variants_and_solves_with_the_winner(home):
+    project, _ = tsp_bench(home, train=3, validation=2)
+    rev = with_variants(project, ("RW", WALK), ("SA", SA))
+    space = {
+        "RW": [],
+        "SA": [*TEMPERATURE, {"name": "cooling_rate", "low": 0.9, "high": 0.9999}],
+    }
+    tuning, evaluation = run(project, rev, space, 150)
+    assert tuning.choosing
+    assert tuning.default.variant == "RW"
+    assert {s.variant for s in tuning.settings if s.iteration == 1} == {"RW", "SA"}
+    assert tuning.best.variant == "SA"
+    solve = json.loads(project.read_file("solve.json"))
+    assert "heuristics" not in solve
+    assert solve["heuristic"] == tuning.heuristic(tuning.best)
+    assert solve["heuristic"]["stop"] == SA["stop"]
+    assert evaluation is not None
+    assert evaluation.verdict == "better"
+    assert evaluation.baseline["variant"] == "RW"
+    assert evaluation.candidate["variant"] == "SimulatedAnnealing"
+    text = tune.report(tuning, evaluation)
+    assert "variants RW, SA of revision" in text
+    assert "(#0: RW: its own settings) were eliminated" in text
+    assert f"#{tuning.best.id} (SA) as solve.json's only heuristic" in text
+    record = bench.tunings(project)[0]
+    assert record["variants"] == ["RW", "SA"]
+    assert record["settings"][0]["variant"] == "RW"
+    assert "RW or SA of revision" in tune.describe(project)[0]
+    (state,) = bench.state(project).tunings
+    assert state.variants == ["RW", "SA"]
+    assert state.best_variant == "SA"
+
+
+def test_a_space_by_variant_is_checked(home):
+    project, _ = tsp_bench(home, validation=0)
+    rev = with_variants(project, ("RW", WALK), ("SA", SA))
+    with pytest.raises(ProjectError, match="leave variant out"):
+        run(project, rev, {"SA": TEMPERATURE}, 80, variant="SA")
+    with pytest.raises(ProjectError, match=r"no variant 'TS'; it has \['RW', 'SA'\]"):
+        run(project, rev, {"SA": TEMPERATURE, "TS": []}, 80)
+    with pytest.raises(ProjectError, match="nothing to tune"):
+        run(project, rev, {"SA": []}, 80)
+    nested = [{"name": "search.tabu_tenure", "low": 1, "high": 9}]
+    with pytest.raises(ProjectError, match=r"variant 'RW': .*nothing at 'search'"):
+        run(project, rev, {"SA": TEMPERATURE, "RW": nested}, 80)
+    # One variant by label is the same as naming it.
+    tuning, _ = run(project, rev, {"SA": TEMPERATURE}, 80)
+    assert not tuning.choosing
+    assert json.loads(project.read_file("solve.json"))["heuristics"][0]["label"] == "RW"
+
+
+def raced(settings, instances=1):
+    """A finished tuning of SA's initial temperature, made by hand: each setting is (its
+    temperature, its objective on each task, what its runs did: moves accepted and rejected, the
+    iteration of the best, iterations and seconds), the first the best."""
+    tuning = tune.Tuning(
+        id=1,
+        rev=1,
+        spec=None,
+        side=None,
+        space={"SA": tune.parse_space(TEMPERATURE, SA)},
+        variants={},
+        budget=100,
+        seed=0,
+        instances=[
+            (bench.BenchInstance(name=f"i{k}", split="train", source="test", sha256="0"), {})
+            for k in range(instances)
+        ],
+    )
+    for i, (temperature, results, stats) in enumerate(settings):
+        s = tune.Setting(i, "SA", {"initial_temperature": temperature}, 1)
+        s.results = dict(enumerate(results))
+        accepted, rejected, best, iterations, secs = stats
+        run = RunFinished(
+            run=0,
+            variant=0,
+            seed=0,
+            best_objective=0.0,
+            initial_objective=0.0,
+            solution=None,
+            trajectory=[],
+            iterations=iterations,
+            best_iteration=best,
+            time_to_best_secs=0.0,
+            total_time_secs=secs,
+            n_accepted=accepted,
+            n_rejected=rejected,
+        )
+        s.runs = dict.fromkeys(s.results, run)
+        tuning.settings.append(s)
+    tuning.elites = list(tuning.settings)
+    tasks = len(settings[0][1])
+    tuning.iterations = [{"iteration": 1, "raced": list(range(len(settings))), "tasks": tasks}]
+    return tuning
+
+
+CALM = (30, 70, 900, 1000, 0.01)
+
+
+def test_a_race_that_shows_nothing_has_no_signs():
+    assert tune.signs(raced([(20.0, [10] * 6, CALM), (5.0, [11] * 6, CALM)])) == []
+
+
+def test_signs_read_what_the_settings_cannot_fix():
+    (edge,) = tune.signs(raced([(0.11, [10] * 6, CALM), (0.12, [11] * 6, CALM)]))
+    assert edge.startswith("initial_temperature: every elite is at the low end of [0.1, 100000]")
+
+    (flat,) = tune.signs(raced([(20.0, [10] * 6, CALM), (5.0, [10] * 6, CALM)]))
+    assert flat.startswith("the settings barely matter: 0 of 2 dropped")
+
+    split = raced(
+        [(20.0, [10, 20] * 3, CALM), (5.0, [11, 18] * 3, CALM)],
+        instances=2,
+    )
+    assert any(
+        s.startswith("instances prefer different elites: i0 #0, i1 #1") for s in tune.signs(split)
+    )
+    # A margin within the noise tells nothing.
+    close = raced([(20.0, [10, 20] * 3, CALM), (5.0, [11, 19.9] * 3, CALM)], instances=2)
+    assert not any(s.startswith("instances") for s in tune.signs(close))
+
+    stalled = tune.signs(
+        raced([(20.0, [10] * 6, (0, 1000, 100, 1000, 0.01)), (5.0, [11] * 6, CALM)])
+    )
+    assert [s.split(";")[0] for s in stalled] == [
+        "#0 finds its best 10% of the way through a run on average",
+        "#0 accepts 0.0% of its moves: almost none, the search barely moves",
+    ]
+    # A heuristic that does not count its moves shows no rate.
+    uncounted = raced([(20.0, [10] * 6, (None, None, 900, 1000, 0.01)), (5.0, [11] * 6, CALM)])
+    assert tune.signs(uncounted) == []
 
 
 def test_a_budget_too_small_or_no_train_split_is_refused(home):

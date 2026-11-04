@@ -81,6 +81,10 @@ export type Seed = number;
 export type Best = {
   [k: string]: unknown;
 } | null;
+/**
+ * The variant of the best settings when several were raced; null otherwise, or when the revision's own stayed.
+ */
+export type BestVariant = string | null;
 export type Budget = number;
 export type Eliminated = number;
 export type Failed = number;
@@ -91,6 +95,10 @@ export type Rev1 = number;
  */
 export type Settings = number;
 /**
+ * What the race shows that settings cannot fix, as hints for the next change.
+ */
+export type Signs = string[];
+/**
  * The runs made.
  */
 export type Used = number;
@@ -98,7 +106,10 @@ export type Used = number;
  * The evaluation that checked them on validation.
  */
 export type Validation = number | null;
-export type Variant1 = string;
+/**
+ * The variants raced: one, or several to choose among, the first the one the others were measured against.
+ */
+export type Variants = string[];
 export type Tunings = BenchTuning[];
 
 /**
@@ -161,13 +172,15 @@ export interface BenchInstance {
  */
 export interface BenchTuning {
   best: Best;
+  best_variant: BestVariant;
   budget: Budget;
   eliminated: Eliminated;
   failed: Failed;
   id: Id1;
   rev: Rev1;
   settings: Settings;
+  signs: Signs;
   used: Used;
   validation: Validation;
-  variant: Variant1;
+  variants: Variants;
 }

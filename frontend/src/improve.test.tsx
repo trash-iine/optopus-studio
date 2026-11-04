@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Improve } from "./components/Improve";
 import type { BenchEvaluation, BenchState } from "./generated/bench-state";
-import { budget, outcomes, percent, progressText, settings, verdictClass } from "./improve";
+import { best, budget, outcomes, percent, progressText, settings, verdictClass } from "./improve";
 import { initialState, reduce } from "./studio";
 
 afterEach(() => {
@@ -60,14 +60,30 @@ const STATE: BenchState = {
     {
       id: 1,
       rev: 2,
-      variant: "SA",
+      variants: ["SA"],
       used: 78,
       budget: 80,
       settings: 9,
       eliminated: 5,
       failed: 0,
       best: { initial_temperature: 5.914476968936018 },
+      best_variant: null,
       validation: 3,
+      signs: [],
+    },
+    {
+      id: 2,
+      rev: 2,
+      variants: ["RW", "SA"],
+      used: 150,
+      budget: 150,
+      settings: 10,
+      eliminated: 3,
+      failed: 0,
+      best: { cooling_rate: 0.98 },
+      best_variant: "SA",
+      validation: null,
+      signs: ["#6 accepts 0.5% of its moves: almost none"],
     },
   ],
 };
@@ -85,6 +101,10 @@ describe("the improve tab", () => {
     expect(settings({ initial_temperature: 5.914476968936018, neighbor: "TwoOpt" })).toBe(
       'initial_temperature = 5.914, neighbor = "TwoOpt"',
     );
+    const tuning = STATE.tunings[1];
+    expect(best(tuning)).toBe("SA: cooling_rate = 0.98");
+    expect(best({ ...tuning, best: {} })).toBe("SA: its own settings");
+    expect(best(STATE.tunings[0])).toBe("initial_temperature = 5.914");
     expect(progressText({ type: "bench_progress", task: "tuning", done: 40, total: 80 })).toBe(
       "Tuning settings by racing: 40 / 80 runs",
     );
@@ -113,6 +133,9 @@ describe("the improve tab", () => {
     expect(rows.some((r) => r.includes("revision 2") && r.includes("+3.21%"))).toBe(true);
     expect(screen.getByText("held").getAttribute("title")).toBe("generate.py seed 2");
     expect(screen.getByText("initial_temperature = 5.914")).toBeTruthy();
+    expect(screen.getByText("RW or SA of revision 2")).toBeTruthy();
+    expect(screen.getByText("SA: cooling_rate = 0.98")).toBeTruthy();
+    expect(screen.getByText(/almost none/).tagName).toBe("LI");
 
     fireEvent.click(screen.getByText("a penalty of 0"));
     expect(screen.getByText(/changed the objective/)).toBeTruthy();
