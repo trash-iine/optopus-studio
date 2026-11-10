@@ -130,6 +130,7 @@ const TASKS: Record<BenchProgress["task"], [string, string]> = {
   tuning: ["Tuning settings by racing", "runs"],
   profile: ["Profiling heuristics", "solves"],
   race: ["Racing candidates", "solves"],
+  diagnosis: ["Diagnosing the search", "instances"],
 };
 
 export function progressText(p: BenchProgress): string {

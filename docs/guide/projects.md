@@ -154,6 +154,15 @@ is off by default. Each search shows as a tool line. What the agent reads only s
 candidates; the benchmark still judges every change, and the agent names its source in the
 change's note.
 
+To decide what to change, the agent **diagnoses** the current revision
+([ADR 0020](../adr/0020-diagnose-the-search-for-the-next-hypothesis.md)): how far its runs end
+from the best solution known on each instance, whether a short descent in each neighborhood
+still improves its best solutions, where a model written in Python spends its time, and, when
+`model.py` defines `explain(instance, solution)`, which part of the objective the hard instances
+suffer from. A diagnosis judges nothing; it only suggests the next candidates. It also says when
+every run already ends at the best known, so that no candidate could be judged better and the
+benchmark has to be made harder first.
+
 Only a better change is solved into a new revision; the others stay in the ledger with the
 lesson the agent drew from them, so it does not try one twice and sees which kinds of change it
 has not tried. The canvas's

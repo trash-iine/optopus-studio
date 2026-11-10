@@ -155,6 +155,7 @@ const STATE: BenchState = {
   races: [],
   best: [],
   campaign: null,
+  diagnoses: [],
 };
 
 const CAMPAIGN: NonNullable<BenchState["campaign"]> = {
@@ -391,6 +392,33 @@ describe("the improve tab", () => {
     await screen.findByText("Campaign");
     expect(screen.getByText(/finished: its 5 rounds are spent · round 2 of 5/)).toBeTruthy();
     expect(screen.getByText(/revision 3 kept over revision 2/).className).toBe("verdict-better");
+  });
+
+  it("shows what a diagnosis read from the runs", async () => {
+    expect(progressText({ type: "bench_progress", task: "diagnosis", done: 1, total: 3 })).toBe(
+      "Diagnosing the search: 1 / 3 instances",
+    );
+    const diagnoses: BenchState["diagnoses"] = [
+      {
+        id: 1,
+        rev: 3,
+        variant: "SA",
+        split: "train",
+        instances: [
+          { name: "small", mean: 95.2, known: 93.5, gap: 0.0182, distinct: 3, runs: 5 },
+          { name: "large", mean: 400, known: null, gap: 0, distinct: 1, runs: 5 },
+        ],
+        readings: ["a short descent in Swap, a neighborhood the search does not use, improves 4 of 10"],
+      },
+    ];
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...STATE, diagnoses }))));
+    render(<Improve project="p" version="0-5" progress={null} />);
+    await screen.findByText("Search diagnosed");
+    expect(screen.getByText("#1: SA of revision 3 on train")).toBeTruthy();
+    const rows = screen.getAllByRole("row").map((r) => r.textContent ?? "");
+    expect(rows).toContain("small95.293.51.82%3 / 5");
+    expect(rows).toContain("large400—0%1 / 5");
+    expect(screen.getByText(/a neighborhood the search does not use/).tagName).toBe("LI");
   });
 
   it("says how to start when there is no benchmark", async () => {

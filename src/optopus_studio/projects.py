@@ -72,7 +72,7 @@ ARCHIVE_MEMBER = re.compile(
     rf"\A(?:chat\.jsonl|work/(?:{_FILE})|revs/[1-9][0-9]{{0,5}}/(?:{_FILE}|result\.json|view\.json)"
     r"|uploads/(?P<upload>[^/]+)|cases/(?P<case>[0-9a-f]{12})/(?P<case_file>.+)"
     rf"|bench/(?:bench\.json|instances/{BENCH_NAME[1:-1]}\.json"
-    r"|best\.json|(?:results|tunings|profiles|races|candidates)/[1-9][0-9]{0,5}\.json"
+    r"|best\.json|(?:results|tunings|profiles|races|candidates|diagnoses)/[1-9][0-9]{0,5}\.json"
     r"|candidates/[1-9][0-9]{0,5}/(?:model\.py|solve\.json|rust/main\.rs)))\Z"
 )
 
