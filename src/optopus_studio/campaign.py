@@ -422,6 +422,15 @@ def _hints(project: Project, state: dict[str, Any]) -> list[str]:
             f"([{adopted[-1]['family']}]) and its settings were not tuned since: tune it first, "
             "so the next structures are compared with a tuned one."
         )
+    diagnosed = [d for d in bench.diagnoses(project) if d["rev"] == incumbent]
+    if diagnosed:
+        lines.append(f"- Diagnosis {diagnosed[-1]['id']} of revision {incumbent} read:")
+        lines += [f"    {r}" for r in diagnosed[-1]["readings"][:5]] or ["    nothing stood out"]
+    else:
+        lines.append(
+            f"- Revision {incumbent} was not diagnosed: diagnose it first, and aim the round's "
+            "candidates at what it reads."
+        )
     if profiles and profiles[-1]["readings"]:
         lines.append(f"- Profile {profiles[-1]['id']} read:")
         lines += [f"    {r}" for r in profiles[-1]["readings"][:3]]

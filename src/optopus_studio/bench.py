@@ -744,6 +744,30 @@ def races_dir(project: Project) -> Path:
     return project.bench / "races"
 
 
+def diagnoses_dir(project: Project) -> Path:
+    """Where the diagnoses' records are kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
+    return project.bench / "diagnoses"
+
+
+def diagnoses(project: Project) -> list[dict[str, Any]]:
+    """Every diagnosis's record (diagnosis.py), oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
+    return _records(diagnoses_dir(project))
+
+
 def candidate_records(project: Project) -> list[dict[str, Any]]:
     """Every saved candidate's record (candidates.py), oldest first.
 

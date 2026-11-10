@@ -16,11 +16,15 @@ a Gantt chart, the convergence of every run).
   best objective, the headline numbers, both convergence curves and a diff of the files.
 - **Problems of your own**: when no built-in problem or `Formula` fits (an objective that is a
   maximum, a lookup, a simulation), the agent writes the problem in Python.
-- **Improving the search**: ask the agent to improve the algorithm. It builds a benchmark of
-  instances, tries one change at a time, and keeps a change only when a paired test on the
-  benchmark says it is better and the objective is unchanged; the result is checked on held-out
-  instances (`docs/adr/0013`). A heuristic's settings, and which heuristic, are tuned by racing
-  them on the benchmark (`docs/adr/0014`).
+- **Improving the search**: ask the agent to improve the algorithm, for a number of rounds or
+  a time. It builds a benchmark of instances, and the studio then drives a campaign
+  (`docs/adr/0019`): each round the agent diagnoses the current search (`docs/adr/0020`), saves
+  a few changes as candidates and races them against it (`docs/adr/0018`), and a change is kept
+  only when a paired test on the benchmark says it is better and the objective is unchanged
+  (`docs/adr/0013`). At the end the studio itself checks the result on held-out instances, and
+  goes back to where it started when the gain does not hold. A heuristic's settings, which
+  heuristic, and how to compose several are chosen by racing them on the benchmark
+  (`docs/adr/0014`, `docs/adr/0021`).
 - **Speeding up with Rust**: a problem written in Python can be ported to Rust (the "Port to
   Rust" button, or just ask). The agent writes `rust/main.rs`, the studio builds it, checks it
   against the Python model with the same seeds, and switches the worker once it passes.

@@ -26,7 +26,17 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, campaign, candidates, compose, docs, profiling, rust, tune
+from optopus_studio import (
+    bench,
+    campaign,
+    candidates,
+    compose,
+    diagnosis,
+    docs,
+    profiling,
+    rust,
+    tune,
+)
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -256,7 +266,13 @@ several heuristics could suit, do not pick one: put them all as variants in solv
 run_solver, and tune with 'spaces', the incumbent first, so the race chooses. Tune again after \
 a change to model.py or another heuristic, since the best settings move with them: compare \
 structures each with its settings tuned, or an untuned constant sinks a good idea.
-6. Read the instance lines, not only the verdict, to choose the next hypothesis: a best found \
+6. diagnose the incumbent when you do not know what to change, at the start of a round above \
+all: it says where the runs fall short of the best known, whether a neighborhood is unused or \
+unfinished, where a Python model's time goes, and whether the benchmark can still tell a better \
+search from this one. When the objective has parts (a makespan and penalties, a cost per \
+kind), write explain(instance, solution) in model.py, returning each part as a number, so the \
+diagnosis shows which part the hard instances suffer from. Read the instance lines too, not \
+only the verdict, to choose the next hypothesis: a best found \
 long before the budget ends wants diversification (a perturbation, restarts, another \
 heuristic); a low rate of iterations a cheaper delta or Rust; almost no accepted moves a \
 higher temperature or a larger neighborhood; almost all accepted a cooler search. Read tune's \
@@ -1163,6 +1179,7 @@ class Tools:
         lines = [bench.describe_bench(self.project)]
         for heading, described in (
             ("candidates, the ledger of what was tried:", candidates.describe(self.project)),
+            ("diagnoses:", diagnosis.describe(self.project)),
             ("tunings:", tune.describe(self.project)),
             ("profiles:", profiling.describe(self.project)),
         ):
@@ -1436,6 +1453,30 @@ class Tools:
         )
         await self.broadcast(BenchChanged())
         return text_result(profiling.report(profiled))
+
+    async def diagnose(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``diagnose`` tool: runs one heuristic on the benchmark and reads what to change.
+
+        Args:
+            args: The tool's input: ``rev``, ``variant``, ``split`` and ``neighbors``, if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The diagnosis cannot run.
+        """
+        rev = args.get("rev")
+        diagnosed = await diagnosis.diagnose(
+            self.project,
+            int(rev) if rev is not None else None,
+            variant=args.get("variant"),
+            split=self.choosing_split(args),
+            neighbors=args.get("neighbors"),
+            progress=self.bench_progress,
+        )
+        await self.broadcast(BenchChanged())
+        return text_result(diagnosis.report(diagnosed))
 
     def specs(self) -> list[ToolSpec]:
         """The tools as each agent is given them (agent_claude.py, agent_codex.py).
@@ -1756,6 +1797,33 @@ class Tools:
                     ["candidate"],
                 ),
                 guarded(self.adopt),
+            ),
+            ToolSpec(
+                "diagnose",
+                "Diagnose the search before choosing what to change: one heuristic (the work "
+                "files', or revision 'rev's; 'variant' picks one of several) solves every "
+                "instance of the split with the benchmark's runs and budget, always with "
+                "model.py. Reports per instance the gap to the best objective known and "
+                "whether the runs agree; whether a short descent in each neighborhood still "
+                "improves the best solutions ('neighbors' names the ones to probe; the "
+                "problem's own, or the heuristic's, by default); for a problem written in "
+                "Python, where a run's time goes among the neighborhoods' methods and the "
+                "objective, and how many priced moves would improve; and what the model's "
+                "optional explain(instance, solution) -> {term: number} says the best "
+                "solutions' objectives are made of (the raw solution, as encode_solution "
+                "takes it). It ends with readings: what to change, and of which family. "
+                "Costs about one side of an evaluation. Judges nothing, makes no revision "
+                "and changes no file.",
+                object_schema(
+                    {
+                        "rev": {"type": "integer", "minimum": 1},
+                        "variant": {"type": "string"},
+                        "split": {"type": "string", "enum": ["train", "validation", "all"]},
+                        "neighbors": {"type": "array", "items": {"type": "string"}},
+                    },
+                    [],
+                ),
+                guarded(self.diagnose),
             ),
             ToolSpec(
                 "improve_start",
