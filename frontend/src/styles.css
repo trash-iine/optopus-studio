@@ -114,6 +114,10 @@ header {
 .bubble.assistant p:last-child { margin-bottom: 0; }
 .bubble code { font-size: 12px; }
 .tool-line { color: var(--muted); font-size: 12px; padding-left: 12px; }
+/* The studio's own messages to the agent (a campaign's briefs): one line, opened to read. */
+.studio-line { color: var(--muted); font-size: 12px; padding-left: 12px; }
+.studio-line summary { cursor: pointer; }
+.studio-line pre { margin: 4px 0 0; white-space: pre-wrap; font: inherit; }
 .working { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.4; } }
 .chat-error { color: var(--critical); font-size: 13px; }

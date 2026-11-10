@@ -102,7 +102,7 @@ problem already runs in Rust.
 
 When the result is good but the search could be better, ask:
 
-> Improve the search: 10 attempts, a solve may take 5 seconds.
+> Improve the search on your own for 20 minutes; a solve may take 5 seconds.
 
 The agent builds a benchmark of instances like yours, then tries a few changes a round, raced
 together against the current revision, and keeps only those judged better on it, each as a new

@@ -1,7 +1,7 @@
 # 0013. Judge a change of the algorithm on a benchmark of instances
 
 - Status: Accepted; amended by 0018 (several candidates raced at once, a ledger of them, and a
-  test split)
+  test split) and 0019 (the loop is the studio's, as a campaign)
 - Date: 2026-10-22
 
 ## Context

@@ -76,9 +76,17 @@ at the start stage.
 
 ## Improving the algorithm
 
-Ask the agent to make the search better, or to improve it on its own for a number of attempts:
+Ask the agent to make the search better, or to improve it on its own for a number of rounds or
+a time:
 
-> Improve the search: 10 attempts, a solve may take 5 seconds.
+> Improve the search on your own for 20 minutes; a solve may take 5 seconds.
+
+Asked to improve on its own, the agent builds the benchmark and starts a **campaign**, which the
+studio drives ([ADR 0019](../adr/0019-drive-the-improvement-loop-from-the-studio.md)). The studio
+gives the agent a turn per round, each with a brief of where the campaign stands, and ends it
+when the rounds or minutes are spent, when three rounds in a row bring nothing, or when you
+press **Stop**. The studio then checks the result itself, as described below, and the agent
+tells you what came of it.
 
 It does not judge a change on one solve, which rewards luck and changes fitted to one instance.
 It first builds a **benchmark**: a few **train** instances and two or three **validation** ones,
@@ -148,12 +156,13 @@ lesson the agent drew from them, so it does not try one twice and sees which kin
 has not tried. The canvas's
 **Improve** tab follows along: the benchmark's instances, the hypotheses, every change judged
 with its verdict, gain and the revision it was solved into (click one for each instance), every
-tuning and every profile. At the end the agent
+tuning and every profile. At the end of a campaign the studio
 evaluates the final revision against the one it started from on the validation instances, which
-none of the choices were made on, and presents the improvement only if it holds there.
+none of the choices were made on. It keeps the improvement only if it holds there, and otherwise
+makes the files the starting revision's again.
 
-The benchmark may also hold **test** instances. Nothing is chosen on them: they only measure
-the result that is reported, after every choice was made.
+The benchmark may also hold **test** instances. Nothing is chosen on them: a campaign measures
+the result it kept on them, after every choice was made.
 
 The budget of the evaluation replaces each heuristic's own stop, so a change cannot win by
 running longer. The objective is fixed by the revision the change is compared with: its model
