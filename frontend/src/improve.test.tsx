@@ -5,14 +5,18 @@ import type { BenchEvaluation, BenchState } from "./generated/bench-state";
 import {
   best,
   budget,
+  families,
+  fate,
   gap,
   leaders,
   outcomes,
   percent,
   progressText,
+  raced,
   ranked,
   settings,
   share,
+  side,
   verdictClass,
 } from "./improve";
 import { initialState, reduce } from "./studio";
@@ -26,8 +30,8 @@ function evaluation(overrides: Partial<BenchEvaluation> = {}): BenchEvaluation {
   return {
     id: 1,
     split: "train",
-    candidate: { where: "the work files", rev: null, variant: "SA", worker: "python" },
-    baseline: { where: "revision 1", rev: 1, variant: "SA", worker: "python" },
+    candidate: { where: "the work files", rev: null, variant: "SA", worker: "python", candidate_id: null },
+    baseline: { where: "revision 1", rev: 1, variant: "SA", worker: "python", candidate_id: null },
     note: "a cooler search",
     verdict: "better",
     gain: 0.0321,
@@ -144,6 +148,68 @@ const STATE: BenchState = {
       readings: ["SA leads at 10% of the budget (gap 3.000% vs 9.000% on 2 of 2 instances)"],
     },
   ],
+  candidates: [],
+  races: [],
+  best: [],
+};
+
+// A round of two hypotheses on revision 2: the swap move won its race and was adopted.
+const ROUND: Pick<BenchState, "candidates" | "races" | "best"> = {
+  candidates: [
+    {
+      id: 1,
+      baseline_rev: 2,
+      family: "neighborhood",
+      hypothesis: "a swap move reaches what a shift cannot",
+      evidence: "tuning 2: settings barely matter",
+      variant: "SA",
+      evaluation: 4,
+      verdict: "better",
+      gain: 0.021,
+      adopted: 3,
+      lesson: "the shift alone was stuck",
+    },
+    {
+      id: 2,
+      baseline_rev: 2,
+      family: "settings",
+      hypothesis: "a slower cooling",
+      evidence: "",
+      variant: "SA",
+      evaluation: 5,
+      verdict: "same",
+      gain: 0,
+      adopted: null,
+      lesson: "",
+    },
+    {
+      id: 3,
+      baseline_rev: 3,
+      family: "neighborhood",
+      hypothesis: "an ejection chain",
+      evidence: "",
+      variant: "SA",
+      evaluation: null,
+      verdict: null,
+      gain: null,
+      adopted: null,
+      lesson: "",
+    },
+  ],
+  races: [
+    {
+      id: 1,
+      baseline: { where: "revision 2", rev: 2, variant: "SA", worker: "python", candidate_id: null },
+      baseline_rank: 2.4,
+      p: 0.01,
+      entries: [
+        { candidate: 1, evaluation: 4, verdict: "better", gain: 0.021, mean_rank: 1.2 },
+        { candidate: 2, evaluation: 5, verdict: "same", gain: 0, mean_rank: 2.4 },
+      ],
+      winner: 1,
+    },
+  ],
+  best: [{ name: "small", objective: 93.5, source: "evaluation 4" }],
 };
 
 describe("the improve tab", () => {
@@ -176,6 +242,44 @@ describe("the improve tab", () => {
     expect(gap(0.0000123)).toBe("0.00123%");
     expect(gap(0)).toBe("0%");
     expect(share(null)).toBe("—");
+  });
+
+  it("keeps a ledger of the hypotheses saved as candidates", async () => {
+    expect(side({ rev: null, candidate_id: 2 })).toBe("candidate 2");
+    expect(ROUND.candidates.map(fate)).toEqual(["revision 3", "same", "not raced"]);
+    expect(raced(ROUND.races).get(1)).toEqual({ race: 1, won: true });
+    expect(families(ROUND.candidates)).toEqual([
+      { family: "neighborhood", tried: 2, adopted: 1 },
+      { family: "settings", tried: 1, adopted: 0 },
+    ]);
+    expect(progressText({ type: "bench_progress", task: "race", done: 2, total: 9 })).toBe(
+      "Racing candidates: 2 / 9 solves",
+    );
+
+    const spec = {
+      ...STATE.spec,
+      instances: [...STATE.spec.instances, { name: "unseen", split: "test" as const, source: "seed 9", sha256: "d" }],
+    };
+    const state = { ...STATE, ...ROUND, spec };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(state))));
+    render(<Improve project="p" version="0-3" progress={null} />);
+    await screen.findByText("Hypotheses");
+    expect(screen.getByText(/neighborhood 2 \(1 adopted\), settings 1/)).toBeTruthy();
+    const rows = screen.getAllByRole("row").map((r) => r.textContent ?? "");
+    const ledger = rows.filter((r) => /^\d(neighborhood|settings)/.test(r));
+    expect(ledger).toEqual([
+      "3neighborhoodan ejection chainrevision 3—not raced——",
+      "2settingsa slower coolingrevision 2#1same0.00%—",
+      "1neighborhooda swap move reaches what a shift cannotrevision 2#1revision 3+2.10%the shift alone was stuck",
+    ]);
+    expect(screen.getByText("a swap move reaches what a shift cannot").getAttribute("title")).toBe(
+      "tuning 2: settings barely matter",
+    );
+    expect(screen.getByText("small").getAttribute("title")).toBe(
+      "instance.json; best known 93.5 (evaluation 4)",
+    );
+    expect(screen.getByText("unseen")).toBeTruthy();
+    expect(screen.getByText(/never chosen on/)).toBeTruthy();
   });
 
   it("shows who leads early and who ends best in a profile", async () => {

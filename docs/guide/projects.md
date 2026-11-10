@@ -82,10 +82,15 @@ Ask the agent to make the search better, or to improve it on its own for a numbe
 
 It does not judge a change on one solve, which rewards luck and changes fitted to one instance.
 It first builds a **benchmark**: a few **train** instances and two or three **validation** ones,
-from your data and, when that is too little, from a `generate.py` it writes. Then it tries one
-change at a time (another heuristic or setting, a faster or richer `model.py`, a Rust port) and
-**evaluates** each against the current revision: both solve every train instance with the same
-seeds and the same budget per run, and a paired test gives the verdict.
+from your data and, when that is too little, from a `generate.py` it writes. Then it works in
+rounds. In each it writes three or four changes of different kinds (another heuristic or
+setting, a faster or richer `model.py`, a Rust port), saves each as a **candidate** with the
+hypothesis it tests, and **races** them against the current revision: all solve every train
+instance with the same seeds and the same budget per run, the current revision once, and a
+paired test gives each candidate its verdict
+([ADR 0018](../adr/0018-race-saved-candidates-against-the-incumbent.md)). The studio lets the
+agent **adopt** only a candidate judged better. A candidate that scores the current revision's
+solution otherwise is refused before it runs.
 
 | Verdict | Meaning |
 |---|---|
@@ -138,12 +143,17 @@ is off by default. Each search shows as a tool line. What the agent reads only s
 candidates; the benchmark still judges every change, and the agent names its source in the
 change's note.
 
-Only a better change is solved into a new revision; the others are undone. The canvas's
-**Improve** tab follows along: the benchmark's instances, every change judged with its verdict,
-gain and the revision it was solved into (click one for each instance), every tuning and every
-profile. At the end the agent
+Only a better change is solved into a new revision; the others stay in the ledger with the
+lesson the agent drew from them, so it does not try one twice and sees which kinds of change it
+has not tried. The canvas's
+**Improve** tab follows along: the benchmark's instances, the hypotheses, every change judged
+with its verdict, gain and the revision it was solved into (click one for each instance), every
+tuning and every profile. At the end the agent
 evaluates the final revision against the one it started from on the validation instances, which
 none of the choices were made on, and presents the improvement only if it holds there.
+
+The benchmark may also hold **test** instances. Nothing is chosen on them: they only measure
+the result that is reported, after every choice was made.
 
 The budget of the evaluation replaces each heuristic's own stop, so a change cannot win by
 running longer. The objective is fixed by the revision the change is compared with: its model

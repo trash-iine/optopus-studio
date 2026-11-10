@@ -1,6 +1,7 @@
-// What the Improve tab shows of the benchmark (docs/adr/0013, 0014, 0015), as plain functions to
-// test.
+// What the Improve tab shows of the benchmark (docs/adr/0013, 0014, 0015, 0018), as plain
+// functions to test.
 import type {
+  BenchCandidate,
   BenchEvaluation,
   BenchProfile,
   BenchProfileVariant,
@@ -45,8 +46,36 @@ export function outcomes(e: BenchEvaluation): string {
 }
 
 /** A side of an evaluation: where its files are. */
-export function side(s: { rev: number | null }): string {
+export function side(s: { rev: number | null; candidate_id?: number | null }): string {
+  if (s.candidate_id != null) return `candidate ${s.candidate_id}`;
   return s.rev == null ? "work files" : `revision ${s.rev}`;
+}
+
+/** What became of a saved candidate, in a word or two. */
+export function fate(c: BenchCandidate): string {
+  if (c.adopted != null) return `revision ${c.adopted}`;
+  return c.verdict ?? "not raced";
+}
+
+/** The race each candidate ran in last, and whether it won it, by the candidate's number. */
+export function raced(races: BenchState["races"]): Map<number, { race: number; won: boolean }> {
+  const found = new Map<number, { race: number; won: boolean }>();
+  for (const r of races) {
+    for (const e of r.entries) found.set(e.candidate, { race: r.id, won: r.winner === e.candidate });
+  }
+  return found;
+}
+
+/** The kinds of change tried, with how many of each and how many were adopted, most tried first. */
+export function families(candidates: BenchCandidate[]): { family: string; tried: number; adopted: number }[] {
+  const counts = new Map<string, { family: string; tried: number; adopted: number }>();
+  for (const c of candidates) {
+    const entry = counts.get(c.family) ?? { family: c.family, tried: 0, adopted: 0 };
+    entry.tried += 1;
+    if (c.adopted != null) entry.adopted += 1;
+    counts.set(c.family, entry);
+  }
+  return [...counts.values()].sort((a, b) => b.tried - a.tried);
 }
 
 export function settings(values: Record<string, unknown>): string {
@@ -66,6 +95,7 @@ const TASKS: Record<BenchProgress["task"], [string, string]> = {
   evaluation: ["Evaluating on the benchmark", "solves"],
   tuning: ["Tuning settings by racing", "runs"],
   profile: ["Profiling heuristics", "solves"],
+  race: ["Racing candidates", "solves"],
 };
 
 export function progressText(p: BenchProgress): string {
