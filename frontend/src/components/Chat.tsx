@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AgentChoice, ChatEntry } from "../generated/server-event";
+import { studioTitle } from "../improve";
 import { ModelPicker } from "./ModelPicker";
 
 // A .zip is a case exported from a packaged app (docs/adr/0009).
@@ -115,6 +116,11 @@ export function Chat(props: Props) {
             <div key={i} className="tool-line">
               ▸ {entry.text}
             </div>
+          ) : entry.role === "studio" ? (
+            <details key={i} className="studio-line">
+              <summary>{studioTitle(entry.text)}</summary>
+              <pre>{entry.text}</pre>
+            </details>
           ) : (
             <div key={i} className={`bubble ${entry.role}`}>
               {entry.role === "assistant" ? <Markdown remarkPlugins={[remarkGfm]}>{entry.text}</Markdown> : entry.text}

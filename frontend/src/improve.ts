@@ -1,6 +1,7 @@
 // What the Improve tab shows of the benchmark (docs/adr/0013, 0014, 0015, 0018), as plain
 // functions to test.
 import type {
+  BenchCampaign,
   BenchCandidate,
   BenchEvaluation,
   BenchProfile,
@@ -49,6 +50,39 @@ export function outcomes(e: BenchEvaluation): string {
 export function side(s: { rev: number | null; candidate_id?: number | null }): string {
   if (s.candidate_id != null) return `candidate ${s.candidate_id}`;
   return s.rev == null ? "work files" : `revision ${s.rev}`;
+}
+
+/** The first sentence of the studio's message to the agent, without its mark. */
+export function studioTitle(text: string): string {
+  const first = text.replace(/^\[studio\]\s*/, "").split("\n")[0];
+  const end = first.search(/[.:](\s|$)/);
+  return `studio: ${end < 0 ? first : first.slice(0, end)}`;
+}
+
+/** A campaign's budget and where it stands, in words. */
+export function campaignText(c: BenchCampaign): string {
+  const rounds = c.rounds != null ? `round ${c.round} of ${c.rounds}` : `round ${c.round}`;
+  const minutes =
+    c.minutes != null
+      ? `, ${Math.round(c.elapsed_minutes)} of ${c.minutes} minutes`
+      : `, ${Math.round(c.elapsed_minutes)} minutes`;
+  return `${rounds}${minutes}`;
+}
+
+/** What a campaign's end left: the kept revision and how it was checked, or why nothing was kept. */
+export function campaignOutcome(c: BenchCampaign): string {
+  if (c.status === "running") {
+    return `incumbent revision ${c.incumbent_rev}, started from revision ${c.start_rev}; ${c.idle} of ${c.patience} rounds in a row without a gain`;
+  }
+  if (c.kept == null) return `revision ${c.incumbent_rev} was not checked on validation`;
+  if (c.incumbent_rev === c.start_rev) return `no change was better than revision ${c.start_rev}`;
+  if (c.error) return `revision ${c.incumbent_rev} could not be checked: ${c.error}`;
+  const check = (name: string, k: BenchCampaign["validation"]) =>
+    k ? `${k.verdict} on ${name} (${percent(k.gain)})` : "";
+  const checks = [check("validation", c.validation), check("test", c.test)].filter(Boolean).join(", ");
+  return c.kept
+    ? `revision ${c.incumbent_rev} kept over revision ${c.start_rev}: ${checks}`
+    : `revision ${c.incumbent_rev} not kept, back to revision ${c.start_rev}: ${checks}`;
 }
 
 /** What became of a saved candidate, in a word or two. */

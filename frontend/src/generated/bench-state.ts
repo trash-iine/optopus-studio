@@ -7,6 +7,48 @@ export type Objective = number;
  */
 export type Source = string;
 export type Best = BenchBest[];
+export type ElapsedMinutes = number;
+/**
+ * Why the final check could not be made, if so.
+ */
+export type Error = string | null;
+/**
+ * The latest rounds in a row that brought no new incumbent.
+ */
+export type Idle = number;
+export type IncumbentRev = number;
+/**
+ * Whether the incumbent was kept after the final check; null until then.
+ */
+export type Kept = boolean | null;
+/**
+ * The minutes it may take, if it has such a budget.
+ */
+export type Minutes = number | null;
+/**
+ * The rounds in a row without one after which it ends.
+ */
+export type Patience = number;
+/**
+ * Why it ended, once it has.
+ */
+export type Reason = string | null;
+/**
+ * The rounds begun.
+ */
+export type Round = number;
+/**
+ * The rounds it may take, if it has such a budget.
+ */
+export type Rounds = number | null;
+/**
+ * The revision it started from, and is checked against.
+ */
+export type StartRev = number;
+export type Status = "running" | "finished" | "stopped";
+export type Evaluation = number;
+export type Gain = number | null;
+export type Verdict = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
 /**
  * The revision it was adopted as, if it was.
  */
@@ -18,7 +60,7 @@ export type BaselineRev = number;
 /**
  * Its latest evaluation, if it was judged.
  */
-export type Evaluation = number | null;
+export type Evaluation1 = number | null;
 /**
  * What suggested it: a reading, a sign, a source.
  */
@@ -32,7 +74,7 @@ export type Family =
   | "representation"
   | "start"
   | "port";
-export type Gain = number | null;
+export type Gain1 = number | null;
 /**
  * What it changes and why that should help.
  */
@@ -46,7 +88,7 @@ export type Lesson = string;
  * The heuristic of its solve.json it runs.
  */
 export type Variant = string;
-export type Verdict = ("better" | "mixed" | "same" | "worse" | "rejected" | "failed") | null;
+export type Verdict1 = ("better" | "mixed" | "same" | "worse" | "rejected" | "failed") | null;
 export type Candidates = BenchCandidate[];
 /**
  * The saved candidate the side ran, if it is one (docs/adr/0018).
@@ -66,7 +108,7 @@ export type Detail = string | null;
 /**
  * The mean gain over all pairs; null unless judged.
  */
-export type Gain1 = number | null;
+export type Gain2 = number | null;
 export type Id1 = number;
 /**
  * The baseline's mean best objective.
@@ -79,14 +121,14 @@ export type Candidate = number;
 /**
  * The mean gain over the paired runs, relative to the baseline's mean objective; + is better.
  */
-export type Gain2 = number;
+export type Gain3 = number;
 export type Name1 = string;
 export type Outcome = "better" | "same" | "worse";
 export type Instances = BenchInstanceResult[];
 /**
  * The later revision whose files are the candidate's, if it was solved into one.
  */
-export type Kept = number | null;
+export type Kept1 = number | null;
 /**
  * What the candidate changes, as the agent said it.
  */
@@ -94,7 +136,7 @@ export type Note = string;
 export type PBetter = number;
 export type PWorse = number;
 export type Split = "train" | "validation" | "test" | "all";
-export type Verdict1 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
+export type Verdict2 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
 /**
  * The mean worsening over the instances, one way.
  */
@@ -134,7 +176,7 @@ export type BestFoundAt = number | null;
 /**
  * Why its runs failed; the rest is null then.
  */
-export type Error = string | null;
+export type Error1 = string | null;
 export type IterationsPerSec = number | null;
 export type Label = string;
 /**
@@ -156,13 +198,13 @@ export type Candidate1 = number;
 /**
  * Its evaluation against the baseline, from the race.
  */
-export type Evaluation1 = number;
-export type Gain3 = number | null;
+export type Evaluation2 = number;
+export type Gain4 = number | null;
 /**
  * Over the runs, 1 the best, among the baseline and the candidates judged.
  */
 export type MeanRank1 = number | null;
-export type Verdict2 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
+export type Verdict3 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
 export type Entries = BenchRaceEntry[];
 export type Id3 = number;
 /**
@@ -243,6 +285,7 @@ export type Tunings = BenchTuning[];
  */
 export interface BenchState {
   best: Best;
+  campaign: BenchCampaign | null;
   candidates: Candidates;
   evaluations: Evaluations;
   profiles: Profiles;
@@ -259,20 +302,50 @@ export interface BenchBest {
   source: Source;
 }
 /**
+ * The project's latest improvement campaign (campaign.py, docs/adr/0019).
+ */
+export interface BenchCampaign {
+  elapsed_minutes: ElapsedMinutes;
+  error: Error;
+  idle: Idle;
+  incumbent_rev: IncumbentRev;
+  kept: Kept;
+  minutes: Minutes;
+  patience: Patience;
+  reason: Reason;
+  round: Round;
+  rounds: Rounds;
+  start_rev: StartRev;
+  status: Status;
+  /**
+   * Measured only when the result was kept.
+   */
+  test: BenchCheck | null;
+  validation: BenchCheck | null;
+}
+/**
+ * A campaign's final check of its result against the revision it started from.
+ */
+export interface BenchCheck {
+  evaluation: Evaluation;
+  gain: Gain;
+  verdict: Verdict;
+}
+/**
  * One saved candidate, a line of the ledger: a hypothesis and what became of it.
  */
 export interface BenchCandidate {
   adopted: Adopted;
   baseline_rev: BaselineRev;
-  evaluation: Evaluation;
+  evaluation: Evaluation1;
   evidence: Evidence;
   family: Family;
-  gain: Gain;
+  gain: Gain1;
   hypothesis: Hypothesis;
   id: Id;
   lesson: Lesson;
   variant: Variant;
-  verdict: Verdict;
+  verdict: Verdict1;
 }
 /**
  * One evaluation of a change against a baseline revision (bench.py).
@@ -281,15 +354,15 @@ export interface BenchEvaluation {
   baseline: BenchSide;
   candidate: BenchSide;
   detail: Detail;
-  gain: Gain1;
+  gain: Gain2;
   id: Id1;
   instances: Instances;
-  kept: Kept;
+  kept: Kept1;
   note: Note;
   p_better: PBetter;
   p_worse: PWorse;
   split: Split;
-  verdict: Verdict1;
+  verdict: Verdict2;
   worsening: Worsening;
 }
 /**
@@ -308,7 +381,7 @@ export interface BenchSide {
 export interface BenchInstanceResult {
   baseline: Baseline;
   candidate: Candidate;
-  gain: Gain2;
+  gain: Gain3;
   name: Name1;
   outcome: Outcome;
 }
@@ -332,7 +405,7 @@ export interface BenchProfileVariant {
   accepted: Accepted;
   anytime: Anytime;
   best_found_at: BestFoundAt;
-  error: Error;
+  error: Error1;
   iterations_per_sec: IterationsPerSec;
   label: Label;
   mean_rank: MeanRank;
@@ -355,10 +428,10 @@ export interface BenchRace {
  */
 export interface BenchRaceEntry {
   candidate: Candidate1;
-  evaluation: Evaluation1;
-  gain: Gain3;
+  evaluation: Evaluation2;
+  gain: Gain4;
   mean_rank: MeanRank1;
-  verdict: Verdict2;
+  verdict: Verdict3;
 }
 /**
  * bench/bench.json: the instances and the budget every evaluation runs with.
