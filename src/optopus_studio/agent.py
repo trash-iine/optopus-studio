@@ -26,7 +26,7 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, campaign, candidates, docs, profiling, rust, tune
+from optopus_studio import bench, campaign, candidates, compose, docs, profiling, rust, tune
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -232,7 +232,10 @@ profile them: who leads early and who ends best, who stalls, which instances pre
 leads early and the one that ends best, one that stalls inside Iterated), as variants with the \
 best single heuristics, run_solver, and tune with 'spaces', the incumbent first: the race \
 chooses the structure and sets its nested settings, the steps' stops among them \
-("steps.0.stop.max_iteration", "search.tabu_tenure.1"). Then go on one change at a time.
+("steps.0.stop.max_iteration", "search.tabu_tenure.1"). Or let the studio write them: tune \
+with 'grammar' builds the usual compositions of the leaves you name, the ones the profile favors \
+first, and races them with the leaves. Write one yourself when the readings or a source suggest \
+a structure the grammar does not build (three steps, a VND as the search, a population).
 4. Then work in rounds against the incumbent. A round tests three or four hypotheses, each \
 one change, of different families: a heuristic or its parameters in solve.json; in model.py a \
 neighborhood, a delta computed from the move, a representation; a port to Rust. For each: make \
@@ -1375,29 +1378,34 @@ class Tools:
         written, even when the check failed.
 
         Args:
-            args: The tool's input: ``rev``, ``budget``, and ``space`` with ``variant``, or
-                ``spaces``; ``seed`` if given.
+            args: The tool's input: ``rev``, ``budget``, and ``space`` with ``variant``,
+                ``spaces`` or ``grammar``; ``seed`` if given.
 
         Returns:
             The tool's result.
 
         Raises:
-            ProjectError: Both or neither of space and spaces are given, or the tuning or its check
-                fails.
+            ProjectError: Not exactly one of space, spaces and grammar is given, or the tuning or
+                its check fails.
         """
         seed = args.get("seed")
-        if ("space" in args) == ("spaces" in args):
-            raise ProjectError("give either 'space' (one variant) or 'spaces' (to choose among)")
+        given = [key for key in ("space", "spaces", "grammar") if key in args]
+        if len(given) != 1:
+            raise ProjectError(
+                "give either 'space' (one variant), 'spaces' (to choose among) or 'grammar' (to "
+                "compose and choose)"
+            )
         before = self.project.files()
         try:
             tuning, evaluation = await tune.tune_and_check(
                 self.project,
                 int(args["rev"]),
-                args["space"] if "space" in args else args["spaces"],
+                args.get("space") or args.get("spaces"),
                 int(args["budget"]),
                 variant=args.get("variant"),
                 seed=int(seed) if seed is not None else None,
                 progress=self.bench_progress,
+                grammar=args.get("grammar"),
             )
         finally:
             # Also when the check on validation failed after the best settings were written.
@@ -1805,8 +1813,17 @@ class Tools:
                 "several heuristics in solve.json, 'variant' picks one by label. To choose among "
                 "them as well, give 'spaces' instead of 'space': each variant's label with its "
                 "parameters ([] for none), the incumbent first; the winner becomes solve.json's "
-                "only heuristic. The report ends with signs: what the race shows that settings "
-                "cannot fix.",
+                "only heuristic. To have the compositions built as well, give 'grammar' instead: "
+                "'leaves', each variant's label with its parameters ([] for none), the "
+                "incumbent first. The studio builds Sequential of two leaves in both orders, "
+                "and Iterated, Restart and VariableNeighborhoodSearch around each leaf, every "
+                "step with a stop of its own to tune, and races them with the leaves; "
+                "'templates' narrows those (sequential, iterated, restart, vns), 'kicks' names "
+                "the neighborhoods a kick may move in (the leaf's own by default), and 'limit' "
+                "how many compositions race (12 by default, the ones a profile of the leaves "
+                "favors first, so profile the leaves before). The budget needed grows with the "
+                "variants raced; the tool says the least it takes. The report ends with signs: "
+                "what the race shows that settings cannot fix.",
                 object_schema(
                     {
                         "rev": {"type": "integer", "minimum": 1},
@@ -1815,6 +1832,25 @@ class Tools:
                             "type": "object",
                             "additionalProperties": {"type": "array", "items": PARAMETER},
                         },
+                        "grammar": object_schema(
+                            {
+                                "leaves": {
+                                    "type": "object",
+                                    "additionalProperties": {"type": "array", "items": PARAMETER},
+                                },
+                                "templates": {
+                                    "type": "array",
+                                    "items": {"type": "string", "enum": list(compose.TEMPLATES)},
+                                },
+                                "kicks": {"type": "array", "items": {"type": "string"}},
+                                "limit": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": compose.MAX_LIMIT,
+                                },
+                            },
+                            ["leaves"],
+                        ),
                         "budget": {"type": "integer", "minimum": 1},
                         "variant": {"type": "string"},
                         "seed": {"type": "integer", "minimum": 0},

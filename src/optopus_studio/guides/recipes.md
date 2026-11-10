@@ -37,6 +37,11 @@ methods newer than this page.
 
 ## 2. Compositions for methods optopus has no class of
 
+`tune` with `grammar` writes the first four of these for you (two phases in both orders,
+iterated, multi-start and VNS around each leaf you name), each step with a stop it tunes, and
+races them with the leaves. Write one by hand when it is not among those: a descent over
+several neighborhoods, a VND as the search, GRASP, a memetic algorithm.
+
 Each is a whole `"heuristic"` of solve.json. The paths after it are the arguments most worth
 giving `tune`.
 
