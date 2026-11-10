@@ -143,7 +143,10 @@ From this the profile reads the compositions worth trying:
 - instances that prefer different heuristics want one that adapts within a run.
 
 The agent writes those as variants and races them with the best single heuristics, so the race
-chooses the composition and sets the settings inside it.
+chooses the composition and sets the settings inside it. It can also name the heuristics as the
+leaves of a **grammar** and let the studio build the usual compositions of them, each step with
+a stop of its own to tune, the ones the profile favors first
+([ADR 0021](../adr/0021-build-compositions-from-a-grammar-of-leaves.md)).
 
 With **Web search** on in the chat panel, the agent also searches the web for methods reported on
 problems like yours ([ADR 0016](../adr/0016-let-the-agent-search-the-web-when-allowed.md)). It
