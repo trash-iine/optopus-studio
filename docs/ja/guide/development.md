@@ -39,7 +39,7 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 | ファイル | 動く場所 | 内容 |
 |---|---|---|
 | `instance.json` | — | データ |
-| `model.py` | ワーカー | `build(instance)` が optopus の問題を返す。任意の `encode_solution` が解を JSON にする |
+| `model.py` | ワーカー | `build(instance)` が optopus の問題を返す。任意の `encode_solution` が解を JSON にし、任意の `explain(instance, solution)` が診断に目的関数の内訳を渡す |
 | `solve.json` | ワーカー | `{"kind": ..., **arguments}` 形式のヒューリスティック、または比較用のラベル付き `"heuristics"`。ラン数、シード |
 | `view.py` | バックエンドのビューアプロセス | `to_view(instance, result)` がキャンバス用の `ViewSpec` を返す |
 | `rust/main.rs`(任意) | Rust ワーカー | Rust に移植したモデル。`solve.json` の `"worker": "rust"` で使われる |

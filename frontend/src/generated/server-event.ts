@@ -243,10 +243,10 @@ export type Type21 = "model_selected";
 export type Enabled = boolean;
 export type Type22 = "web_search_changed";
 /**
- * Solves finished in an evaluation or a profile, runs in a tuning.
+ * Solves finished in an evaluation, a race or a profile, runs in a tuning, instances in a diagnosis.
  */
 export type Done = number;
-export type Task = "evaluation" | "tuning" | "profile" | "race";
+export type Task = "evaluation" | "tuning" | "profile" | "race" | "diagnosis";
 export type Total = number;
 export type Type23 = "bench_progress";
 export type Type24 = "bench_changed";

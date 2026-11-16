@@ -326,6 +326,118 @@
       "title": "BenchCheck",
       "type": "object"
     },
+    "BenchDiagnosis": {
+      "additionalProperties": false,
+      "description": "One diagnosis of a heuristic on the benchmark (diagnosis.py, docs/adr/0020).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "instances": {
+          "items": {
+            "$ref": "#/$defs/BenchDiagnosisInstance"
+          },
+          "title": "Instances",
+          "type": "array"
+        },
+        "readings": {
+          "description": "What the runs suggest to change, as hints for the next candidates.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Readings",
+          "type": "array"
+        },
+        "rev": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The revision diagnosed; null for the work files.",
+          "title": "Rev"
+        },
+        "split": {
+          "enum": [
+            "train",
+            "validation",
+            "test",
+            "all"
+          ],
+          "title": "Split",
+          "type": "string"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "rev",
+        "variant",
+        "split",
+        "instances",
+        "readings"
+      ],
+      "title": "BenchDiagnosis",
+      "type": "object"
+    },
+    "BenchDiagnosisInstance": {
+      "additionalProperties": false,
+      "description": "How a diagnosed heuristic's runs ended on one instance.",
+      "properties": {
+        "distinct": {
+          "description": "The different objectives the runs ended at.",
+          "title": "Distinct",
+          "type": "integer"
+        },
+        "gap": {
+          "description": "The mean distance of the runs from the best known.",
+          "title": "Gap",
+          "type": "number"
+        },
+        "known": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The best objective known on the instance.",
+          "title": "Known"
+        },
+        "mean": {
+          "description": "The mean best objective over the runs.",
+          "title": "Mean",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "runs": {
+          "title": "Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "mean",
+        "known",
+        "gap",
+        "distinct",
+        "runs"
+      ],
+      "title": "BenchDiagnosisInstance",
+      "type": "object"
+    },
     "BenchEvaluation": {
       "additionalProperties": false,
       "description": "One evaluation of a change against a baseline revision (bench.py).",
@@ -1098,6 +1210,14 @@
       "title": "Candidates",
       "type": "array"
     },
+    "diagnoses": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BenchDiagnosis"
+      },
+      "title": "Diagnoses",
+      "type": "array"
+    },
     "evaluations": {
       "items": {
         "$ref": "#/$defs/BenchEvaluation"
@@ -1140,7 +1260,8 @@
     "candidates",
     "races",
     "best",
-    "campaign"
+    "campaign",
+    "diagnoses"
   ],
   "title": "BenchState",
   "type": "object"

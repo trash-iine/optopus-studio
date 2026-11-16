@@ -25,7 +25,10 @@ coding agents.
   files as candidates with their hypotheses, races several against the incumbent at once and
   lets only a better one be adopted (ADR 0018); `campaign.py` is the improvement loop the
   studio drives: a round per turn of the agent, each on a brief, and the final check on
-  validation made by the studio (ADR 0019); `generator.py` runs `generate.py`;
+  validation made by the studio (ADR 0019); `diagnosis.py` reads one heuristic's runs for what
+  to change (the gap to the best known, probes of each neighborhood, where a Python model's
+  time goes), through `probe.py`, a subprocess of its own that only `model.py` serves
+  (ADR 0020); `generator.py` runs `generate.py`;
   `tune.py` races a heuristic's settings, or several heuristics', on the benchmark, as irace
   does, and reads the race for signs of what settings cannot fix (ADR 0014); `compose.py`
   builds the compositions of the leaves a `tune` is given a grammar of (ADR 0021);

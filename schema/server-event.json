@@ -233,7 +233,7 @@
       "description": "How far the evaluation or tuning on the benchmark the agent is running has got.",
       "properties": {
         "done": {
-          "description": "Solves finished in an evaluation or a profile, runs in a tuning.",
+          "description": "Solves finished in an evaluation, a race or a profile, runs in a tuning, instances in a diagnosis.",
           "title": "Done",
           "type": "integer"
         },
@@ -242,7 +242,8 @@
             "evaluation",
             "tuning",
             "profile",
-            "race"
+            "race",
+            "diagnosis"
           ],
           "title": "Task",
           "type": "string"

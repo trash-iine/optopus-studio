@@ -37,7 +37,7 @@ Codex tools. Every solve freezes the files into a revision:
 | File | Runs in | Says |
 |---|---|---|
 | `instance.json` | — | the data |
-| `model.py` | the worker | `build(instance)` returns an optopus problem; optional `encode_solution` makes the solution JSON |
+| `model.py` | the worker | `build(instance)` returns an optopus problem; optional `encode_solution` makes the solution JSON, and optional `explain(instance, solution)` gives a diagnosis the parts of the objective |
 | `solve.json` | the worker | the heuristic as `{"kind": ..., **arguments}`, or labeled `"heuristics"` to compare; runs, seed |
 | `view.py` | the backend's viewer process | `to_view(instance, result)` returns a `ViewSpec` for the canvas |
 | `rust/main.rs` (optional) | a Rust worker | the model ported to Rust; `"worker": "rust"` in `solve.json` runs it |

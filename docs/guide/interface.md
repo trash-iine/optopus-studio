@@ -136,8 +136,8 @@ every earlier revision is solved the same, it is the one before.
 
 What the agent did to improve the search
 ([Improving the algorithm](projects.md#improving-the-algorithm)); empty until it builds a
-benchmark. It updates as the agent works, with a progress bar while an evaluation, a race, a tuning
-or a profile runs.
+benchmark. It updates as the agent works, with a progress bar while an evaluation, a race, a tuning,
+a profile or a diagnosis runs.
 
 - **Benchmark**: the runs per instance and each run's budget, and the train and validation
   instances, and the test instances when there are any; hover one for where it came from and
@@ -150,6 +150,11 @@ or a profile runs.
   kind of change, the hypothesis (hover it for what suggested it), the revision it changes, the
   race it ran in, what became of it (the revision it was adopted as, or its verdict), its gain,
   and the lesson the agent drew. The heading counts the kinds tried.
+- **Search diagnosed**: the latest diagnoses of the search
+  ([ADR 0020](../adr/0020-diagnose-the-search-for-the-next-hypothesis.md)), newest first: per
+  instance the mean objective, the best known, the gap between them, and how many different
+  objectives the runs ended at. The readings under the table say what the runs suggest to
+  change.
 - **Heuristics profiled**: every profile of several heuristics on the benchmark, newest first. Each
   table lists the heuristics, the best first, with:
   - the mean rank and the instances won;

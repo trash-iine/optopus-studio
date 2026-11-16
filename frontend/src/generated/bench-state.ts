@@ -90,12 +90,43 @@ export type Lesson = string;
 export type Variant = string;
 export type Verdict1 = ("better" | "mixed" | "same" | "worse" | "rejected" | "failed") | null;
 export type Candidates = BenchCandidate[];
+export type Id1 = number;
+/**
+ * The different objectives the runs ended at.
+ */
+export type Distinct = number;
+/**
+ * The mean distance of the runs from the best known.
+ */
+export type Gap = number;
+/**
+ * The best objective known on the instance.
+ */
+export type Known = number | null;
+/**
+ * The mean best objective over the runs.
+ */
+export type Mean = number;
+export type Name1 = string;
+export type Runs = number;
+export type Instances = BenchDiagnosisInstance[];
+/**
+ * What the runs suggest to change, as hints for the next candidates.
+ */
+export type Readings = string[];
+/**
+ * The revision diagnosed; null for the work files.
+ */
+export type Rev = number | null;
+export type Split = "train" | "validation" | "test" | "all";
+export type Variant1 = string;
+export type Diagnoses = BenchDiagnosis[];
 /**
  * The saved candidate the side ran, if it is one (docs/adr/0018).
  */
 export type CandidateId = number | null;
-export type Rev = number | null;
-export type Variant1 = string;
+export type Rev1 = number | null;
+export type Variant2 = string;
 /**
  * 'the work files', 'revision <n>' or 'candidate <n>'.
  */
@@ -109,7 +140,7 @@ export type Detail = string | null;
  * The mean gain over all pairs; null unless judged.
  */
 export type Gain2 = number | null;
-export type Id1 = number;
+export type Id2 = number;
 /**
  * The baseline's mean best objective.
  */
@@ -122,9 +153,9 @@ export type Candidate = number;
  * The mean gain over the paired runs, relative to the baseline's mean objective; + is better.
  */
 export type Gain3 = number;
-export type Name1 = string;
+export type Name2 = string;
 export type Outcome = "better" | "same" | "worse";
-export type Instances = BenchInstanceResult[];
+export type Instances1 = BenchInstanceResult[];
 /**
  * The later revision whose files are the candidate's, if it was solved into one.
  */
@@ -135,7 +166,7 @@ export type Kept1 = number | null;
 export type Note = string;
 export type PBetter = number;
 export type PWorse = number;
-export type Split = "train" | "validation" | "test" | "all";
+export type Split1 = "train" | "validation" | "test" | "all";
 export type Verdict2 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
 /**
  * The mean worsening over the instances, one way.
@@ -146,8 +177,8 @@ export type Evaluations = BenchEvaluation[];
  * The shares of the budget 'anytime' is read at.
  */
 export type Fractions = number[];
-export type Id2 = number;
-export type Instances1 = string[];
+export type Id3 = number;
+export type Instances2 = string[];
 /**
  * The Friedman test's p-value over all runs.
  */
@@ -155,12 +186,12 @@ export type P = number | null;
 /**
  * Compositions the profile suggests, as hints for the next variants.
  */
-export type Readings = string[];
+export type Readings1 = string[];
 /**
  * The revision profiled; null for the work files.
  */
-export type Rev1 = number | null;
-export type Split1 = "train" | "validation" | "all";
+export type Rev2 = number | null;
+export type Split2 = "train" | "validation" | "all";
 /**
  * The share of moves accepted.
  */
@@ -206,7 +237,7 @@ export type Gain4 = number | null;
 export type MeanRank1 = number | null;
 export type Verdict3 = "better" | "mixed" | "same" | "worse" | "rejected" | "failed";
 export type Entries = BenchRaceEntry[];
-export type Id3 = number;
+export type Id4 = number;
 /**
  * The Friedman test's p-value over all runs.
  */
@@ -216,7 +247,7 @@ export type P1 = number | null;
  */
 export type Winner = number | null;
 export type Races = BenchRace[];
-export type Name2 = string;
+export type Name3 = string;
 /**
  * Of the instance file, so a result says what it ran on.
  */
@@ -228,8 +259,8 @@ export type Source1 = string;
 /**
  * Candidates are chosen on train; the final choice is checked on validation; test only measures what is reported, and decides nothing.
  */
-export type Split2 = "train" | "validation" | "test";
-export type Instances2 = BenchInstance[];
+export type Split3 = "train" | "validation" | "test";
+export type Instances3 = BenchInstance[];
 /**
  * Each run's time limit, which replaces the stop of every evaluated heuristic.
  */
@@ -241,7 +272,7 @@ export type MaxIteration = number | null;
 /**
  * Runs per instance and side, paired by seed.
  */
-export type Runs = number;
+export type Runs1 = number;
 export type Seed = number;
 /**
  * The best settings by parameter path; null when the revision's own stayed.
@@ -256,8 +287,8 @@ export type BestVariant = string | null;
 export type Budget = number;
 export type Eliminated = number;
 export type Failed = number;
-export type Id4 = number;
-export type Rev2 = number;
+export type Id5 = number;
+export type Rev3 = number;
 /**
  * The settings raced.
  */
@@ -287,6 +318,7 @@ export interface BenchState {
   best: Best;
   campaign: BenchCampaign | null;
   candidates: Candidates;
+  diagnoses: Diagnoses;
   evaluations: Evaluations;
   profiles: Profiles;
   races: Races;
@@ -348,6 +380,28 @@ export interface BenchCandidate {
   verdict: Verdict1;
 }
 /**
+ * One diagnosis of a heuristic on the benchmark (diagnosis.py, docs/adr/0020).
+ */
+export interface BenchDiagnosis {
+  id: Id1;
+  instances: Instances;
+  readings: Readings;
+  rev: Rev;
+  split: Split;
+  variant: Variant1;
+}
+/**
+ * How a diagnosed heuristic's runs ended on one instance.
+ */
+export interface BenchDiagnosisInstance {
+  distinct: Distinct;
+  gap: Gap;
+  known: Known;
+  mean: Mean;
+  name: Name1;
+  runs: Runs;
+}
+/**
  * One evaluation of a change against a baseline revision (bench.py).
  */
 export interface BenchEvaluation {
@@ -355,13 +409,13 @@ export interface BenchEvaluation {
   candidate: BenchSide;
   detail: Detail;
   gain: Gain2;
-  id: Id1;
-  instances: Instances;
+  id: Id2;
+  instances: Instances1;
   kept: Kept1;
   note: Note;
   p_better: PBetter;
   p_worse: PWorse;
-  split: Split;
+  split: Split1;
   verdict: Verdict2;
   worsening: Worsening;
 }
@@ -370,8 +424,8 @@ export interface BenchEvaluation {
  */
 export interface BenchSide {
   candidate_id: CandidateId;
-  rev: Rev;
-  variant: Variant1;
+  rev: Rev1;
+  variant: Variant2;
   where: Where;
   worker: Worker;
 }
@@ -382,7 +436,7 @@ export interface BenchInstanceResult {
   baseline: Baseline;
   candidate: Candidate;
   gain: Gain3;
-  name: Name1;
+  name: Name2;
   outcome: Outcome;
 }
 /**
@@ -390,12 +444,12 @@ export interface BenchInstanceResult {
  */
 export interface BenchProfile {
   fractions: Fractions;
-  id: Id2;
-  instances: Instances1;
+  id: Id3;
+  instances: Instances2;
   p: P;
-  readings: Readings;
-  rev: Rev1;
-  split: Split1;
+  readings: Readings1;
+  rev: Rev2;
+  split: Split2;
   variants: Variants;
 }
 /**
@@ -419,7 +473,7 @@ export interface BenchRace {
   baseline: BenchSide;
   baseline_rank: BaselineRank;
   entries: Entries;
-  id: Id3;
+  id: Id4;
   p: P1;
   winner: Winner;
 }
@@ -437,20 +491,20 @@ export interface BenchRaceEntry {
  * bench/bench.json: the instances and the budget every evaluation runs with.
  */
 export interface BenchSpec {
-  instances: Instances2;
+  instances: Instances3;
   max_duration_secs: MaxDurationSecs;
   max_iteration: MaxIteration;
-  runs: Runs;
+  runs: Runs1;
   seed: Seed;
 }
 /**
  * One instance of the benchmark, kept under bench/instances.
  */
 export interface BenchInstance {
-  name: Name2;
+  name: Name3;
   sha256: Sha256;
   source: Source1;
-  split: Split2;
+  split: Split3;
 }
 /**
  * One tuning of a heuristic's settings by racing (tune.py).
@@ -461,8 +515,8 @@ export interface BenchTuning {
   budget: Budget;
   eliminated: Eliminated;
   failed: Failed;
-  id: Id4;
-  rev: Rev2;
+  id: Id5;
+  rev: Rev3;
   settings: Settings;
   signs: Signs;
   used: Used;

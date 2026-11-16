@@ -21,6 +21,7 @@ from optopus_studio.protocol import (
     Done,
     EvaluateRequest,
     LiveRun,
+    ProbeRequest,
     Progress,
     RunFinished,
     RunSummary,
@@ -263,6 +264,29 @@ async def evaluate_solutions(
     if "error" in answer:
         raise RuntimeError(answer["error"])
     return answer["objectives"]
+
+
+async def run_probe(request: ProbeRequest, cwd: Path, timeout: float) -> dict[str, Any]:
+    """Probes a heuristic's runs on one instance in a subprocess (probe.py).
+
+    Args:
+        request: The model, the instance, the heuristic and what to probe.
+        cwd: The directory to run the probe in.
+        timeout: How long the probe may take, in seconds.
+
+    Returns:
+        The probe's answer.
+
+    Raises:
+        RuntimeError: The probe timed out, crashed or answered with an error.
+    """
+    command = [sys.executable, "-m", "optopus_studio.probe"]
+    answer, error = await _ask(command, cwd, request.model_dump(), timeout)
+    if error:
+        raise RuntimeError(f"the probe {error}")
+    if "error" in answer:
+        raise RuntimeError(answer["error"])
+    return answer
 
 
 async def _ask(

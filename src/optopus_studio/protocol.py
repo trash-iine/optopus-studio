@@ -170,6 +170,29 @@ class EvaluateRequest(Strict):
     )
 
 
+class ProbeRequest(Strict):
+    """``python -m optopus_studio.probe``: run a heuristic on an instance and read its runs.
+
+    The answer is one JSON line: the runs with their best solutions, what a short descent in
+    each neighborhood still gains from each, what the model's ``explain`` says of them, and for
+    a problem written in Python how often and how long its neighborhoods were called; or
+    ``{"error": ...}``. Only the Python model is probed, also for a project with a Rust port
+    (docs/adr/0020), so the Rust worker has no such request.
+    """
+
+    model_path: str = Field(description="Path of the project's model.py.")
+    instance: dict[str, Any]
+    heuristic: dict[str, Any] = Field(description="The heuristic to run, its stop included.")
+    runs: int = Field(1, ge=1, le=100)
+    seed: int = Field(0, ge=0, lt=2**64)
+    neighbors: list[str] = Field(
+        [],
+        description="The neighborhoods to probe the best solutions in; a Python problem's own, "
+        "or the ones the heuristic names, when empty.",
+    )
+    initial_solution: InitialSolution | None = None
+
+
 # --- ViewSpec ----------------------------------------------------------------------------------
 
 
@@ -480,7 +503,7 @@ class ViewUpdated(Strict):
 
 
 # What the agent runs on the benchmark (bench.py), and the instances it runs on.
-BenchTask = Literal["evaluation", "tuning", "profile", "race"]
+BenchTask = Literal["evaluation", "tuning", "profile", "race", "diagnosis"]
 # "all" is train and validation: the test split is never part of a choice (docs/adr/0018).
 BenchSplit = Literal["train", "validation", "test", "all"]
 
@@ -491,7 +514,8 @@ class BenchProgress(Strict):
     type: Literal["bench_progress"] = "bench_progress"
     task: BenchTask
     done: int = Field(
-        description="Solves finished in an evaluation or a profile, runs in a tuning."
+        description="Solves finished in an evaluation, a race or a profile, runs in a tuning, "
+        "instances in a diagnosis."
     )
     total: int
 
@@ -956,6 +980,30 @@ class BenchBest(Strict):
     source: str = Field(description="What found it, such as 'evaluation 4'.")
 
 
+class BenchDiagnosisInstance(Strict):
+    """How a diagnosed heuristic's runs ended on one instance."""
+
+    name: str
+    mean: float = Field(description="The mean best objective over the runs.")
+    known: float | None = Field(description="The best objective known on the instance.")
+    gap: float = Field(description="The mean distance of the runs from the best known.")
+    distinct: int = Field(description="The different objectives the runs ended at.")
+    runs: int
+
+
+class BenchDiagnosis(Strict):
+    """One diagnosis of a heuristic on the benchmark (diagnosis.py, docs/adr/0020)."""
+
+    id: int
+    rev: int | None = Field(description="The revision diagnosed; null for the work files.")
+    variant: str
+    split: BenchSplit
+    instances: list[BenchDiagnosisInstance]
+    readings: list[str] = Field(
+        description="What the runs suggest to change, as hints for the next candidates."
+    )
+
+
 class BenchCheck(Strict):
     """A campaign's final check of its result against the revision it started from."""
 
@@ -996,3 +1044,4 @@ class BenchState(Strict):
     races: list[BenchRace] = []
     best: list[BenchBest] = []
     campaign: BenchCampaign | None = None
+    diagnoses: list[BenchDiagnosis] = []

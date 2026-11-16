@@ -2,7 +2,13 @@
 // it, every change it judged there, the ledger of the hypotheses it saved as candidates, and
 // every tuning of a heuristic's settings (docs/adr/0013, 0014, 0015, 0018).
 import { Fragment, useEffect, useState } from "react";
-import type { BenchEvaluation, BenchProfile, BenchState, BenchTuning } from "../generated/bench-state";
+import type {
+  BenchDiagnosis,
+  BenchEvaluation,
+  BenchProfile,
+  BenchState,
+  BenchTuning,
+} from "../generated/bench-state";
 import type { BenchProgress } from "../generated/server-event";
 import {
   best,
@@ -161,6 +167,19 @@ export function Improve({ project, version, progress }: Props) {
           </table>
         </section>
       )}
+      {bench.diagnoses.length > 0 && (
+        <section className="card table-wrap">
+          <h3>
+            Search diagnosed{" "}
+            <span className="sub">
+              newest first; how far the runs end from the best known, and what that suggests
+            </span>
+          </h3>
+          {[...bench.diagnoses].reverse().slice(0, 3).map((d) => (
+            <Diagnosis key={d.id} diagnosis={d} />
+          ))}
+        </section>
+      )}
       {profiles.length > 0 && (
         <section className="card table-wrap">
           <h3>
@@ -251,6 +270,47 @@ export function Improve({ project, version, progress }: Props) {
             </tbody>
           </table>
         </section>
+      )}
+    </div>
+  );
+}
+
+function Diagnosis({ diagnosis: d }: { diagnosis: BenchDiagnosis }) {
+  return (
+    <div className="profile">
+      <p className="muted">
+        #{d.id}: {d.variant} of {side(d)} on {d.split}
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>instance</th>
+            <th className="num">mean</th>
+            <th className="num">best known</th>
+            <th className="num">gap</th>
+            <th className="num">objectives over the runs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.instances.map((i) => (
+            <tr key={i.name}>
+              <td>{i.name}</td>
+              <td className="num">{compact(i.mean)}</td>
+              <td className="num">{i.known == null ? "—" : compact(i.known)}</td>
+              <td className="num">{gap(i.gap)}</td>
+              <td className="num">
+                {i.distinct} / {i.runs}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {d.readings.length > 0 && (
+        <ul className="profile-readings">
+          {d.readings.map((reading) => (
+            <li key={reading}>{reading}</li>
+          ))}
+        </ul>
       )}
     </div>
   );
