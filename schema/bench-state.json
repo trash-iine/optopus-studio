@@ -1,5 +1,149 @@
 {
   "$defs": {
+    "BenchBest": {
+      "additionalProperties": false,
+      "description": "The best objective known on one instance of the benchmark.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "source": {
+          "description": "What found it, such as 'evaluation 4'.",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "objective",
+        "source"
+      ],
+      "title": "BenchBest",
+      "type": "object"
+    },
+    "BenchCandidate": {
+      "additionalProperties": false,
+      "description": "One saved candidate, a line of the ledger: a hypothesis and what became of it.",
+      "properties": {
+        "adopted": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The revision it was adopted as, if it was.",
+          "title": "Adopted"
+        },
+        "baseline_rev": {
+          "description": "The revision it changes, and is judged against.",
+          "title": "Baseline Rev",
+          "type": "integer"
+        },
+        "evaluation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Its latest evaluation, if it was judged.",
+          "title": "Evaluation"
+        },
+        "evidence": {
+          "description": "What suggested it: a reading, a sign, a source.",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            "settings",
+            "heuristic",
+            "composition",
+            "neighborhood",
+            "delta",
+            "representation",
+            "start",
+            "port"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gain"
+        },
+        "hypothesis": {
+          "description": "What it changes and why that should help.",
+          "title": "Hypothesis",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "lesson": {
+          "description": "What its result taught, in the agent's words.",
+          "title": "Lesson",
+          "type": "string"
+        },
+        "variant": {
+          "description": "The heuristic of its solve.json it runs.",
+          "title": "Variant",
+          "type": "string"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "enum": [
+                "better",
+                "mixed",
+                "same",
+                "worse",
+                "rejected",
+                "failed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Verdict"
+        }
+      },
+      "required": [
+        "id",
+        "baseline_rev",
+        "family",
+        "hypothesis",
+        "evidence",
+        "variant",
+        "evaluation",
+        "verdict",
+        "gain",
+        "adopted",
+        "lesson"
+      ],
+      "title": "BenchCandidate",
+      "type": "object"
+    },
     "BenchEvaluation": {
       "additionalProperties": false,
       "description": "One evaluation of a change against a baseline revision (bench.py).",
@@ -74,6 +218,7 @@
           "enum": [
             "train",
             "validation",
+            "test",
             "all"
           ],
           "title": "Split",
@@ -135,10 +280,11 @@
           "type": "string"
         },
         "split": {
-          "description": "Candidates are chosen on train; the final choice is checked on validation.",
+          "description": "Candidates are chosen on train; the final choice is checked on validation; test only measures what is reported, and decides nothing.",
           "enum": [
             "train",
-            "validation"
+            "validation",
+            "test"
           ],
           "title": "Split",
           "type": "string"
@@ -388,10 +534,147 @@
       "title": "BenchProfileVariant",
       "type": "object"
     },
+    "BenchRace": {
+      "additionalProperties": false,
+      "description": "One race of several candidates against a baseline revision (candidates.py).",
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/BenchSide"
+        },
+        "baseline_rank": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Baseline Rank"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/BenchRaceEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Friedman test's p-value over all runs.",
+          "title": "P"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The best-ranked candidate judged better than the baseline, if any.",
+          "title": "Winner"
+        }
+      },
+      "required": [
+        "id",
+        "baseline",
+        "baseline_rank",
+        "p",
+        "entries",
+        "winner"
+      ],
+      "title": "BenchRace",
+      "type": "object"
+    },
+    "BenchRaceEntry": {
+      "additionalProperties": false,
+      "description": "How one candidate did in a race.",
+      "properties": {
+        "candidate": {
+          "title": "Candidate",
+          "type": "integer"
+        },
+        "evaluation": {
+          "description": "Its evaluation against the baseline, from the race.",
+          "title": "Evaluation",
+          "type": "integer"
+        },
+        "gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gain"
+        },
+        "mean_rank": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Over the runs, 1 the best, among the baseline and the candidates judged.",
+          "title": "Mean Rank"
+        },
+        "verdict": {
+          "enum": [
+            "better",
+            "mixed",
+            "same",
+            "worse",
+            "rejected",
+            "failed"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate",
+        "evaluation",
+        "verdict",
+        "gain",
+        "mean_rank"
+      ],
+      "title": "BenchRaceEntry",
+      "type": "object"
+    },
     "BenchSide": {
       "additionalProperties": false,
       "description": "One side of an evaluation: whose files, which heuristic, which worker.",
       "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The saved candidate the side ran, if it is one (docs/adr/0018).",
+          "title": "Candidate Id"
+        },
         "rev": {
           "anyOf": [
             {
@@ -408,7 +691,7 @@
           "type": "string"
         },
         "where": {
-          "description": "'the work files' or 'revision <n>'.",
+          "description": "'the work files', 'revision <n>' or 'candidate <n>'.",
           "title": "Where",
           "type": "string"
         },
@@ -425,7 +708,8 @@
         "where",
         "rev",
         "variant",
-        "worker"
+        "worker",
+        "candidate_id"
       ],
       "title": "BenchSide",
       "type": "object"
@@ -603,8 +887,24 @@
     }
   },
   "additionalProperties": false,
-  "description": "GET /api/projects/{id}/bench: the benchmark and every evaluation, tuning and profile.",
+  "description": "GET /api/projects/{id}/bench: the benchmark and everything judged or measured on it.",
   "properties": {
+    "best": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BenchBest"
+      },
+      "title": "Best",
+      "type": "array"
+    },
+    "candidates": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BenchCandidate"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
     "evaluations": {
       "items": {
         "$ref": "#/$defs/BenchEvaluation"
@@ -618,6 +918,14 @@
         "$ref": "#/$defs/BenchProfile"
       },
       "title": "Profiles",
+      "type": "array"
+    },
+    "races": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BenchRace"
+      },
+      "title": "Races",
       "type": "array"
     },
     "spec": {
@@ -635,7 +943,10 @@
     "spec",
     "evaluations",
     "tunings",
-    "profiles"
+    "profiles",
+    "candidates",
+    "races",
+    "best"
   ],
   "title": "BenchState",
   "type": "object"

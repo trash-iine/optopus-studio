@@ -241,7 +241,8 @@
           "enum": [
             "evaluation",
             "tuning",
-            "profile"
+            "profile",
+            "race"
           ],
           "title": "Task",
           "type": "string"

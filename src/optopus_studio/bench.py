@@ -1,9 +1,10 @@
 """Judging a change of the algorithm on a benchmark of instances (docs/adr/0013).
 
-``bench/bench.json`` lists the instances (``bench/instances/<name>.json``), each in the train or
-the validation split, and the budget each run gets. ``evaluate`` solves every instance of a split
-with a candidate (the project's work files, or a revision) and a baseline revision, each run of
-one side from the same seed as the same run of the other, and compares them:
+``bench/bench.json`` lists the instances (``bench/instances/<name>.json``), each in the train,
+the validation or the test split, and the budget each run gets. ``evaluate`` solves every
+instance of a split with a candidate (the project's work files, or a revision) and a baseline
+revision, each run of one side from the same seed as the same run of the other, and compares
+them:
 
 - **reference**: the baseline's model scores every solution the candidate found again. A
   candidate whose model scores its solutions otherwise, or finds solutions the baseline's model
@@ -17,6 +18,11 @@ one side from the same seed as the same run of the other, and compares them:
 The verdict is "better" only for a significant gain whose worsening is at most
 ``WORSENING_LIMIT``. The budget replaces the stop of the heuristic each side runs, so a candidate
 cannot win by searching longer.
+
+``compare`` is the same for several candidates at once, which share the baseline's runs (a race,
+candidates.py). The test split is left out of "all": it measures what is reported after the
+choices are made, and no choice reads it (docs/adr/0018). ``bench/best.json`` keeps the best
+solution known on each instance, from the evaluations whose objectives the reference confirmed.
 """
 
 from __future__ import annotations
@@ -37,12 +43,16 @@ from pydantic import ValidationError
 
 from optopus_studio.projects import Project, ProjectError, variants_of
 from optopus_studio.protocol import (
+    BenchBest,
+    BenchCandidate,
     BenchEvaluation,
     BenchInstance,
     BenchInstanceResult,
     BenchProfile,
     BenchProfileVariant,
     BenchProgress,
+    BenchRace,
+    BenchRaceEntry,
     BenchSide,
     BenchSpec,
     BenchSplit,
@@ -165,7 +175,7 @@ def add_instance(
     Args:
         project: The project.
         name: The instance's name.
-        split: ``train`` or ``validation``.
+        split: ``train``, ``validation`` or ``test``.
         source: Where the instance came from, such as "revision 3".
         instance: The instance, in instance.json's form.
 
@@ -236,12 +246,13 @@ def instances_of(spec: BenchSpec, split: Split) -> list[BenchInstance]:
 
     Args:
         spec: The benchmark's spec.
-        split: ``train``, ``validation``, or ``all``.
+        split: ``train``, ``validation``, ``test``, or ``all`` for train and validation.
 
     Returns:
         Their entries, in the spec's order.
     """
-    return [i for i in spec.instances if split == "all" or i.split == split]
+    wanted = ("train", "validation") if split == "all" else (split,)
+    return [i for i in spec.instances if i.split in wanted]
 
 
 def _sha256(text: str) -> str:
@@ -709,6 +720,54 @@ def profiles_dir(project: Project) -> Path:
     return project.bench / "profiles"
 
 
+def candidates_dir(project: Project) -> Path:
+    """Where the saved candidates are kept: ``<n>.json``, and the files in ``<n>/``.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
+    return project.bench / "candidates"
+
+
+def races_dir(project: Project) -> Path:
+    """Where the races' records are kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The directory's path.
+    """
+    return project.bench / "races"
+
+
+def candidate_records(project: Project) -> list[dict[str, Any]]:
+    """Every saved candidate's record (candidates.py), oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
+    return _records(candidates_dir(project))
+
+
+def races(project: Project) -> list[dict[str, Any]]:
+    """Every race's record (candidates.py), oldest first.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The records.
+    """
+    return _records(races_dir(project))
+
+
 def history(project: Project) -> list[dict[str, Any]]:
     """Every evaluation's result, oldest first.
 
@@ -785,6 +844,40 @@ def keep_record(path: Path, id: int, record: dict[str, Any]) -> None:
     (path / f"{id}.json").write_text(json.dumps(record, indent=1))
 
 
+@dataclass
+class Contender:
+    """One side of a comparison and how its record names it.
+
+    Attributes:
+        side: What it solves with.
+        where: Whose files they are, in words.
+        rev: Its revision, or None for the work files or a saved candidate.
+        note: What it changes, in the agent's words.
+        candidate_id: The saved candidate it is, if it is one (candidates.py).
+    """
+
+    side: Side
+    where: str
+    rev: int | None = None
+    note: str = ""
+    candidate_id: int | None = None
+
+    def describe(self) -> dict[str, Any]:
+        """The side as an evaluation's record describes it.
+
+        Returns:
+            The description, with its files' hashes.
+        """
+        return {
+            "where": self.where,
+            "rev": self.rev,
+            "variant": self.side.variant.label,
+            "worker": self.side.worker,
+            "files": file_hashes(self.side.root),
+            "candidate_id": self.candidate_id,
+        }
+
+
 async def evaluate(
     project: Project,
     baseline_rev: int,
@@ -816,65 +909,132 @@ async def evaluate(
     Raises:
         ProjectError: The split has no instances, a side cannot be set up, or the baseline fails.
     """
-    spec = load_spec(project)
-    entries = instances_of(spec, split)
-    if not entries:
-        raise ProjectError(f"the benchmark has no {split} instances; add some with bench_add")
     base_where = f"revision {baseline_rev}"
     cand_where = "the work files" if candidate_rev is None else f"revision {candidate_rev}"
     cand_root = project.work if candidate_rev is None else project.rev_dir(candidate_rev)
     base = await side(project.rev_dir(baseline_rev), baseline_variant, base_where)
     cand = await side(cand_root, variant, cand_where)
-    data = [(entry, read_instance(project, entry)) for entry in entries]
-
-    evaluation = Evaluation(
-        id=0,
-        split=split,
-        spec=spec,
-        candidate={**_describe_side(cand, cand_where, candidate_rev), "note": note},
-        baseline=_describe_side(base, base_where, baseline_rev),
+    (evaluation,) = await compare(
+        project,
+        Contender(base, base_where, baseline_rev),
+        [Contender(cand, cand_where, candidate_rev, note)],
+        split,
+        progress=progress,
     )
-    try:
-        # Interleaved, so both sides run under the same load.
-        jobs = [(s, request_for(s, inst, spec)) for _, inst in data for s in (base, cand)]
-    except ProjectError as exc:
-        evaluation.error = str(exc)
-        return _keep(project, evaluation)
+    return evaluation
 
-    summaries = await solve_all(jobs, "evaluation", progress)
-    for (entry, _), b, c in zip(data, summaries[::2], summaries[1::2], strict=True):
+
+async def compare(
+    project: Project,
+    baseline: Contender,
+    candidates: list[Contender],
+    split: Split = "train",
+    task: BenchTask = "evaluation",
+    progress: Progress | None = None,
+) -> list[Evaluation]:
+    """Compares each candidate with the baseline on a split, and keeps an evaluation of each.
+
+    The baseline runs once, and every candidate is paired with those runs: on each instance, run
+    ``i`` of every side starts from the same seed. Each candidate is then judged as ``evaluate``
+    judges one, on its own.
+
+    Args:
+        project: The project.
+        baseline: The baseline side.
+        candidates: The candidate sides.
+        split: The instances to compare on.
+        task: The task the solves belong to, as the progress says.
+        progress: Called as solves finish, if given.
+
+    Returns:
+        Each candidate's evaluation, in the candidates' order.
+
+    Raises:
+        ProjectError: The split has no instances, or the baseline fails.
+    """
+    spec = load_spec(project)
+    entries = instances_of(spec, split)
+    if not entries:
+        raise ProjectError(f"the benchmark has no {split} instances; add some with bench_add")
+    data = [(entry, read_instance(project, entry)) for entry in entries]
+    base = baseline.side
+    evaluations = [
+        Evaluation(
+            id=0,
+            split=split,
+            spec=spec,
+            candidate={**c.describe(), "note": c.note},
+            baseline=baseline.describe(),
+        )
+        for c in candidates
+    ]
+
+    # A side whose solve.json starts from a solution the instances do not hold cannot run.
+    live = []
+    try:
+        base_requests = [request_for(base, inst, spec) for _, inst in data]
+    except ProjectError as exc:
+        for evaluation in evaluations:
+            evaluation.error = str(exc)
+        return [_keep(project, e) for e in evaluations]
+    requests = {}
+    for c, evaluation in zip(candidates, evaluations, strict=True):
+        try:
+            requests[id(c)] = [request_for(c.side, inst, spec) for _, inst in data]
+            live.append((c, evaluation))
+        except ProjectError as exc:
+            evaluation.error = str(exc)
+
+    # Interleaved, so every side runs under the same load.
+    jobs = []
+    for n in range(len(data)):
+        jobs.append((base, base_requests[n]))
+        jobs += [(c.side, requests[id(c)][n]) for c, _ in live]
+    summaries = await solve_all(jobs, task, progress)
+    width = 1 + len(live)
+    for n, (entry, _) in enumerate(data):
+        b = summaries[n * width]
         if b.error:
             raise ProjectError(
-                f"{base_where} fails on {entry.name!r} at {b.error.stage}: {b.error.message}"
+                f"{baseline.where} fails on {entry.name!r} at {b.error.stage}: {b.error.message}"
             )
-        if c.error:
-            evaluation.error = (
-                f"{cand_where} fails on {entry.name!r} at {c.error.stage}: {c.error.message}"
-            )
-            return _keep(project, evaluation)
-        if b.higher_is_better != c.higher_is_better:
-            evaluation.verdict = "rejected"
-            evaluation.reference = (
-                f"the candidate ranks its objective the other way on {entry.name!r}: "
-                f"higher_is_better is {c.higher_is_better}, the baseline's {b.higher_is_better}"
-            )
-            return _keep(project, evaluation)
-        evaluation.instances.append(
-            InstanceResult(entry.name, entry.sha256, b.runs, c.runs, bool(b.higher_is_better))
-        )
+        for k, (c, evaluation) in enumerate(live):
+            if evaluation.error or evaluation.verdict == "rejected":
+                continue
+            s = summaries[n * width + 1 + k]
+            if s.error:
+                evaluation.error = (
+                    f"{c.where} fails on {entry.name!r} at {s.error.stage}: {s.error.message}"
+                )
+            elif b.higher_is_better != s.higher_is_better:
+                evaluation.verdict = "rejected"
+                evaluation.reference = (
+                    f"the candidate ranks its objective the other way on {entry.name!r}: "
+                    f"higher_is_better is {s.higher_is_better}, the baseline's "
+                    f"{b.higher_is_better}"
+                )
+            else:
+                evaluation.instances.append(
+                    InstanceResult(
+                        entry.name, entry.sha256, b.runs, s.runs, bool(b.higher_is_better)
+                    )
+                )
 
-    problem = await _check_reference(base, data, evaluation)
-    if problem:
-        evaluation.verdict = "rejected"
-        evaluation.reference = problem
-        return _keep(project, evaluation)
-    solutions = sum(len(i.candidate) for i in evaluation.instances)
-    evaluation.reference = (
-        f"the baseline's model scores all {solutions} of the candidate's solutions as the "
-        "candidate does"
-    )
-    evaluation.judge()
-    return _keep(project, evaluation)
+    for _, evaluation in live:
+        if evaluation.error or evaluation.verdict == "rejected":
+            continue
+        problem = await _check_reference(base, data, evaluation)
+        if problem:
+            evaluation.verdict = "rejected"
+            evaluation.reference = problem
+            continue
+        solutions = sum(len(i.candidate) for i in evaluation.instances)
+        evaluation.reference = (
+            f"the baseline's model scores all {solutions} of the candidate's solutions as the "
+            "candidate does"
+        )
+        evaluation.judge()
+    return [_keep(project, e) for e in evaluations]
 
 
 async def _check_reference(
@@ -935,7 +1095,7 @@ async def _check_reference(
     return None
 
 
-def _file_hashes(root: Path) -> dict[str, str]:
+def file_hashes(root: Path) -> dict[str, str]:
     """The hashes of the files that make an algorithm.
 
     Args:
@@ -948,26 +1108,6 @@ def _file_hashes(root: Path) -> dict[str, str]:
         name: _sha256((root / name).read_text())
         for name in ALGORITHM_FILES
         if (root / name).is_file()
-    }
-
-
-def _describe_side(s: Side, where: str, rev: int | None) -> dict[str, Any]:
-    """A side as the evaluation's record describes it.
-
-    Args:
-        s: The side.
-        where: Whose files they are, in words.
-        rev: The side's revision, or None for the work files.
-
-    Returns:
-        The description, with its files' hashes.
-    """
-    return {
-        "where": where,
-        "rev": rev,
-        "variant": s.variant.label,
-        "worker": s.worker,
-        "files": _file_hashes(s.root),
     }
 
 
@@ -984,7 +1124,90 @@ def _keep(project: Project, evaluation: Evaluation) -> Evaluation:
     # The id is taken when the record is written, so evaluations that overlap get their own.
     evaluation.id = next_id(results_dir(project))
     keep_record(results_dir(project), evaluation.id, evaluation.to_json())
+    if evaluation.judged:
+        # The reference agreed with the candidate's objectives, so both sides' count.
+        note_best(
+            project,
+            f"evaluation {evaluation.id}",
+            {i.name: (i.sha256, i.baseline + i.candidate) for i in evaluation.instances},
+            evaluation.instances[0].higher_is_better,
+        )
     return evaluation
+
+
+# --- the best known ----------------------------------------------------------------------------
+
+
+def best_path(project: Project) -> Path:
+    """Where the best solution known on each instance is kept.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The path of ``bench/best.json``.
+    """
+    return project.bench / "best.json"
+
+
+def best_known(project: Project) -> dict[str, dict[str, Any]]:
+    """The best solution known on each instance still in the benchmark as it was found on.
+
+    An entry holds the instance's ``sha256``, the ``objective``, ``higher_is_better``, the
+    ``solution`` as encode_solution wrote it, and its ``source``. The objective is the model's
+    that found it: one who needs it under another model scores the solution again.
+
+    Args:
+        project: The project.
+
+    Returns:
+        The entries, by instance name.
+    """
+    path = best_path(project)
+    if not path.is_file():
+        return {}
+    hashes = {i.name: i.sha256 for i in load_spec(project).instances}
+    kept = json.loads(path.read_text())
+    return {name: b for name, b in kept.items() if hashes.get(name) == b["sha256"]}
+
+
+def note_best(
+    project: Project,
+    source: str,
+    runs: dict[str, tuple[str, list[RunFinished]]],
+    higher_is_better: bool,
+) -> None:
+    """Keeps the runs' solutions that beat the best known on their instances.
+
+    Args:
+        project: The project.
+        source: What made the runs, such as "evaluation 4".
+        runs: By instance name, the hash of the instance's file and the runs on it.
+        higher_is_better: The direction the objectives are ranked in.
+    """
+    known = best_known(project)
+    changed = False
+    for name, (sha256, made) in runs.items():
+        if not made:
+            continue
+        pick = max if higher_is_better else min
+        run = pick(made, key=lambda r: r.best_objective)
+        old = known.get(name)
+        if old is not None and old["higher_is_better"] == higher_is_better:
+            gain = run.best_objective - old["objective"]
+            if (gain if higher_is_better else -gain) <= TIE * max(abs(old["objective"]), 1.0):
+                continue
+        known[name] = {
+            "sha256": sha256,
+            "objective": run.best_objective,
+            "higher_is_better": higher_is_better,
+            "solution": run.solution,
+            "source": source,
+        }
+        changed = True
+    if changed:
+        project.bench.mkdir(exist_ok=True)
+        best_path(project).write_text(json.dumps(known))
 
 
 # --- what the agent reads ----------------------------------------------------------------------
@@ -1133,14 +1356,18 @@ def describe_bench(project: Project) -> str:
     """
     spec = load_spec(project)
     lines = [f"runs {spec.runs} per instance, seed {spec.seed}, budget per run {stop_of(spec)}"]
-    for split in ("train", "validation"):
+    for split in ("train", "validation", "test"):
         entries = instances_of(spec, split)
         names = ", ".join(f"{i.name} ({i.source})" for i in entries) or "none"
         lines.append(f"{split}: {names}")
+    known = best_known(project)
+    if known:
+        found = ", ".join(f"{n} {b['objective']:g} ({b['source']})" for n, b in known.items())
+        lines.append(f"best known: {found}")
     past = history(project)
     if past:
         lines.append("evaluations:")
-        kept = kept_revisions(project, past)
+        kept = kept_revisions(project, past) | adopted_revisions(project, past)
         for r in past[-20:]:
             gain = f"{r['gain']:+.3%}" if r.get("gain") is not None else "-"
             note = r["candidate"].get("note")
@@ -1166,7 +1393,7 @@ def kept_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int,
     Returns:
         The revision, by evaluation number, for the evaluations kept as one.
     """
-    hashes = {rev: _file_hashes(project.rev_dir(rev)) for rev in project.revisions()}
+    hashes = {rev: file_hashes(project.rev_dir(rev)) for rev in project.revisions()}
     kept = {}
     for r in records:
         if r["candidate"]["rev"] is not None or r["baseline"]["rev"] is None:
@@ -1179,6 +1406,40 @@ def kept_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int,
     return kept
 
 
+def adopted_revisions(project: Project, records: list[dict[str, Any]]) -> dict[int, int]:
+    """The revision each evaluation of a saved candidate was adopted as, if it was.
+
+    Args:
+        project: The project.
+        records: The evaluations' records.
+
+    Returns:
+        The revision, by evaluation number.
+    """
+    adopted = {c["id"]: c["adopted"] for c in candidate_records(project) if c.get("adopted")}
+    return {
+        r["id"]: adopted[r["candidate"]["candidate_id"]]
+        for r in records
+        if r["candidate"].get("candidate_id") in adopted
+    }
+
+
+def latest_evaluations(records: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    """The latest evaluation of each saved candidate on train.
+
+    Args:
+        records: The evaluations' records, oldest first.
+
+    Returns:
+        The record, by candidate number.
+    """
+    return {
+        r["candidate"]["candidate_id"]: r
+        for r in records
+        if r["candidate"].get("candidate_id") is not None and r["split"] == "train"
+    }
+
+
 def state(project: Project) -> BenchState:
     """What the GUI's Improve tab shows.
 
@@ -1189,7 +1450,8 @@ def state(project: Project) -> BenchState:
         The benchmark and every evaluation, tuning and profile on it.
     """
     past = history(project)
-    kept = kept_revisions(project, past)
+    kept = kept_revisions(project, past) | adopted_revisions(project, past)
+    judged = latest_evaluations(past)
     evaluations = [
         BenchEvaluation(
             id=r["id"],
@@ -1220,7 +1482,60 @@ def state(project: Project) -> BenchState:
     raced = [_tuning(t) for t in tunings(project)]
     profiled = [_profile(p) for p in profiles(project)]
     return BenchState(
-        spec=load_spec(project), evaluations=evaluations, tunings=raced, profiles=profiled
+        spec=load_spec(project),
+        evaluations=evaluations,
+        tunings=raced,
+        profiles=profiled,
+        candidates=[_candidate(c, judged.get(c["id"])) for c in candidate_records(project)],
+        races=[_race(r) for r in races(project)],
+        best=[
+            BenchBest(name=name, objective=b["objective"], source=b["source"])
+            for name, b in best_known(project).items()
+        ],
+    )
+
+
+def _candidate(record: dict[str, Any], evaluation: dict[str, Any] | None) -> BenchCandidate:
+    """A saved candidate as the Improve tab's ledger shows it.
+
+    Args:
+        record: The candidate's record as kept on disk.
+        evaluation: Its latest evaluation's record, if it was judged.
+
+    Returns:
+        The candidate.
+    """
+    return BenchCandidate(
+        id=record["id"],
+        baseline_rev=record["baseline_rev"],
+        family=record["family"],
+        hypothesis=record["hypothesis"],
+        evidence=record.get("evidence", ""),
+        variant=record["variant"],
+        evaluation=evaluation["id"] if evaluation else None,
+        verdict=evaluation["verdict"] if evaluation else None,
+        gain=evaluation["gain"] if evaluation else None,
+        adopted=record.get("adopted"),
+        lesson=record.get("lesson", ""),
+    )
+
+
+def _race(record: dict[str, Any]) -> BenchRace:
+    """A race's record as the Improve tab shows it.
+
+    Args:
+        record: The record as kept on disk.
+
+    Returns:
+        The race.
+    """
+    return BenchRace(
+        id=record["id"],
+        baseline=_side_of(record["baseline"]),
+        baseline_rank=record["baseline_rank"],
+        p=record["p"],
+        entries=[BenchRaceEntry(**e) for e in record["entries"]],
+        winner=record["winner"],
     )
 
 
@@ -1296,5 +1611,9 @@ def _side_of(record: dict[str, Any]) -> BenchSide:
         The side.
     """
     return BenchSide(
-        where=record["where"], rev=record["rev"], variant=record["variant"], worker=record["worker"]
+        where=record["where"],
+        rev=record["rev"],
+        variant=record["variant"],
+        worker=record["worker"],
+        candidate_id=record.get("candidate_id"),
     )

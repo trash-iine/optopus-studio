@@ -26,7 +26,7 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, docs, profiling, rust, tune
+from optopus_studio import bench, candidates, docs, profiling, rust, tune
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -196,7 +196,9 @@ same in less), or asks you to improve it on your own, judge every change on a be
 instances, never on one solve: one instance and a few seeds reward luck and overfitting.
 
 1. Build the benchmark once (bench_list shows it). Add three to six train instances and two or \
-three validation instances with bench_add, from the user's data (instance.json, revisions, app \
+three validation instances with bench_add, and one or two test instances when there are \
+instances to spare (they only measure the final result; nothing is chosen on them), from \
+the user's data (instance.json, revisions, app \
 cases, uploads) and, when that is too little, from generate.py: `generate(seed, **params)` \
 returns an instance shaped like instance.json, of the sizes and structure the user has \
 (standard library and optopus only). Set the runs (5 or more) and each run's budget with \
@@ -221,11 +223,16 @@ leads early and the one that ends best, one that stalls inside Iterated), as var
 best single heuristics, run_solver, and tune with 'spaces', the incumbent first: the race \
 chooses the structure and sets its nested settings, the steps' stops among them \
 ("steps.0.stop.max_iteration", "search.tabu_tenure.1"). Then go on one change at a time.
-4. Change one thing at a time, as a hypothesis: a heuristic or its parameters in solve.json, \
-or in model.py a neighborhood, a delta computed from the move, a representation, or a port to \
-Rust. check_model, then evaluate it against the incumbent on train, with a note saying what \
-changed. On BETTER, run_solver: that revision is the new incumbent. On anything else, \
-restore_revision the incumbent and try another hypothesis.
+4. Then work in rounds against the incumbent. A round tests three or four hypotheses, each \
+one change, of different families: a heuristic or its parameters in solve.json; in model.py a \
+neighborhood, a delta computed from the move, a representation; a port to Rust. For each: make \
+the change, check_model, and candidate_save it with what it changes and why, its family, and \
+what suggested it; the files then go back to the incumbent's for the next. race the candidates: \
+the baseline runs once and each is judged against it as evaluate would. adopt the winner, which \
+solves it into the new incumbent, and give the others a lesson with candidate_lesson: why it \
+did not help, and what that says about the next round. Several hypotheses a round cost little \
+more than one and keep a round from coming back empty; when the evidence suggests only one, \
+evaluate the work files directly, run_solver on BETTER and restore_revision otherwise.
 5. To tune a heuristic's numbers or choices (temperatures, rates, tenures, sizes, which \
 neighbor), call tune instead of trying settings one at a time: give the parameters that matter, \
 each with the range worth searching ('log' when it spans orders of magnitude), and a budget of \
@@ -244,9 +251,11 @@ signs, and a profile's readings, the same way: an elite at the edge of a range w
 range widened; settings that barely matter want a change of structure, not more tuning; \
 instances that prefer different settings are worth telling the user.
 7. Stop at the user's budget (attempts or time), or after several hypotheses in a row bring \
-nothing. bench_list recalls every change judged so far, with its note and verdict and the \
-revision it was solved into, so do not try one twice; the user follows the same in the \
-canvas's Improve tab. Then evaluate the incumbent against the revision you started from on \
+nothing. bench_list recalls every change judged so far: the ledger of candidates with their \
+hypothesis, verdict and lesson, the families not tried yet, and the best objective known on \
+each instance. Do not try a change twice, and prefer a family not tried to a third variation \
+of one that lost; the user follows the same in the canvas's Improve tab. Then evaluate the \
+incumbent against the revision you started from on \
 validation. Present the improvement only if it holds there; if not, it fit the train \
 instances, so say so and restore the revision you started from.
 
@@ -931,6 +940,21 @@ class Tools:
         Raises:
             ProjectError: The files are missing or broken.
         """
+        _, report, failed = await self.solve_revision(args)
+        return text_result(report, is_error=failed)
+
+    async def solve_revision(self, args: dict[str, Any]) -> tuple[int, str, bool]:
+        """Solves the work files into a new revision, which the canvas shows.
+
+        Args:
+            args: ``max_duration_secs``, ``runs`` or ``seed`` to override solve.json's.
+
+        Returns:
+            The revision, the report of its solve, and whether the solve or its view failed.
+
+        Raises:
+            ProjectError: The files are missing or broken.
+        """
         request = self.solve_request(args)
         # Built before the snapshot, so a port that does not compile makes no revision. The
         # snapshot holds the same rust/main.rs, so its binary is this one.
@@ -961,7 +985,7 @@ class Tools:
             report += f"\n\nview.py failed:\n{error}"
         elif view:
             report += f"\n\nthe canvas shows: {', '.join(v.type for v in view.views)}"
-        return text_result(report, is_error=bool(summary.error or error))
+        return rev, report, bool(summary.error or error)
 
     async def restore_revision(self, args: dict[str, Any]) -> dict[str, Any]:
         """The ``restore_revision`` tool: makes the work files a revision's again.
@@ -1125,12 +1149,153 @@ class Tools:
         """
         lines = [bench.describe_bench(self.project)]
         for heading, described in (
+            ("candidates, the ledger of what was tried:", candidates.describe(self.project)),
             ("tunings:", tune.describe(self.project)),
             ("profiles:", profiling.describe(self.project)),
         ):
             if described:
                 lines += [heading, *described]
         return text_result("\n".join(lines))
+
+    @staticmethod
+    def choosing_split(args: dict[str, Any]) -> BenchSplit:
+        """The split a tool that helps choose runs on: never the test split.
+
+        Args:
+            args: The tool's input, with ``split`` if given.
+
+        Returns:
+            The split; train when none is given.
+
+        Raises:
+            ProjectError: The test split is asked for.
+        """
+        split = args.get("split", "train")
+        if split == "test":
+            raise ProjectError(
+                "the test instances only measure the final result, which the studio does when "
+                "the improvement ends: nothing is chosen on them. Use train or validation"
+            )
+        return split
+
+    async def candidate_save(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``candidate_save`` tool: saves the work files as a candidate to race.
+
+        Args:
+            args: The tool's input: ``baseline_rev``, ``hypothesis`` and ``family``, and
+                ``evidence`` and ``variant`` if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The candidate fails a gate.
+        """
+        rev = int(args["baseline_rev"])
+        record = await candidates.save(
+            self.project,
+            rev,
+            str(args["hypothesis"]),
+            str(args["family"]),
+            str(args.get("evidence", "")),
+            args.get("variant"),
+        )
+        await self.broadcast(BenchChanged())
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        return text_result(
+            f"candidate {record['id']} [{record['family']}] saved (variant {record['variant']}, "
+            f"{record['worker']} worker); its model scores revision {rev}'s solutions as that "
+            f"revision does. The files are revision {rev}'s again: write the next candidate, or "
+            "race the ones saved."
+        )
+
+    async def race(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``race`` tool: races saved candidates against the revision they change.
+
+        Args:
+            args: The tool's input: ``candidates``, and ``baseline_variant`` if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The race cannot run.
+        """
+        try:
+            record, evaluations = await candidates.race(
+                self.project,
+                [int(c) for c in args["candidates"]],
+                args.get("baseline_variant"),
+                progress=self.bench_progress,
+            )
+        finally:
+            await self.broadcast(BenchChanged())
+        return text_result(candidates.report(self.project, record, evaluations))
+
+    async def adopt(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``adopt`` tool: solves a candidate judged better into the new incumbent.
+
+        A candidate not raced yet is raced alone first.
+
+        Args:
+            args: The tool's input: ``candidate``, and ``lesson`` if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The candidate may not be adopted.
+        """
+        id = int(args["candidate"])
+        if args.get("lesson"):
+            candidates.set_lesson(self.project, id, str(args["lesson"]))
+        record, evaluation = candidates.adoptable(self.project, id)
+        if evaluation is None:
+            raced, evaluations = await candidates.race(
+                self.project, [id], progress=self.bench_progress
+            )
+            await self.broadcast(BenchChanged())
+            if raced["winner"] != id:
+                return text_result(
+                    f"candidate {id} is not adopted:\n"
+                    + candidates.report(self.project, raced, evaluations),
+                    is_error=True,
+                )
+        candidates.write_adopted(self.project, record)
+        await self.broadcast(FilesChanged(files=self.project.files()))
+        rev, report, failed = await self.solve_revision({})
+        if failed:
+            self.project.restore(record["baseline_rev"])
+            await self.broadcast(FilesChanged(files=self.project.files()))
+            return text_result(
+                f"candidate {id} was better on the benchmark, but its solve of instance.json "
+                f"failed, so it is not adopted and the files are revision "
+                f"{record['baseline_rev']}'s again:\n{report}",
+                is_error=True,
+            )
+        candidates.mark_adopted(self.project, id, rev)
+        await self.broadcast(BenchChanged())
+        return text_result(
+            f"candidate {id} adopted: revision {rev} is the incumbent now. Save the next "
+            f"candidates with baseline_rev {rev}.\n{report}"
+        )
+
+    async def candidate_lesson(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``candidate_lesson`` tool: records what candidates' results taught.
+
+        Args:
+            args: The tool's input: ``lessons``, each a ``candidate`` and its ``lesson``.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: There is no such candidate.
+        """
+        for entry in args["lessons"]:
+            candidates.set_lesson(self.project, int(entry["candidate"]), str(entry["lesson"]))
+        await self.broadcast(BenchChanged())
+        return text_result(f"kept {len(args['lessons'])} lessons in the ledger (bench_list)")
 
     async def evaluate(self, args: dict[str, Any]) -> dict[str, Any]:
         """The ``evaluate`` tool: judges a candidate against a baseline revision.
@@ -1149,7 +1314,7 @@ class Tools:
         evaluation = await bench.evaluate(
             self.project,
             int(args["baseline_rev"]),
-            args.get("split", "train"),
+            self.choosing_split(args),
             candidate_rev=int(candidate) if candidate is not None else None,
             variant=args.get("variant"),
             baseline_variant=args.get("baseline_variant"),
@@ -1214,7 +1379,7 @@ class Tools:
             self.project,
             int(rev) if rev is not None else None,
             variants=args.get("variants"),
-            split=args.get("split", "train"),
+            split=self.choosing_split(args),
             progress=self.bench_progress,
         )
         await self.broadcast(BenchChanged())
@@ -1405,15 +1570,16 @@ class Tools:
             ToolSpec(
                 "bench_add",
                 "Add an instance to the benchmark that evaluate judges changes of the algorithm "
-                "on, under 'name' (replacing one of that name), in the train or validation "
-                "split. 'source': 'instance' (instance.json now), 'rev:<n>' (a revision's "
+                "on, under 'name' (replacing one of that name), in the train, validation or "
+                "test split (test only measures the final result). 'source': 'instance' "
+                "(instance.json now), 'rev:<n>' (a revision's "
                 "instance.json), 'case:<id>' (an app case's instance), 'upload:<name>' "
                 "(instance.json with an attached table as instance[key]; give 'key', and "
                 "'sheet' for Excel), or 'generate' (generate.py's generate(seed, **params)).",
                 object_schema(
                     {
                         "name": {"type": "string", "pattern": BENCH_NAME},
-                        "split": {"type": "string", "enum": ["train", "validation"]},
+                        "split": {"type": "string", "enum": ["train", "validation", "test"]},
                         "source": {"type": "string"},
                         "key": {"type": "string"},
                         "sheet": {"type": "string"},
@@ -1448,8 +1614,9 @@ class Tools:
             ),
             ToolSpec(
                 "bench_list",
-                "The benchmark's settings and instances, and the evaluations, tunings and "
-                "profiles so far.",
+                "The benchmark's settings and instances, the best objective known on each, and "
+                "the evaluations, the ledger of candidates (hypothesis, family, verdict, "
+                "lesson), tunings and profiles so far.",
                 object_schema({}, []),
                 guarded(self.bench_list),
             ),
@@ -1465,7 +1632,7 @@ class Tools:
                 object_schema(
                     {
                         "baseline_rev": {"type": "integer", "minimum": 1},
-                        "split": {"type": "string", "enum": list(get_args(BenchSplit))},
+                        "split": {"type": "string", "enum": ["train", "validation", "all"]},
                         "candidate_rev": {"type": "integer", "minimum": 1},
                         "variant": {"type": "string"},
                         "baseline_variant": {"type": "string"},
@@ -1474,6 +1641,92 @@ class Tools:
                     ["baseline_rev"],
                 ),
                 guarded(self.evaluate),
+            ),
+            ToolSpec(
+                "candidate_save",
+                "Save the project files as a candidate: one hypothesis to race against revision "
+                "'baseline_rev', the incumbent the change was made on. Call check_model first. "
+                "'hypothesis' says what changes and why it should help, 'family' what kind of "
+                "change it is, 'evidence' what suggested it (a profile's reading, a tuning's "
+                "sign, an instance line, a source). With several heuristics in solve.json, "
+                "'variant' picks the one it runs. Refused when the same files were saved before, "
+                "when nothing changed, or when its model scores the baseline's solutions "
+                "otherwise (it changed the objective). The project files then become the "
+                "baseline's again, so several candidates can be written one after another and "
+                "raced together. Makes no revision.",
+                object_schema(
+                    {
+                        "baseline_rev": {"type": "integer", "minimum": 1},
+                        "hypothesis": {"type": "string", "minLength": 1},
+                        "family": {"type": "string", "enum": list(candidates.FAMILIES)},
+                        "evidence": {"type": "string"},
+                        "variant": {"type": "string"},
+                    },
+                    ["baseline_rev", "hypothesis", "family"],
+                ),
+                guarded(self.candidate_save),
+            ),
+            ToolSpec(
+                "race",
+                "Race saved candidates against the revision they change, on train: the baseline "
+                "runs once and every candidate is paired with it by seed, so each gets the "
+                "verdict evaluate would give it, for about (candidates + 1) x instances x runs "
+                "x budget / the cores in use rather than twice that per candidate. Reports "
+                "everyone's mean rank, each candidate's instance lines and verdict, and the "
+                "winner: the best-ranked candidate judged BETTER, if any. With several "
+                "heuristics in the baseline's solve.json, 'baseline_variant' picks one.",
+                object_schema(
+                    {
+                        "candidates": {
+                            "type": "array",
+                            "items": {"type": "integer", "minimum": 1},
+                            "minItems": 1,
+                            "maxItems": candidates.MAX_RACED,
+                        },
+                        "baseline_variant": {"type": "string"},
+                    },
+                    ["candidates"],
+                ),
+                guarded(self.race),
+            ),
+            ToolSpec(
+                "adopt",
+                "Adopt a candidate judged BETTER than its baseline: the project files become "
+                "the baseline's with the candidate's model.py, solve.json and rust/main.rs, and "
+                "are solved into a new revision, the new incumbent. Any other candidate is "
+                "refused; one not raced yet is raced alone first. 'lesson' says in a line what "
+                "its result taught.",
+                object_schema(
+                    {
+                        "candidate": {"type": "integer", "minimum": 1},
+                        "lesson": {"type": "string"},
+                    },
+                    ["candidate"],
+                ),
+                guarded(self.adopt),
+            ),
+            ToolSpec(
+                "candidate_lesson",
+                "Record what candidates' results taught, a line each, the ones that lost above "
+                "all: why it did not help, and what that says about the next hypothesis. "
+                "bench_list shows the lessons with the ledger.",
+                object_schema(
+                    {
+                        "lessons": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": object_schema(
+                                {
+                                    "candidate": {"type": "integer", "minimum": 1},
+                                    "lesson": {"type": "string", "minLength": 1},
+                                },
+                                ["candidate", "lesson"],
+                            ),
+                        }
+                    },
+                    ["lessons"],
+                ),
+                guarded(self.candidate_lesson),
             ),
             ToolSpec(
                 "tune",

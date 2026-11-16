@@ -131,11 +131,17 @@ every earlier revision is solved the same, it is the one before.
 
 What the agent did to improve the search
 ([Improving the algorithm](projects.md#improving-the-algorithm)); empty until it builds a
-benchmark. It updates as the agent works, with a progress bar while an evaluation, a tuning or
-a profile runs.
+benchmark. It updates as the agent works, with a progress bar while an evaluation, a race, a tuning
+or a profile runs.
 
 - **Benchmark**: the runs per instance and each run's budget, and the train and validation
-  instances; hover one for where it came from.
+  instances, and the test instances when there are any; hover one for where it came from and
+  the best objective known on it.
+- **Hypotheses**: the ledger of the changes the agent saved as candidates
+  ([ADR 0018](../adr/0018-race-saved-candidates-against-the-incumbent.md)), newest first: the
+  kind of change, the hypothesis (hover it for what suggested it), the revision it changes, the
+  race it ran in, what became of it (the revision it was adopted as, or its verdict), its gain,
+  and the lesson the agent drew. The heading counts the kinds tried.
 - **Heuristics profiled**: every profile of several heuristics on the benchmark, newest first. Each
   table lists the heuristics, the best first, with:
   - the mean rank and the instances won;

@@ -1,18 +1,21 @@
 // The benchmark the agent improves the search on: its instances, every profile of heuristics on
-// it, every change it judged there, and every tuning of a heuristic's settings (docs/adr/0013,
-// 0014, 0015).
+// it, every change it judged there, the ledger of the hypotheses it saved as candidates, and
+// every tuning of a heuristic's settings (docs/adr/0013, 0014, 0015, 0018).
 import { Fragment, useEffect, useState } from "react";
 import type { BenchEvaluation, BenchProfile, BenchState, BenchTuning } from "../generated/bench-state";
 import type { BenchProgress } from "../generated/server-event";
 import {
   best,
   budget,
+  families,
+  fate,
   fetchBench,
   gap,
   leaders,
   outcomes,
   percent,
   progressText,
+  raced,
   ranked,
   share,
   side,
@@ -49,6 +52,13 @@ export function Improve({ project, version, progress }: Props) {
   if (error) return <div className="banner critical">{error}</div>;
   if (!bench) return <div className="placeholder">Loading the benchmark…</div>;
   const { spec, evaluations, tunings, profiles } = bench;
+  const { candidates } = bench;
+  const races = raced(bench.races);
+  const known = new Map(bench.best.map((b) => [b.name, b]));
+  const splits = (["train", "validation", "test"] as const).filter(
+    (split) => split !== "test" || spec.instances.some((i) => i.split === "test"),
+  );
+  const titles = { train: "Train", validation: "Validation", test: "Test" };
   if (spec.instances.length === 0 && evaluations.length === 0) {
     return (
       <div className="result">
@@ -71,21 +81,70 @@ export function Improve({ project, version, progress }: Props) {
             {spec.runs} runs per instance, {budget(spec)} each, paired by seed
           </span>
         </h3>
-        {(["train", "validation"] as const).map((split) => {
+        {splits.map((split) => {
           const entries = spec.instances.filter((i) => i.split === split);
           return (
             <div key={split} className="bench-split">
-              <span className="muted">{split === "train" ? "Train" : "Validation"}</span>
+              <span className="muted">{titles[split]}</span>
               {entries.length === 0 && <span className="muted">none</span>}
-              {entries.map((i) => (
-                <span key={i.name} className="chip" title={i.source}>
-                  {i.name}
-                </span>
-              ))}
+              {entries.map((i) => {
+                const found = known.get(i.name);
+                const title = found
+                  ? `${i.source}; best known ${compact(found.objective)} (${found.source})`
+                  : i.source;
+                return (
+                  <span key={i.name} className="chip" title={title}>
+                    {i.name}
+                  </span>
+                );
+              })}
+              {split === "test" && <span className="muted">measured at the end, never chosen on</span>}
             </div>
           );
         })}
       </section>
+      {candidates.length > 0 && (
+        <section className="card table-wrap">
+          <h3>
+            Hypotheses{" "}
+            <span className="sub">
+              newest first; each saved as a candidate and raced against the revision it changes
+              {" · "}
+              {families(candidates)
+                .map((f) => `${f.family} ${f.tried}${f.adopted ? ` (${f.adopted} adopted)` : ""}`)
+                .join(", ")}
+            </span>
+          </h3>
+          <table className="ledger">
+            <thead>
+              <tr>
+                <th className="num">#</th>
+                <th>kind</th>
+                <th>hypothesis</th>
+                <th className="num">on</th>
+                <th className="num">race</th>
+                <th>outcome</th>
+                <th className="num">gain</th>
+                <th>lesson</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...candidates].reverse().map((c) => (
+                <tr key={c.id}>
+                  <td className="num">{c.id}</td>
+                  <td>{c.family}</td>
+                  <td title={c.evidence || undefined}>{c.hypothesis}</td>
+                  <td className="num">revision {c.baseline_rev}</td>
+                  <td className="num">{races.has(c.id) ? `#${races.get(c.id)?.race}` : "—"}</td>
+                  <td className={c.verdict ? verdictClass(c.verdict) : "muted"}>{fate(c)}</td>
+                  <td className="num">{percent(c.gain)}</td>
+                  <td>{c.lesson || <span className="muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {profiles.length > 0 && (
         <section className="card table-wrap">
           <h3>

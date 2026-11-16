@@ -240,7 +240,7 @@ export type Type21 = "web_search_changed";
  * Solves finished in an evaluation or a profile, runs in a tuning.
  */
 export type Done = number;
-export type Task = "evaluation" | "tuning" | "profile";
+export type Task = "evaluation" | "tuning" | "profile" | "race";
 export type Total = number;
 export type Type22 = "bench_progress";
 export type Type23 = "bench_changed";

@@ -470,8 +470,9 @@ class ViewUpdated(Strict):
 
 
 # What the agent runs on the benchmark (bench.py), and the instances it runs on.
-BenchTask = Literal["evaluation", "tuning", "profile"]
-BenchSplit = Literal["train", "validation", "all"]
+BenchTask = Literal["evaluation", "tuning", "profile", "race"]
+# "all" is train and validation: the test split is never part of a choice (docs/adr/0018).
+BenchSplit = Literal["train", "validation", "test", "all"]
 
 
 class BenchProgress(Strict):
@@ -747,8 +748,9 @@ class BenchInstance(Strict):
     """One instance of the benchmark, kept under bench/instances."""
 
     name: str = Field(pattern=BENCH_NAME)
-    split: Literal["train", "validation"] = Field(
-        description="Candidates are chosen on train; the final choice is checked on validation."
+    split: Literal["train", "validation", "test"] = Field(
+        description="Candidates are chosen on train; the final choice is checked on validation; "
+        "test only measures what is reported, and decides nothing."
     )
     source: str = Field(description="Where the instance came from, such as 'revision 3'.")
     sha256: str = Field(description="Of the instance file, so a result says what it ran on.")
@@ -776,10 +778,13 @@ Verdict = Literal["better", "mixed", "same", "worse", "rejected", "failed"]
 class BenchSide(Strict):
     """One side of an evaluation: whose files, which heuristic, which worker."""
 
-    where: str = Field(description="'the work files' or 'revision <n>'.")
+    where: str = Field(description="'the work files', 'revision <n>' or 'candidate <n>'.")
     rev: int | None
     variant: str
     worker: Literal["python", "rust"]
+    candidate_id: int | None = Field(
+        None, description="The saved candidate the side ran, if it is one (docs/adr/0018)."
+    )
 
 
 class BenchInstanceResult(Strict):
@@ -878,10 +883,75 @@ class BenchProfile(Strict):
     )
 
 
+# What a candidate changes, so the ledger says which kinds of change were tried (docs/adr/0018).
+Family = Literal[
+    "settings",
+    "heuristic",
+    "composition",
+    "neighborhood",
+    "delta",
+    "representation",
+    "start",
+    "port",
+]
+
+
+class BenchCandidate(Strict):
+    """One saved candidate, a line of the ledger: a hypothesis and what became of it."""
+
+    id: int
+    baseline_rev: int = Field(description="The revision it changes, and is judged against.")
+    family: Family
+    hypothesis: str = Field(description="What it changes and why that should help.")
+    evidence: str = Field(description="What suggested it: a reading, a sign, a source.")
+    variant: str = Field(description="The heuristic of its solve.json it runs.")
+    evaluation: int | None = Field(description="Its latest evaluation, if it was judged.")
+    verdict: Verdict | None
+    gain: float | None
+    adopted: int | None = Field(description="The revision it was adopted as, if it was.")
+    lesson: str = Field(description="What its result taught, in the agent's words.")
+
+
+class BenchRaceEntry(Strict):
+    """How one candidate did in a race."""
+
+    candidate: int
+    evaluation: int = Field(description="Its evaluation against the baseline, from the race.")
+    verdict: Verdict
+    gain: float | None
+    mean_rank: float | None = Field(
+        description="Over the runs, 1 the best, among the baseline and the candidates judged."
+    )
+
+
+class BenchRace(Strict):
+    """One race of several candidates against a baseline revision (candidates.py)."""
+
+    id: int
+    baseline: BenchSide
+    baseline_rank: float | None
+    p: float | None = Field(description="The Friedman test's p-value over all runs.")
+    entries: list[BenchRaceEntry]
+    winner: int | None = Field(
+        description="The best-ranked candidate judged better than the baseline, if any."
+    )
+
+
+class BenchBest(Strict):
+    """The best objective known on one instance of the benchmark."""
+
+    name: str
+    objective: float
+    source: str = Field(description="What found it, such as 'evaluation 4'.")
+
+
 class BenchState(Strict):
-    """GET /api/projects/{id}/bench: the benchmark and every evaluation, tuning and profile."""
+    """GET /api/projects/{id}/bench: the benchmark and everything judged or measured on it."""
 
     spec: BenchSpec
     evaluations: list[BenchEvaluation]
     tunings: list[BenchTuning]
     profiles: list[BenchProfile] = []
+    candidates: list[BenchCandidate] = []
+    races: list[BenchRace] = []
+    best: list[BenchBest] = []
