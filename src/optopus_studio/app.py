@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from optopus_studio import apps, bench
+from optopus_studio import apps, bench, campaign
 from optopus_studio.agent import AgentError, AgentSession, agent_choices, list_models
 from optopus_studio.frontend import mount_frontend
 from optopus_studio.projects import Project, ProjectError
@@ -298,7 +298,10 @@ def get_bench(project_id: str) -> BenchState:
     Returns:
         The benchmark's state.
     """
-    return bench.state(open_project(project_id))
+    project = open_project(project_id)
+    state = bench.state(project)
+    state.campaign = campaign.describe(project)
+    return state
 
 
 @app.get("/api/projects/{project_id}/revisions/{rev}/package")

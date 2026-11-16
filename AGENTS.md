@@ -23,7 +23,9 @@ coding agents.
   change of the algorithm on the project's benchmark of instances against a baseline revision,
   whose model re-scores the candidate's solutions (ADR 0013); `candidates.py` saves the work
   files as candidates with their hypotheses, races several against the incumbent at once and
-  lets only a better one be adopted (ADR 0018); `generator.py` runs `generate.py`;
+  lets only a better one be adopted (ADR 0018); `campaign.py` is the improvement loop the
+  studio drives: a round per turn of the agent, each on a brief, and the final check on
+  validation made by the studio (ADR 0019); `generator.py` runs `generate.py`;
   `tune.py` races a heuristic's settings, or several heuristics', on the benchmark, as irace
   does, and reads the race for signs of what settings cannot fix (ADR 0014); `profiling.py` runs
   several heuristics on it and reads how each runs (who leads early, who ends best, who stalls)

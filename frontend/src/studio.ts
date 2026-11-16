@@ -110,6 +110,14 @@ export function reduce(state: StudioState, action: Action): StudioState {
         ...state,
         chat: [...state.chat, { role: "tool", text: `${e.name} ${e.summary}`.trim() }],
       };
+    case "studio_message":
+      // A campaign's brief to the agent, or its end; its state shows in the Improve tab.
+      return {
+        ...state,
+        streaming: "",
+        chat: [...state.chat, { role: "studio", text: e.text }],
+        benchVersion: state.benchVersion + 1,
+      };
     case "turn_end":
       return { ...state, busy: false, streaming: "", solving: null, benchProgress: null, error: e.error };
     case "files":

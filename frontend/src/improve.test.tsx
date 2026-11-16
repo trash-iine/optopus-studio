@@ -5,6 +5,8 @@ import type { BenchEvaluation, BenchState } from "./generated/bench-state";
 import {
   best,
   budget,
+  campaignOutcome,
+  campaignText,
   families,
   fate,
   gap,
@@ -17,6 +19,7 @@ import {
   settings,
   share,
   side,
+  studioTitle,
   verdictClass,
 } from "./improve";
 import { initialState, reduce } from "./studio";
@@ -151,6 +154,24 @@ const STATE: BenchState = {
   candidates: [],
   races: [],
   best: [],
+  campaign: null,
+};
+
+const CAMPAIGN: NonNullable<BenchState["campaign"]> = {
+  status: "running",
+  start_rev: 2,
+  incumbent_rev: 3,
+  round: 2,
+  rounds: 5,
+  minutes: 30,
+  elapsed_minutes: 7.4,
+  idle: 1,
+  patience: 3,
+  reason: null,
+  validation: null,
+  test: null,
+  kept: null,
+  error: null,
 };
 
 // A round of two hypotheses on revision 2: the swap move won its race and was adopted.
@@ -332,6 +353,44 @@ describe("the improve tab", () => {
     expect(screen.queryByText(/changed the objective/)).toBeNull();
     expect(screen.getByText("instance")).toBeTruthy();
     expect(screen.getAllByText("+5.00%").length).toBe(1);
+  });
+
+  it("follows a campaign the studio drives", async () => {
+    expect(studioTitle("[studio] Improvement campaign, round 2 of 5. The incumbent is revision 3")).toBe(
+      "studio: Improvement campaign, round 2 of 5",
+    );
+    expect(studioTitle("[studio] The campaign ended after 3 rounds and 12 minutes: its 3 rounds are spent.")).toBe(
+      "studio: The campaign ended after 3 rounds and 12 minutes",
+    );
+    expect(campaignText(CAMPAIGN)).toBe("round 2 of 5, 7 of 30 minutes");
+    expect(campaignOutcome(CAMPAIGN)).toBe(
+      "incumbent revision 3, started from revision 2; 1 of 3 rounds in a row without a gain",
+    );
+    const check = { evaluation: 9, verdict: "better" as const, gain: 0.031 };
+    const kept = { ...CAMPAIGN, status: "finished" as const, kept: true, validation: check, test: { ...check, gain: 0.02 } };
+    expect(campaignOutcome(kept)).toBe(
+      "revision 3 kept over revision 2: better on validation (+3.10%), better on test (+2.00%)",
+    );
+    const undone = { ...kept, kept: false, validation: { ...check, verdict: "same" as const, gain: 0 }, test: null };
+    expect(campaignOutcome(undone)).toBe("revision 3 not kept, back to revision 2: same on validation (0.00%)");
+    expect(campaignOutcome({ ...CAMPAIGN, status: "finished", kept: false, incumbent_rev: 2 })).toBe(
+      "no change was better than revision 2",
+    );
+    expect(campaignOutcome({ ...CAMPAIGN, status: "stopped" })).toBe("revision 3 was not checked on validation");
+
+    const said = reduce(initialState, {
+      type: "event",
+      event: { type: "studio_message", text: "[studio] Improvement campaign, round 1." },
+    });
+    expect(said.chat).toEqual([{ role: "studio", text: "[studio] Improvement campaign, round 1." }]);
+    expect(said.benchVersion).toBe(1);
+
+    const state = { ...STATE, campaign: { ...kept, reason: "its 5 rounds are spent" } };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(state))));
+    render(<Improve project="p" version="0-4" progress={null} />);
+    await screen.findByText("Campaign");
+    expect(screen.getByText(/finished: its 5 rounds are spent · round 2 of 5/)).toBeTruthy();
+    expect(screen.getByText(/revision 3 kept over revision 2/).className).toBe("verdict-better");
   });
 
   it("says how to start when there is no benchmark", async () => {

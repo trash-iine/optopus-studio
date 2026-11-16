@@ -26,6 +26,148 @@
       "title": "BenchBest",
       "type": "object"
     },
+    "BenchCampaign": {
+      "additionalProperties": false,
+      "description": "The project's latest improvement campaign (campaign.py, docs/adr/0019).",
+      "properties": {
+        "elapsed_minutes": {
+          "title": "Elapsed Minutes",
+          "type": "number"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the final check could not be made, if so.",
+          "title": "Error"
+        },
+        "idle": {
+          "description": "The latest rounds in a row that brought no new incumbent.",
+          "title": "Idle",
+          "type": "integer"
+        },
+        "incumbent_rev": {
+          "title": "Incumbent Rev",
+          "type": "integer"
+        },
+        "kept": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether the incumbent was kept after the final check; null until then.",
+          "title": "Kept"
+        },
+        "minutes": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The minutes it may take, if it has such a budget.",
+          "title": "Minutes"
+        },
+        "patience": {
+          "description": "The rounds in a row without one after which it ends.",
+          "title": "Patience",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why it ended, once it has.",
+          "title": "Reason"
+        },
+        "round": {
+          "description": "The rounds begun.",
+          "title": "Round",
+          "type": "integer"
+        },
+        "rounds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The rounds it may take, if it has such a budget.",
+          "title": "Rounds"
+        },
+        "start_rev": {
+          "description": "The revision it started from, and is checked against.",
+          "title": "Start Rev",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "finished",
+            "stopped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "test": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BenchCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measured only when the result was kept."
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BenchCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "start_rev",
+        "incumbent_rev",
+        "round",
+        "rounds",
+        "minutes",
+        "elapsed_minutes",
+        "idle",
+        "patience",
+        "reason",
+        "validation",
+        "test",
+        "kept",
+        "error"
+      ],
+      "title": "BenchCampaign",
+      "type": "object"
+    },
     "BenchCandidate": {
       "additionalProperties": false,
       "description": "One saved candidate, a line of the ledger: a hypothesis and what became of it.",
@@ -142,6 +284,46 @@
         "lesson"
       ],
       "title": "BenchCandidate",
+      "type": "object"
+    },
+    "BenchCheck": {
+      "additionalProperties": false,
+      "description": "A campaign's final check of its result against the revision it started from.",
+      "properties": {
+        "evaluation": {
+          "title": "Evaluation",
+          "type": "integer"
+        },
+        "gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gain"
+        },
+        "verdict": {
+          "enum": [
+            "better",
+            "mixed",
+            "same",
+            "worse",
+            "rejected",
+            "failed"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evaluation",
+        "verdict",
+        "gain"
+      ],
+      "title": "BenchCheck",
       "type": "object"
     },
     "BenchEvaluation": {
@@ -897,6 +1079,17 @@
       "title": "Best",
       "type": "array"
     },
+    "campaign": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BenchCampaign"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "candidates": {
       "default": [],
       "items": {
@@ -946,7 +1139,8 @@
     "profiles",
     "candidates",
     "races",
-    "best"
+    "best",
+    "campaign"
   ],
   "title": "BenchState",
   "type": "object"

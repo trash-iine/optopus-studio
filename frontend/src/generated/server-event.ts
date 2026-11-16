@@ -5,6 +5,7 @@ export type ServerEvent =
   | AssistantDelta
   | AssistantText
   | ToolActivity
+  | StudioMessage
   | TurnEnd
   | FilesChanged
   | SolveStarted
@@ -30,7 +31,10 @@ export type Reason = string | null;
  */
 export type Agents = AgentChoice[];
 export type Busy = boolean;
-export type Role = "user" | "assistant" | "tool";
+/**
+ * 'studio' is the studio's own message to the agent: the brief of a round of an improvement campaign, or its end (docs/adr/0019).
+ */
+export type Role = "user" | "assistant" | "tool" | "studio";
 export type Text = string;
 export type Chat = ChatEntry[];
 /**
@@ -210,17 +214,19 @@ export type Type12 = "assistant_text";
 export type Name2 = string;
 export type Summary = string;
 export type Type13 = "tool";
+export type Text4 = string;
+export type Type14 = "studio_message";
 export type Error = string | null;
-export type Type14 = "turn_end";
-export type Type15 = "files";
+export type Type15 = "turn_end";
+export type Type16 = "files";
 export type Rev2 = number;
 export type Runs1 = number;
-export type Type16 = "solve_started";
+export type Type17 = "solve_started";
 export type Rev3 = number;
-export type Type17 = "solve_progress";
+export type Type18 = "solve_progress";
 export type Error1 = string | null;
 export type Rev4 = number;
-export type Type18 = "view";
+export type Type19 = "view";
 export type Agent1 = "claude" | "codex";
 /**
  * The effort chosen for that agent, if any.
@@ -230,20 +236,20 @@ export type Effort1 = string | null;
  * The model chosen for that agent, if any.
  */
 export type Model1 = string | null;
-export type Type19 = "agent_selected";
+export type Type20 = "agent_selected";
 export type Effort2 = string | null;
 export type Model2 = string | null;
-export type Type20 = "model_selected";
+export type Type21 = "model_selected";
 export type Enabled = boolean;
-export type Type21 = "web_search_changed";
+export type Type22 = "web_search_changed";
 /**
  * Solves finished in an evaluation or a profile, runs in a tuning.
  */
 export type Done = number;
 export type Task = "evaluation" | "tuning" | "profile" | "race";
 export type Total = number;
-export type Type22 = "bench_progress";
-export type Type23 = "bench_changed";
+export type Type23 = "bench_progress";
+export type Type24 = "bench_changed";
 
 /**
  * Everything the GUI shows, sent when a browser connects.
@@ -520,18 +526,25 @@ export interface ToolActivity {
   type: Type13;
 }
 /**
- * The agent finished its turn, or failed it.
+ * The studio said something in the chat: a campaign's brief to the agent, or its end.
+ */
+export interface StudioMessage {
+  text: Text4;
+  type: Type14;
+}
+/**
+ * The agent finished its turn, or failed it; in a campaign, the last of its turns.
  */
 export interface TurnEnd {
   error: Error;
-  type: Type14;
+  type: Type15;
 }
 /**
  * The work files changed: all of them, as they are now.
  */
 export interface FilesChanged {
   files: Files1;
-  type: Type15;
+  type: Type16;
 }
 export interface Files1 {
   [k: string]: string;
@@ -542,7 +555,7 @@ export interface Files1 {
 export interface SolveStarted {
   rev: Rev2;
   runs: Runs1;
-  type: Type16;
+  type: Type17;
 }
 /**
  * How a solve stands, after each event of its worker.
@@ -550,7 +563,7 @@ export interface SolveStarted {
 export interface SolveProgress {
   rev: Rev3;
   summary: RunSummary;
-  type: Type17;
+  type: Type18;
 }
 /**
  * What a revision's ``view.py`` drew, or why it failed.
@@ -558,7 +571,7 @@ export interface SolveProgress {
 export interface ViewUpdated {
   error: Error1;
   rev: Rev4;
-  type: Type18;
+  type: Type19;
   view: ViewSpec | null;
 }
 /**
@@ -568,7 +581,7 @@ export interface AgentSelected {
   agent: Agent1;
   effort: Effort1;
   model: Model1;
-  type: Type19;
+  type: Type20;
 }
 /**
  * The agent runs on another model or effort from the next message, in the same session.
@@ -576,14 +589,14 @@ export interface AgentSelected {
 export interface ModelSelected {
   effort: Effort2;
   model: Model2;
-  type: Type20;
+  type: Type21;
 }
 /**
  * The agent may now search the web, or no longer, from the next message.
  */
 export interface WebSearchChanged {
   enabled: Enabled;
-  type: Type21;
+  type: Type22;
 }
 /**
  * How far the evaluation or tuning on the benchmark the agent is running has got.
@@ -592,7 +605,7 @@ export interface BenchProgress {
   done: Done;
   task: Task;
   total: Total;
-  type: Type22;
+  type: Type23;
 }
 /**
  * The benchmark, its evaluations, tunings or profiles changed.
@@ -600,5 +613,5 @@ export interface BenchProgress {
  * The browser reads them again from GET /api/projects/{id}/bench.
  */
 export interface BenchChanged {
-  type: Type23;
+  type: Type24;
 }

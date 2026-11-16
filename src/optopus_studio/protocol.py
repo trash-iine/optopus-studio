@@ -363,7 +363,10 @@ class RunSummary(Strict):
 class ChatEntry(Strict):
     """One entry of the conversation as the GUI shows it."""
 
-    role: Literal["user", "assistant", "tool"]
+    role: Literal["user", "assistant", "tool", "studio"] = Field(
+        description="'studio' is the studio's own message to the agent: the brief of a round of "
+        "an improvement campaign, or its end (docs/adr/0019)."
+    )
     text: str
 
 
@@ -430,8 +433,15 @@ class ToolActivity(Strict):
     summary: str
 
 
+class StudioMessage(Strict):
+    """The studio said something in the chat: a campaign's brief to the agent, or its end."""
+
+    type: Literal["studio_message"] = "studio_message"
+    text: str
+
+
 class TurnEnd(Strict):
-    """The agent finished its turn, or failed it."""
+    """The agent finished its turn, or failed it; in a campaign, the last of its turns."""
 
     type: Literal["turn_end"] = "turn_end"
     error: str | None = None
@@ -550,6 +560,7 @@ ServerEvent = Annotated[
     | AssistantDelta
     | AssistantText
     | ToolActivity
+    | StudioMessage
     | TurnEnd
     | FilesChanged
     | SolveStarted
@@ -945,6 +956,35 @@ class BenchBest(Strict):
     source: str = Field(description="What found it, such as 'evaluation 4'.")
 
 
+class BenchCheck(Strict):
+    """A campaign's final check of its result against the revision it started from."""
+
+    evaluation: int
+    verdict: Verdict
+    gain: float | None
+
+
+class BenchCampaign(Strict):
+    """The project's latest improvement campaign (campaign.py, docs/adr/0019)."""
+
+    status: Literal["running", "finished", "stopped"]
+    start_rev: int = Field(description="The revision it started from, and is checked against.")
+    incumbent_rev: int
+    round: int = Field(description="The rounds begun.")
+    rounds: int | None = Field(description="The rounds it may take, if it has such a budget.")
+    minutes: float | None = Field(description="The minutes it may take, if it has such a budget.")
+    elapsed_minutes: float
+    idle: int = Field(description="The latest rounds in a row that brought no new incumbent.")
+    patience: int = Field(description="The rounds in a row without one after which it ends.")
+    reason: str | None = Field(description="Why it ended, once it has.")
+    validation: BenchCheck | None
+    test: BenchCheck | None = Field(description="Measured only when the result was kept.")
+    kept: bool | None = Field(
+        description="Whether the incumbent was kept after the final check; null until then."
+    )
+    error: str | None = Field(description="Why the final check could not be made, if so.")
+
+
 class BenchState(Strict):
     """GET /api/projects/{id}/bench: the benchmark and everything judged or measured on it."""
 
@@ -955,3 +995,4 @@ class BenchState(Strict):
     candidates: list[BenchCandidate] = []
     races: list[BenchRace] = []
     best: list[BenchBest] = []
+    campaign: BenchCampaign | None = None

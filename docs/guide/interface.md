@@ -35,7 +35,12 @@
   exported from a packaged app. Attached files show as chips above the box until you send; × removes
   one.
 - **Send / Stop**: while the agent works the button is **Stop**, which interrupts it. You cannot
-  send another message until it has finished or stopped.
+  send another message until it has finished or stopped. During an improvement campaign Stop
+  ends the campaign: the studio still checks what was adopted on the validation instances, and
+  a second Stop skips that too.
+- **studio: lines**: the studio's own messages to the agent during an improvement campaign
+  ([ADR 0019](../adr/0019-drive-the-improvement-loop-from-the-studio.md)): each round's brief
+  and the campaign's end. Click one to read it.
 - **▸ lines**: each tool the agent uses, with the file or page it acts on. `working…` means it is
   thinking.
 - **Red text** under the messages is an error from the agent or the server, for example "the agent
@@ -137,6 +142,9 @@ or a profile runs.
 - **Benchmark**: the runs per instance and each run's budget, and the train and validation
   instances, and the test instances when there are any; hover one for where it came from and
   the best objective known on it.
+- **Campaign**: the latest improvement campaign: whether it runs or why it ended, the round and
+  the minutes spent, the incumbent, and at its end whether the result was kept, with its
+  verdict and gain on validation and on test.
 - **Hypotheses**: the ledger of the changes the agent saved as candidates
   ([ADR 0018](../adr/0018-race-saved-candidates-against-the-incumbent.md)), newest first: the
   kind of change, the hypothesis (hover it for what suggested it), the revision it changes, the

@@ -272,10 +272,12 @@
       "description": "One entry of the conversation as the GUI shows it.",
       "properties": {
         "role": {
+          "description": "'studio' is the studio's own message to the agent: the brief of a round of an improvement campaign, or its end (docs/adr/0019).",
           "enum": [
             "user",
             "assistant",
-            "tool"
+            "tool",
+            "studio"
           ],
           "title": "Role",
           "type": "string"
@@ -1490,6 +1492,28 @@
       "title": "SolveStarted",
       "type": "object"
     },
+    "StudioMessage": {
+      "additionalProperties": false,
+      "description": "The studio said something in the chat: a campaign's brief to the agent, or its end.",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "studio_message",
+          "default": "studio_message",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "StudioMessage",
+      "type": "object"
+    },
     "TableView": {
       "additionalProperties": false,
       "description": "A table of rows.",
@@ -1584,7 +1608,7 @@
     },
     "TurnEnd": {
       "additionalProperties": false,
-      "description": "The agent finished its turn, or failed it.",
+      "description": "The agent finished its turn, or failed it; in a campaign, the last of its turns.",
       "properties": {
         "error": {
           "anyOf": [
@@ -1820,6 +1844,7 @@
       "snapshot": "#/$defs/Snapshot",
       "solve_progress": "#/$defs/SolveProgress",
       "solve_started": "#/$defs/SolveStarted",
+      "studio_message": "#/$defs/StudioMessage",
       "tool": "#/$defs/ToolActivity",
       "turn_end": "#/$defs/TurnEnd",
       "view": "#/$defs/ViewUpdated",
@@ -1839,6 +1864,9 @@
     },
     {
       "$ref": "#/$defs/ToolActivity"
+    },
+    {
+      "$ref": "#/$defs/StudioMessage"
     },
     {
       "$ref": "#/$defs/TurnEnd"

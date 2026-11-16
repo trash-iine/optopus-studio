@@ -26,7 +26,7 @@ from typing import Any, Protocol, get_args
 import optopus
 from pydantic import BaseModel
 
-from optopus_studio import bench, candidates, docs, profiling, rust, tune
+from optopus_studio import bench, campaign, candidates, docs, profiling, rust, tune
 from optopus_studio.apps import (
     APP_FILE,
     case_dir,
@@ -55,6 +55,7 @@ from optopus_studio.protocol import (
     SolveProgress,
     SolveRequest,
     SolveStarted,
+    StudioMessage,
     ToolActivity,
     TurnEnd,
     ViewUpdated,
@@ -190,6 +191,15 @@ applies to (see heuristics_exact), solve with it: run_solver then says whether t
 proven, or how far from it the run may have stopped, and the canvas shows the same.
 
 ## Improving the algorithm
+
+When the user asks you to improve the search on your own, for a number of rounds or a time, \
+build the benchmark and the incumbent (steps 1 and 2 below), then call improve_start and end \
+your turn: the studio runs the campaign. It gives you a turn per round with a message that \
+starts with "[studio]", which is the studio's and not the user's: where the campaign stands, the \
+ledger, and what the round is. Do the round and end your turn; the studio decides when the \
+campaign ends, checks the result on validation itself, and asks you for the summary. The steps \
+below are how to work within a round, and how to improve the search when the user asks for one \
+change or a few rather than a campaign.
 
 When the user wants the search to do better (better solutions in the time they accept, or the \
 same in less), or asks you to improve it on your own, judge every change on a benchmark of \
@@ -1280,6 +1290,40 @@ class Tools:
             f"candidates with baseline_rev {rev}.\n{report}"
         )
 
+    async def improve_start(self, args: dict[str, Any]) -> dict[str, Any]:
+        """The ``improve_start`` tool: starts an improvement campaign the studio drives.
+
+        Args:
+            args: The tool's input: ``rounds`` and ``minutes``, if given.
+
+        Returns:
+            The tool's result.
+
+        Raises:
+            ProjectError: The campaign cannot start.
+        """
+        minutes = args.get("minutes")
+        state = campaign.start(
+            self.project,
+            int(args["rounds"]) if args.get("rounds") else None,
+            float(minutes) if minutes else None,
+        )
+        await self.broadcast(BenchChanged())
+        budget = " or ".join(
+            part
+            for part in (
+                f"{state['rounds']} rounds" if state["rounds"] else "",
+                f"{state['minutes']:g} minutes" if state["minutes"] else "",
+            )
+            if part
+        )
+        return text_result(
+            f"campaign started from revision {state['start_rev']}: {budget}, ending early after "
+            f"{state['patience']} rounds in a row without a better candidate. End your turn now "
+            "with a line telling the user it started; the studio sends you each round's brief "
+            "and checks the result on validation at the end."
+        )
+
     async def candidate_lesson(self, args: dict[str, Any]) -> dict[str, Any]:
         """The ``candidate_lesson`` tool: records what candidates' results taught.
 
@@ -1706,6 +1750,25 @@ class Tools:
                 guarded(self.adopt),
             ),
             ToolSpec(
+                "improve_start",
+                "Start an improvement campaign, when the user wants the search improved on your "
+                "own: the studio then gives you a turn per round, each with a brief of where the "
+                "campaign stands, until 'rounds' rounds or 'minutes' minutes are spent (5 rounds "
+                "when neither is given) or several rounds in a row bring nothing. At the end it "
+                "checks the incumbent against the revision it started from on validation "
+                "itself, keeps it only if BETTER there, and measures it on the test instances. "
+                "Needs train and validation instances, and the project files to be a revision "
+                "with one heuristic (run_solver).",
+                object_schema(
+                    {
+                        "rounds": {"type": "integer", "minimum": 1, "maximum": campaign.MAX_ROUNDS},
+                        "minutes": {"type": "number", "exclusiveMinimum": 0},
+                    },
+                    [],
+                ),
+                guarded(self.improve_start),
+            ),
+            ToolSpec(
                 "candidate_lesson",
                 "Record what candidates' results taught, a line each, the ones that lost above "
                 "all: why it did not help, and what that says about the next hypothesis. "
@@ -2017,6 +2080,8 @@ class AgentSession:
         busy: Whether the agent is on a turn.
         backend: The agent's session, while it is open.
         task: The task that owns the backend.
+        ending: The step between two turns of a campaign, while it runs: a campaign's final
+            check, which an interrupt cancels.
     """
 
     def __init__(self, project: Project, broadcast: Broadcast):
@@ -2033,6 +2098,9 @@ class AgentSession:
         self.busy = False
         self.backend: Backend | None = None
         self.task: asyncio.Task[None] | None = None
+        self.ending: asyncio.Task[campaign.Step | None] | None = None
+        # A campaign left under way by a studio that stopped has no one to take its rounds.
+        campaign.abandon(project)
 
     @property
     def agent(self) -> AgentName:
@@ -2141,8 +2209,18 @@ class AgentSession:
         return True
 
     async def interrupt(self) -> None:
-        """Stops the agent's turn, if it is on one."""
-        if self.backend and self.busy:
+        """Stops the agent's turn, if it is on one.
+
+        A campaign under way ends with it: its final check still runs, and a second interrupt
+        stops that too, leaving the files as they are.
+        """
+        if not self.busy:
+            return
+        if self.ending is not None:
+            self.ending.cancel()
+            return
+        campaign.request_stop(self.project)
+        if self.backend:
             await self.backend.interrupt()
 
     async def close(self) -> None:
@@ -2163,7 +2241,7 @@ class AgentSession:
             self.backend = await self._open(agent)
             while True:
                 text = await self.inbox.get()
-                await self._turn(self.backend, agent, text)
+                await self._turns(self.backend, agent, text)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -2216,7 +2294,68 @@ class AgentSession:
             self.project.set_meta(session_id=None)
             resume = None
 
-    async def _turn(self, backend: Backend, agent: AgentName, text: str) -> None:
+    async def _turns(self, backend: Backend, agent: AgentName, text: str) -> None:
+        """Takes the turn a message asks for, and then the turns of a campaign it started.
+
+        While a campaign is under way (campaign.py), each turn is followed by the studio's next
+        message, a round's brief or the campaign's end, and the agent takes a turn on it. The
+        GUI hears one ``TurnEnd``, after the last.
+
+        Args:
+            backend: The agent's session.
+            agent: The agent.
+            text: The user's message.
+        """
+        error, failed = None, True
+        try:
+            error = await self._turn(backend, agent, ChatEntry(role="user", text=text))
+            while state := campaign.load(self.project):
+                # A turn the user interrupted may end as a failed one; the campaign still ends
+                # with its check.
+                if not campaign.active(state) or (error and state["status"] != "stopping"):
+                    break
+                error = None
+                step = await self._campaign_step()
+                if step is None:
+                    break
+                entry = ChatEntry(role="studio", text=step.text)
+                if not step.turn:
+                    self.project.append_chat(entry)
+                    await self.broadcast(StudioMessage(text=step.text))
+                    break
+                error = await self._turn(backend, agent, entry)
+            failed = error is not None
+        finally:
+            if failed:
+                # The agent failed mid-campaign: nothing would take its next round.
+                campaign.abandon(self.project)
+            self.busy = False
+            await self.broadcast(TurnEnd(error=error))
+
+    async def _campaign_step(self) -> campaign.Step | None:
+        """What a campaign under way does after a turn; its final check can be interrupted.
+
+        Returns:
+            The studio's next message, or None when no campaign is under way or its final check
+            was interrupted.
+        """
+        files = self.project.files()
+        self.ending = asyncio.ensure_future(campaign.step(self.project, self.tools.bench_progress))
+        try:
+            return await self.ending
+        except asyncio.CancelledError:
+            if not self.ending.cancelled():
+                raise
+            # A second interrupt: the campaign ends unchecked.
+            campaign.abandon(self.project)
+            return None
+        finally:
+            self.ending = None
+            await self.broadcast(BenchChanged())
+            if self.project.files() != files:
+                await self.broadcast(FilesChanged(files=self.project.files()))
+
+    async def _turn(self, backend: Backend, agent: AgentName, said: ChatEntry) -> str | None:
         """Takes one turn, keeping the chat and the session to resume.
 
         A session that joins a conversation it was not part of gets the conversation first.
@@ -2224,23 +2363,25 @@ class AgentSession:
         Args:
             backend: The agent's session.
             agent: The agent.
-            text: The user's message.
+            said: What the agent is told: the user's message, or the studio's.
+
+        Returns:
+            Why the turn failed, or None.
         """
         history = self.project.chat()
         joining = bool(history) and not self.project.meta().get("session_id")
-        self.project.append_chat(ChatEntry(role="user", text=text))
+        self.project.append_chat(said)
+        if said.role == "studio":
+            await self.broadcast(StudioMessage(text=said.text))
         error = None
-        try:
-            async for event in backend.turn(with_history(history, text) if joining else text):
-                if isinstance(event, TurnResult):
-                    if event.session_id:
-                        self.project.set_meta(agent=agent, session_id=event.session_id)
-                    error = event.error
-                else:
-                    await self._show(event)
-        finally:
-            self.busy = False
-            await self.broadcast(TurnEnd(error=error))
+        async for event in backend.turn(with_history(history, said.text) if joining else said.text):
+            if isinstance(event, TurnResult):
+                if event.session_id:
+                    self.project.set_meta(agent=agent, session_id=event.session_id)
+                error = event.error
+            else:
+                await self._show(event)
+        return error
 
     async def _show(self, event: AssistantDelta | AssistantText | ToolActivity) -> None:
         """Shows an event of the turn in the chat, keeping what the chat keeps.

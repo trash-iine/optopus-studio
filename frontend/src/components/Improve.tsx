@@ -7,6 +7,8 @@ import type { BenchProgress } from "../generated/server-event";
 import {
   best,
   budget,
+  campaignOutcome,
+  campaignText,
   families,
   fate,
   fetchBench,
@@ -103,6 +105,20 @@ export function Improve({ project, version, progress }: Props) {
           );
         })}
       </section>
+      {bench.campaign && (
+        <section className="card">
+          <h3>
+            Campaign{" "}
+            <span className="sub">
+              {bench.campaign.status}
+              {bench.campaign.reason ? `: ${bench.campaign.reason}` : ""} · {campaignText(bench.campaign)}
+            </span>
+          </h3>
+          <div className={bench.campaign.kept ? "verdict-better" : undefined}>
+            {campaignOutcome(bench.campaign)}
+          </div>
+        </section>
+      )}
       {candidates.length > 0 && (
         <section className="card table-wrap">
           <h3>
