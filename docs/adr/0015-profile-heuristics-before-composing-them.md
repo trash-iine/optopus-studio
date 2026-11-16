@@ -1,6 +1,6 @@
 # 0015. Profile heuristics on the benchmark before composing them
 
-- Status: Accepted
+- Status: Accepted; amended by 0021 (the studio builds the usual compositions from a grammar)
 - Date: 2026-10-31
 
 ## Context

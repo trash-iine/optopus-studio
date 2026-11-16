@@ -27,7 +27,9 @@ coding agents.
   studio drives: a round per turn of the agent, each on a brief, and the final check on
   validation made by the studio (ADR 0019); `generator.py` runs `generate.py`;
   `tune.py` races a heuristic's settings, or several heuristics', on the benchmark, as irace
-  does, and reads the race for signs of what settings cannot fix (ADR 0014); `profiling.py` runs
+  does, and reads the race for signs of what settings cannot fix (ADR 0014); `compose.py`
+  builds the compositions of the leaves a `tune` is given a grammar of (ADR 0021);
+  `profiling.py` runs
   several heuristics on it and reads how each runs (who leads early, who ends best, who stalls)
   for compositions worth racing, and `guides/recipes.md`, the agent's `recipes` page, says which
   methods work on a kind of problem and how to compose them (ADR 0015).

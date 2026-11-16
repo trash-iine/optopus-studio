@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import json
 import math
 import random
@@ -36,7 +37,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
-from optopus_studio import bench
+from optopus_studio import bench, compose
 from optopus_studio.bench import ALPHA, ranks
 from optopus_studio.projects import Project, ProjectError, variants_of
 from optopus_studio.protocol import MAX_VARIANTS, BenchProgress, RunFinished, Variant
@@ -472,6 +473,7 @@ class Tuning:
         signs: What the race shows that settings cannot fix.
         progress: Called as runs finish, if given.
         done: The runs finished, for the progress.
+        note: What a grammar built of the leaves, in a line; empty without one.
     """
 
     id: int
@@ -497,6 +499,8 @@ class Tuning:
     progress: bench.Progress | None = None
     # Runs finished, for progress.
     done: int = 0
+    # What a grammar built, in a line, for the report.
+    note: str = ""
 
     @property
     def default(self) -> Setting:
@@ -747,6 +751,7 @@ async def tune(
     variant: str | None = None,
     seed: int | None = None,
     progress: bench.Progress | None = None,
+    grammar: Any = None,
 ) -> Tuning:
     """Races settings of revision ``rev`` on the train split and keeps the record.
 
@@ -762,6 +767,8 @@ async def tune(
         variant: The variant to tune; None when solve.json has only one, or ``space`` is a dict.
         seed: The race's seed; the benchmark's when None.
         progress: Called as runs finish, if given.
+        grammar: Instead of ``space``, the leaves to compose and race (compose.py): the race
+            then chooses among them and the compositions built of them.
 
     Returns:
         The tuning.
@@ -775,6 +782,16 @@ async def tune(
     if not entries:
         raise ProjectError("the benchmark has no train instances; add some with bench_add")
     where = f"revision {rev}"
+    composed: list[Variant] = []
+    note = ""
+    if grammar is not None:
+        if variant is not None:
+            raise ProjectError("a grammar names its leaves; leave variant out")
+        try:
+            solve = json.loads((project.rev_dir(rev) / "solve.json").read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ProjectError(f"{where} has no solve.json to compose from: {exc}") from exc
+        space, composed, note = compose.expand(project, rev, variants_of(solve), grammar, spec)
     if isinstance(space, dict):
         if variant is not None:
             raise ProjectError("a space by variant names the variants; leave variant out")
@@ -782,6 +799,11 @@ async def tune(
             raise ProjectError("give the parameters of each variant to choose among")
         variant = next(iter(space))
     side = await bench.side(project.rev_dir(rev), variant, where)
+    if composed:
+        # The compositions join the revision's variants, as if solve.json had listed them.
+        listed = [v.model_dump() for v in [*variants_of(side.solve), *composed]]
+        rest = {k: v for k, v in side.solve.items() if k not in ("heuristic", "heuristics")}
+        side = dataclasses.replace(side, solve={**rest, "heuristics": listed})
     spaces = parse_spaces(space, side, where)
     tuning = Tuning(
         id=0,
@@ -795,12 +817,17 @@ async def tune(
         instances=[(entry, bench.read_instance(project, entry)) for entry in entries],
         progress=progress,
     )
+    tuning.note = note
     rounds = 2 + int(math.log2(tuning.dimensions))
-    smallest = rounds * 2 * (FIRST_TEST + 1)
+    # Every variant's own settings race from the first iteration, and a test needs FIRST_TEST
+    # tasks of each before it can drop any.
+    smallest = rounds * max(2, len(spaces) if tuning.choosing else 0) * (FIRST_TEST + 1)
     if budget < smallest:
         raise ProjectError(
-            f"a budget of {budget} runs is too small for {tuning.dimensions} parameters: give "
-            f"at least {smallest}, better ten times that"
+            f"a budget of {budget} runs is too small for {tuning.dimensions} parameters"
+            + (f" over {len(spaces)} variants" if tuning.choosing else "")
+            + f": give at least {smallest}, better several times that"
+            + (", or a lower 'limit' in the grammar" if composed else "")
         )
     await _search(tuning, rounds)
     tuning.signs = signs(tuning)
@@ -1054,6 +1081,7 @@ async def tune_and_check(
     variant: str | None = None,
     seed: int | None = None,
     progress: bench.Progress | None = None,
+    grammar: Any = None,
 ) -> tuple[Tuning, bench.Evaluation | None]:
     """``tune``, then writes new best settings into solve.json and checks them.
 
@@ -1068,6 +1096,7 @@ async def tune_and_check(
         variant: The variant to tune; None when solve.json has only one, or ``space`` is a dict.
         seed: The race's seed; the benchmark's when None.
         progress: Called as runs finish, if given.
+        grammar: Instead of ``space``, the leaves to compose and race (compose.py).
 
     Returns:
         The tuning, and the evaluation on validation if there was one.
@@ -1076,7 +1105,7 @@ async def tune_and_check(
         ProjectError: The tuning failed, or the evaluation did; then the error says the project
             files hold the tuned settings.
     """
-    tuning = await tune(project, rev, space, budget, variant, seed, progress)
+    tuning = await tune(project, rev, space, budget, variant, seed, progress, grammar)
     if tuning.best is tuning.default:
         return tuning, None
     write_best(project, tuning)
@@ -1246,6 +1275,8 @@ def report(tuning: Tuning, evaluation: bench.Evaluation | None) -> str:
         "elites, best first: gain over the revision's settings on the runs both made (+ is "
         "better), mean rank in the last race",
     ]
+    if t.note:
+        lines.insert(1, t.note)
     alive, _, mean_ranks = _last_race(t)
     rank = {s.id: r for s, r in zip(alive, mean_ranks, strict=True)}
     for s in t.elites:
