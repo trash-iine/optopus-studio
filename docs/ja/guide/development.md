@@ -3,7 +3,7 @@
 > この文書は[英語版](../../guide/development.md)の翻訳です。食い違う場合は英語版が正です。
 
 このページは studio 自体を変更する人のためのものです。まず[はじめに](getting-started.md)のとおりに
-セットアップしてください。[`AGENTS.md`](../../../AGENTS.md)(英語)は、このページをコーディング
+セットアップしてください。[`AGENTS.md`](https://github.com/trash-iine/optopus-studio/blob/main/AGENTS.md)(英語)は、このページをコーディング
 エージェント向けに短くしたものです。両者は揃えておきます。
 
 ## 開発の流れ
@@ -71,7 +71,7 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
 | `frontend.py` | 両サーバーにビルド済みのフロントエンドを提供する |
 | `docs.py` | エージェントが読む optopus-py のガイドのページを取得する |
 | `frontend/` | React + Vite + ECharts。`src/generated/` は生成物なので編集しない |
-| `workers/rust/` | 移植が利用する Rust ワーカーのライブラリ([GUIDE.md](../../../workers/rust/GUIDE.md) はエージェントが読むもの) |
+| `workers/rust/` | 移植が利用する Rust ワーカーのライブラリ([GUIDE.md](https://github.com/trash-iine/optopus-studio/blob/main/workers/rust/GUIDE.md) はエージェントが読むもの) |
 | `examples/` | テストが解く 4 つの完成したプロジェクト |
 | `schema/` | `protocol.py` から生成した JSON Schema |
 | `docs/adr/` | 上の境界の背後にある判断 |
@@ -99,6 +99,10 @@ browser (React)  <-- WebSocket: ServerEvent / ClientEvent -->  backend (FastAPI,
   `examples/workload/model.py` の関数も、エージェントが見本として丸ごと読むので、要約だけにする。
 - コード、コメント、ドキュメントは英語。`docs/ja/` の日本語ガイドは `docs/guide/` の翻訳なので、両方を
   一緒に変える。
+- GitHub Pages は `docs/` だけを、Jekyll でビルドして公開する(`docs/_config.yml`)。`docs/` のページ
+  から `docs/` の別のページへは相対パスで、フォルダへはその `README.md` で、`docs/` の外(README、
+  `examples/`、ソース)へは GitHub の URL でリンクする。リンクの文字列は 1 行に収める。2 行にまたがると、
+  公開されたページに `.md` のアドレスが残る。`tests/test_docs.py` がこれらを確かめる。
 
 ## チェック
 

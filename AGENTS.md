@@ -47,7 +47,10 @@ coding agents.
 - `docs/adr/` — decisions. Read them before changing the boundaries they describe.
 - `docs/guide/` — the user and contributor guide, linked from `README.md`. Keep it in step with
   changes to the UI, the CLI, error messages and the checks. `docs/ja/guide/` is its Japanese
-  translation, page for page: change both together.
+  translation, page for page: change both together. GitHub Pages publishes `docs/` alone
+  (`docs/_config.yml`), so a page there links to a file outside `docs/` by its GitHub URL and
+  to a folder by its `README.md`, with the link's text on one line; `tests/test_docs.py` checks
+  it.
 
 ## Rules
 

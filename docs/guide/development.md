@@ -1,7 +1,7 @@
 # Development
 
 This page is for changing the studio itself. Set it up first as in
-[Getting started](getting-started.md). [`AGENTS.md`](../../AGENTS.md) is the short version of
+[Getting started](getting-started.md). [`AGENTS.md`](https://github.com/trash-iine/optopus-studio/blob/main/AGENTS.md) is the short version of
 this page for coding agents; keep the two in step.
 
 ## The development loop
@@ -70,7 +70,7 @@ replaces the Python worker without touching the GUI
 | `frontend.py` | serves the built frontend for both servers |
 | `docs.py` | fetches the optopus-py guide pages the agent reads |
 | `frontend/` | React + Vite + ECharts; `src/generated/` is generated, never edit it |
-| `workers/rust/` | the Rust worker library a port links ([GUIDE.md](../../workers/rust/GUIDE.md) is what the agent reads) |
+| `workers/rust/` | the Rust worker library a port links ([GUIDE.md](https://github.com/trash-iine/optopus-studio/blob/main/workers/rust/GUIDE.md) is what the agent reads) |
 | `examples/` | four complete projects that the tests solve |
 | `schema/` | JSON Schemas generated from `protocol.py` |
 | `docs/adr/` | the decisions behind the boundaries above |
@@ -99,6 +99,11 @@ replaces the Python worker without touching the GUI
   the functions in `examples/workload/model.py`, which the agent reads whole as an example.
 - English in code, comments and docs. The Japanese guide in `docs/ja/` is a translation of
   `docs/guide/`; change both together.
+- GitHub Pages publishes `docs/` alone, built with Jekyll (`docs/_config.yml`). A page there
+  links to another page of `docs/` by its relative path, to a folder by its `README.md`, and to
+  anything outside `docs/` (the README, `examples/`, the sources) by its GitHub URL. Keep a
+  link's text on one line, or the published page keeps the `.md` address.
+  `tests/test_docs.py` checks all of it.
 
 ## Checks
 

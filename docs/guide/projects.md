@@ -55,7 +55,7 @@ violation.
 
 Three runs of simulated annealing, each stopping after 5000 iterations, seeded so the same files
 give the same result. To compare heuristics, `"heuristics"` lists several, each with a label (see
-[`examples/workload/solve.json`](../../examples/workload/solve.json)).
+[`examples/workload/solve.json`](https://github.com/trash-iine/optopus-studio/blob/main/examples/workload/solve.json)).
 
 ### Starting from a solution
 
@@ -185,7 +185,7 @@ every evaluation, tuning and profile are kept in the project's `bench/` folder a
 
 ## The examples
 
-[`examples/`](../../examples/) holds four complete projects; the tests solve each one:
+[`examples/`](https://github.com/trash-iine/optopus-studio/tree/main/examples) holds four complete projects; the tests solve each one:
 
 | Example | Problem | Written as |
 |---|---|---|
@@ -220,4 +220,4 @@ uv run optopus-studio app optopus-app-<project>-r<rev>.zip   # http://127.0.0.1:
 Its user gives their own files, sets the values, solves, and sends you an exported case when
 something looks wrong. Attach that case with **+** in the studio and the agent reproduces it. To
 hand an app to someone without this repository, build it into a Docker image. Both are described
-in the [README](../../README.md#packaging-a-model-as-an-app).
+in the [README](https://github.com/trash-iine/optopus-studio/blob/main/README.md#packaging-a-model-as-an-app).

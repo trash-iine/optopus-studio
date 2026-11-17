@@ -110,8 +110,9 @@ revision. A heuristic's settings it tunes in
 one step, racing many of them on the benchmark, and which heuristic too when several could suit.
 To choose those, it profiles candidate heuristics on the benchmark and composes the ones that
 complement each other, from the studio's recipes, and from the web if you turn on **Web search**.
-It ends by checking the result on instances none of its choices were made on. The **Improve** tab lists every change it judged. [Improving the
-algorithm](projects.md#improving-the-algorithm) explains the verdicts.
+It ends by checking the result on instances none of its choices were made on. The **Improve**
+tab lists every change it judged.
+[Improving the algorithm](projects.md#improving-the-algorithm) explains the verdicts.
 
 ## Tips for good requests
 
@@ -126,7 +127,9 @@ algorithm](projects.md#improving-the-algorithm) explains the verdicts.
 
 ## What next
 
+- [One task, from a request to an app](walkthrough.md): one task through every feature, with
+  screenshots and what happens at each step.
 - [Projects, revisions and files](projects.md): what the agent wrote, and how to share a project
   or turn it into an app.
-- The four complete projects in [`examples/`](../../examples/) show what a finished model looks
+- The four complete projects in [`examples/`](https://github.com/trash-iine/optopus-studio/tree/main/examples) show what a finished model looks
   like.

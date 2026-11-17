@@ -1,0 +1,6 @@
+# GitHub Pages builds this folder with Jekyll (Settings > Pages: deploy from a branch, main,
+# /docs). Its default plugins turn the relative links between the pages into the pages' addresses
+# and serve a folder's README.md as its index, so the pages read the same here and on GitHub.
+title: optopus studio
+description: Chat-driven optimization on optopus
+theme: jekyll-theme-primer
