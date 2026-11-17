@@ -55,7 +55,7 @@
 
 焼きなまし法を 3 ラン、それぞれ 5000 反復で停止し、シードを固定しているので同じファイルからは同じ
 結果が出ます。ヒューリスティックを比べるときは `"heuristics"` にラベル付きで複数並べます
-([`examples/workload/solve.json`](../../../examples/workload/solve.json) を参照)。
+([`examples/workload/solve.json`](https://github.com/trash-iine/optopus-studio/blob/main/examples/workload/solve.json) を参照)。
 
 ### 解から始める
 
@@ -176,7 +176,7 @@ better の変更だけが求解されて新しいリビジョンになります�
 
 ## 例
 
-[`examples/`](../../../examples/) には 4 つの完成したプロジェクトがあり、テストがそれぞれを解いています。
+[`examples/`](https://github.com/trash-iine/optopus-studio/tree/main/examples) には 4 つの完成したプロジェクトがあり、テストがそれぞれを解いています。
 
 | 例 | 問題 | 書き方 |
 |---|---|---|
@@ -210,4 +210,4 @@ uv run optopus-studio app optopus-app-<project>-r<rev>.zip   # http://127.0.0.1:
 利用者は自分のファイルを渡し、値を設定して解きます。結果がおかしいときはケースをエクスポートして
 あなたに送ります。そのケースを studio で **+** から添付すると、エージェントが再現します。この
 リポジトリを持たない人に渡すときは、Docker イメージにビルドします。どちらも
-[README](../../../README.md#packaging-a-model-as-an-app)(英語)に書かれています。
+[README](https://github.com/trash-iine/optopus-studio/blob/main/README.md#packaging-a-model-as-an-app)(英語)に書かれています。

@@ -76,7 +76,7 @@ the agent which change to undo.
 
 **Package** downloads the selected revision as an app that runs without the agent. It needs the
 revision to have an `app.json`; ask the agent to "make this an app" first. See the
-[README](../../README.md#packaging-a-model-as-an-app).
+[README](https://github.com/trash-iine/optopus-studio/blob/main/README.md#packaging-a-model-as-an-app).
 
 ### Result
 

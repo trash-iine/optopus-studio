@@ -47,6 +47,8 @@ uv run optopus-studio                     # http://127.0.0.1:8765
 
 First time? [Getting started](docs/guide/getting-started.md) goes through each step with a check,
 and [Your first session](docs/guide/first-session.md) through the first model.
+[One task, from a request to an app](docs/guide/walkthrough.md) then follows one task through
+everything above, with screenshots: what you do on the screen, and what happens when you do.
 
 ## Documentation
 
@@ -56,6 +58,8 @@ The [guide](docs/guide/README.md) ([日本語](docs/ja/guide/README.md)):
   variables, where data is kept
 - [Your first session](docs/guide/first-session.md): ask, read the result, change, compare, bring
   your own data
+- [One task, from a request to an app](docs/guide/walkthrough.md): every feature on one task,
+  with what you do, what happens and what you see at each step
 - [The interface](docs/guide/interface.md): every button, tab and banner
 - [Projects, revisions and files](docs/guide/projects.md): what the agent writes, and the examples
 - [Troubleshooting](docs/guide/troubleshooting.md): symptoms and fixes

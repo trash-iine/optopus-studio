@@ -77,7 +77,7 @@
 
 **Package** は選んでいるリビジョンを、エージェント無しで動くアプリとしてダウンロードします。その
 リビジョンに `app.json` が必要なので、先にエージェントに「アプリにして」と頼みます。
-[README](../../../README.md#packaging-a-model-as-an-app)(英語)を参照してください。
+[README](https://github.com/trash-iine/optopus-studio/blob/main/README.md#packaging-a-model-as-an-app)(英語)を参照してください。
 
 ### Result
 
